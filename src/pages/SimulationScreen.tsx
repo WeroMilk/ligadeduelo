@@ -44,7 +44,6 @@ export default function SimulationScreen() {
   const engine = state.simulationEngine;
   const isPaused = state.currentScreen === 'itemSelect';
   const lastEventCount = useRef(0);
-  const championSkin = state.tournament?.championFrame ?? 'none';
 
   screenRef.current = state.currentScreen;
 
@@ -93,20 +92,8 @@ export default function SimulationScreen() {
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Background (+ skin de campeón en victorias de torneo)
-    if (championSkin === 'gold') {
-      const g = ctx.createLinearGradient(0, 0, CANVAS_W, CANVAS_H);
-      g.addColorStop(0, '#1A1508');
-      g.addColorStop(1, '#0F1525');
-      ctx.fillStyle = g;
-    } else if (championSkin === 'obsidian') {
-      const g = ctx.createLinearGradient(0, 0, CANVAS_W, CANVAS_H);
-      g.addColorStop(0, '#12081A');
-      g.addColorStop(1, '#0A0E1A');
-      ctx.fillStyle = g;
-    } else {
-      ctx.fillStyle = '#0F1525';
-    }
+    // Background
+    ctx.fillStyle = '#0F1525';
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
     // Grid
@@ -340,8 +327,8 @@ export default function SimulationScreen() {
         ctx.fillText(def.initials, x, y);
       }
 
-      ctx.strokeStyle = championSkin === 'gold' ? '#C9A84C' : championSkin === 'obsidian' ? '#9B59B6' : teamColor;
-      ctx.lineWidth = championSkin !== 'none' ? 3.5 : 2.5;
+      ctx.strokeStyle = teamColor;
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.arc(x, y, 14, 0, Math.PI * 2);
       ctx.stroke();
@@ -362,11 +349,18 @@ export default function SimulationScreen() {
       ctx.fillStyle = c.team === 'blue' ? '#F0E6D2' : '#FECACA';
       ctx.fillText(def.name, x, nameY);
     }
-  }, [snapshot, imagesReady, championSkin]);
+  }, [snapshot, imagesReady]);
 
   useEffect(() => {
     draw();
   }, [draw]);
+
+  // Pausar AUTO al abrir items o salir de la simulación
+  useEffect(() => {
+    if (isPaused || state.currentScreen !== 'simulation') {
+      window.clearTimeout(animationRef.current);
+    }
+  }, [isPaused, state.currentScreen]);
 
   const handleStep = () => {
     if (isPaused || !engine) return;
@@ -375,17 +369,18 @@ export default function SimulationScreen() {
 
   const handleAutoPlay = () => {
     if (!engine || isPaused || screenRef.current !== 'simulation') return;
-    cancelAnimationFrame(animationRef.current);
+    window.clearTimeout(animationRef.current);
     let steps = 0;
     const maxSteps = 600;
+    const STEP_MS = 420;
 
     const run = () => {
       if (steps >= maxSteps) return;
+      if (screenRef.current !== 'simulation') return;
       steps++;
       const result = startSimulationStep();
-      // Keep simulating until item draft or match end
       if (result === 'continue') {
-        animationRef.current = requestAnimationFrame(run);
+        animationRef.current = window.setTimeout(run, STEP_MS);
       }
     };
     run();
@@ -423,7 +418,7 @@ export default function SimulationScreen() {
         <div className="rounded-xl overflow-hidden border-2 border-[#1E2740] shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
           <canvas
             ref={canvasRef}
-            style={{ width: '100%', aspectRatio: `${CANVAS_W}/${CANVAS_H}`, maxHeight: '38dvh' }}
+            style={{ width: '100%', aspectRatio: `${CANVAS_W}/${CANVAS_H}`, maxHeight: '46dvh' }}
             className="block mx-auto w-full bg-[#0F1525]"
           />
         </div>
@@ -451,11 +446,9 @@ export default function SimulationScreen() {
             AUTO
           </button>
         </div>
-      </div>
-
-      {/* Feed de combate */}
-      <div className="shrink-0 px-3 pb-1 max-w-lg mx-auto w-full max-h-[22dvh] overflow-y-auto">
-        <CombatFeed events={snapshot?.events || []} max={5} />
+        <div className="mt-2 max-h-[14dvh] overflow-y-auto">
+          <CombatFeed events={snapshot?.events || []} max={4} />
+        </div>
       </div>
 
       {/* Player Champions Panel */}

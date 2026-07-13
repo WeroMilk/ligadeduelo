@@ -160,25 +160,29 @@ export default function ItemSelect() {
           </div>
         )}
 
-        {/* Item grid: 2 cols mobile, 4 cols desktop */}
+        {/* Item grid: 2 cols mobile, 4 cols desktop — misma altura */}
         {!replaceMode && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pb-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pb-2 items-stretch">
             {ITEMS.map(item => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => handleSelectItem(item.id)}
-                className="bg-[#0A0E1A] rounded-xl border-2 border-[#2A3550] hover:border-[#C9A84C] focus:border-[#C9A84C] focus:outline-none p-2.5 min-h-[88px] flex flex-col items-center justify-center gap-1 active:scale-95 transition-all"
+                className="bg-[#0A0E1A] rounded-xl border-2 border-[#2A3550] hover:border-[#C9A84C] focus:border-[#C9A84C] focus:outline-none p-2.5 h-[124px] sm:h-[132px] flex flex-col items-center justify-start gap-1.5 active:scale-95 transition-all"
               >
-                <img
-                  src={item.image}
-                  alt={item.name}
-                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover"
-                />
-                <span className="text-[#F0E6D2] text-[11px] font-bold text-center leading-tight">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-lg overflow-hidden bg-[#141B2D]">
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <span className="text-[#F0E6D2] text-[11px] font-bold text-center leading-tight h-8 w-full line-clamp-2 flex items-center justify-center">
                   {item.name}
                 </span>
-                <span className="text-[#8B9BB4] text-[10px] text-center">{item.description}</span>
+                <span className="text-[#8B9BB4] text-[10px] text-center h-4 w-full truncate leading-none">
+                  {item.description}
+                </span>
               </button>
             ))}
           </div>

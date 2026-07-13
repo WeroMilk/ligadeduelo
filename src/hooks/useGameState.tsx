@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useCallback, type ReactNode } from 'react';
-import type { GameScreen, Champion, TeamData, Tournament, Match, SimulationSnapshot, BuffId, TeamColor } from '@/types/game';
+import type { GameScreen, Champion, TeamData, Tournament, Match, SimulationSnapshot, BuffId } from '@/types/game';
 import { GameEngine, createTeam, simulateAIMatch } from '@/lib/game-engine';
 import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats, RIVAL_TEAM_ID, RIVAL_TEAM_NAME } from '@/lib/game-data';
 import { playVictorySound } from '@/lib/sounds';
@@ -20,8 +20,6 @@ interface GameState {
   pendingItemTotal: number;
   matchResult: 'win' | 'lose' | null;
   selectedBuffId: BuffId | null;
-  spectatorSpeed: number;
-  lastSpectatorWinner: TeamColor | null;
   defeatedRival: boolean;
 }
 
@@ -39,8 +37,6 @@ const initialState: GameState = {
   pendingItemTotal: 0,
   matchResult: null,
   selectedBuffId: null,
-  spectatorSpeed: 3,
-  lastSpectatorWinner: null,
   defeatedRival: false,
 };
 
@@ -63,10 +59,7 @@ type GameAction =
   | { type: 'RESUME_SIMULATION' }
   | { type: 'MATCH_END'; result: 'win' | 'lose' }
   | { type: 'ADVANCE_BRACKET' }
-  | { type: 'START_SPECTATE'; matchId: string }
-  | { type: 'SPECTATOR_END'; winner: TeamColor }
-  | { type: 'SPECTATOR_VOTE'; votedTeam: 'A' | 'B' }
-  | { type: 'SKIP_SPECTATE_RESOLVE'; matchId: string }
+  | { type: 'SIMULATE_ONE_AI_MATCH' }
   | { type: 'RESET_TOURNAMENT' };
 
 function generateAIChampions(): string[] {
@@ -403,63 +396,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    case 'START_SPECTATE': {
-      if (!state.tournament) return state;
-      const round = state.tournament.rounds[state.tournament.currentRound];
-      const match = round.matches.find(m => m.id === action.matchId);
-      if (!match || match.isPlayerMatch) return state;
-      const engine = new GameEngine(match.teamA, match.teamB);
-      return {
-        ...state,
-        currentMatch: match,
-        simulationEngine: engine,
-        simulationSnapshot: engine.getInitialSnapshot(),
-        currentScreen: 'spectator',
-        lastSpectatorWinner: null,
-      };
-    }
-
-    case 'SPECTATOR_END':
-      return {
-        ...state,
-        lastSpectatorWinner: action.winner,
-        simulationSnapshot: state.simulationSnapshot
-          ? { ...state.simulationSnapshot, isComplete: true, winner: action.winner }
-          : state.simulationSnapshot,
-        currentScreen: 'spectatorVote',
-      };
-
-    case 'SPECTATOR_VOTE': {
-      if (!state.tournament || !state.currentMatch) return state;
-      const winner = state.lastSpectatorWinner ?? state.simulationSnapshot?.winner;
-      if (!winner) return state;
-      const rounds = state.tournament.rounds.map((round, idx) => {
-        if (idx !== state.tournament!.currentRound) return round;
-        return {
-          ...round,
-          matches: round.matches.map(m =>
-            m.id === state.currentMatch!.id
-              ? { ...m, winner, isSimulated: true }
-              : m
-          ),
-        };
-      });
-      return {
-        ...state,
-        tournament: { ...state.tournament, rounds },
-        currentMatch: null,
-        simulationEngine: null,
-        simulationSnapshot: null,
-        currentScreen: 'bracket',
-        lastSpectatorWinner: null,
-      };
-    }
-
-    case 'SKIP_SPECTATE_RESOLVE': {
+    case 'SIMULATE_ONE_AI_MATCH': {
       if (!state.tournament) return state;
       const rounds = state.tournament.rounds.map((round, idx) => {
         if (idx !== state.tournament!.currentRound) return round;
-        const pendingIdx = round.matches.findIndex(m => m.id === action.matchId);
+        const pendingIdx = round.matches.findIndex(m => !m.isPlayerMatch && m.winner === null);
         if (pendingIdx < 0) return round;
         const match = round.matches[pendingIdx];
         const result = simulateAIMatch(match.teamA, match.teamB);
@@ -487,7 +428,6 @@ interface GameContextType {
   state: GameState;
   dispatch: React.Dispatch<GameAction>;
   startSimulationStep: () => 'continue' | 'items' | 'ended';
-  spectatorStep: () => 'continue' | 'ended';
 }
 
 const GameContext = createContext<GameContextType | null>(null);
@@ -519,22 +459,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return 'continue';
   }, [state.simulationEngine]);
 
-  const spectatorStep = useCallback((): 'continue' | 'ended' => {
-    if (!state.simulationEngine) return 'ended';
-    // ×3: tres pasos por tick
-    let snapshot = state.simulationEngine.step();
-    if (!snapshot.isComplete) snapshot = state.simulationEngine.step();
-    if (!snapshot.isComplete) snapshot = state.simulationEngine.step();
-    dispatch({ type: 'SIMULATION_STEP', snapshot });
-    if (snapshot.isComplete && snapshot.winner) {
-      dispatch({ type: 'SPECTATOR_END', winner: snapshot.winner });
-      return 'ended';
-    }
-    return 'continue';
-  }, [state.simulationEngine]);
-
   return (
-    <GameContext.Provider value={{ state, dispatch, startSimulationStep, spectatorStep }}>
+    <GameContext.Provider value={{ state, dispatch, startSimulationStep }}>
       {children}
     </GameContext.Provider>
   );

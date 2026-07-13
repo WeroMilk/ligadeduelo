@@ -8,8 +8,6 @@ import VictoryScreen from '@/pages/VictoryScreen';
 import DefeatScreen from '@/pages/DefeatScreen';
 import TournamentWin from '@/pages/TournamentWin';
 import BuffSelect from '@/pages/BuffSelect';
-import SpectatorScreen from '@/pages/SpectatorScreen';
-import SpectatorVote from '@/pages/SpectatorVote';
 
 function GameRouter() {
   const { state } = useGame();
@@ -32,10 +30,6 @@ function GameRouter() {
           <ItemSelect />
         </>
       );
-    case 'spectator':
-      return <SpectatorScreen />;
-    case 'spectatorVote':
-      return <SpectatorVote />;
     case 'victory':
       return <VictoryScreen />;
     case 'defeat':

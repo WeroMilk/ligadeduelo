@@ -9,8 +9,6 @@ export type GameScreen =
   | 'buffSelect'
   | 'simulation'
   | 'itemSelect'
-  | 'spectator'
-  | 'spectatorVote'
   | 'victory'
   | 'defeat'
   | 'tournamentWin';
