@@ -16,7 +16,7 @@ export default function DefeatScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0E1A] flex flex-col items-center justify-center relative overflow-hidden px-4">
+    <div className="min-h-app bg-[#0A0E1A] flex flex-col items-center justify-center relative overflow-y-auto px-4 py-8 safe-top safe-bottom">
       {/* Red vignette */}
       <div className="absolute inset-0 bg-gradient-radial from-[#E74C3C]/10 via-transparent to-transparent" />
 

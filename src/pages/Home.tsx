@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGame } from '@/hooks/useGameState';
+import { preloadChampionImages } from '@/lib/preload-images';
 import { Swords, Sparkles } from 'lucide-react';
 
 export default function Home() {
@@ -8,6 +9,7 @@ export default function Home() {
   const [particles, setParticles] = useState<{ id: number; x: number; y: number; delay: number; size: number }[]>([]);
 
   useEffect(() => {
+    preloadChampionImages();
     const p = Array.from({ length: 20 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
@@ -24,7 +26,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0E1A] flex flex-col items-center justify-center relative overflow-hidden px-4">
+    <div className="min-h-app bg-[#0A0E1A] flex flex-col items-center justify-center relative overflow-y-auto px-4 py-8 safe-top safe-bottom">
       {/* Animated particles */}
       <div className="absolute inset-0 pointer-events-none">
         {particles.map(p => (

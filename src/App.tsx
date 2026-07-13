@@ -7,6 +7,9 @@ import ItemSelect from '@/pages/ItemSelect';
 import VictoryScreen from '@/pages/VictoryScreen';
 import DefeatScreen from '@/pages/DefeatScreen';
 import TournamentWin from '@/pages/TournamentWin';
+import BuffSelect from '@/pages/BuffSelect';
+import SpectatorScreen from '@/pages/SpectatorScreen';
+import SpectatorVote from '@/pages/SpectatorVote';
 
 function GameRouter() {
   const { state } = useGame();
@@ -18,6 +21,8 @@ function GameRouter() {
       return <ChampionSelect />;
     case 'bracket':
       return <BracketScreen />;
+    case 'buffSelect':
+      return <BuffSelect />;
     case 'simulation':
       return <SimulationScreen />;
     case 'itemSelect':
@@ -27,6 +32,10 @@ function GameRouter() {
           <ItemSelect />
         </>
       );
+    case 'spectator':
+      return <SpectatorScreen />;
+    case 'spectatorVote':
+      return <SpectatorVote />;
     case 'victory':
       return <VictoryScreen />;
     case 'defeat':
@@ -41,7 +50,7 @@ function GameRouter() {
 export default function App() {
   return (
     <GameProvider>
-      <div className="min-h-screen bg-[#0A0E1A] text-[#F0E6D2]">
+      <div className="min-h-app bg-[#0A0E1A] text-[#F0E6D2] safe-x">
         <GameRouter />
       </div>
     </GameProvider>

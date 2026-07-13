@@ -1,37 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useGame } from '@/hooks/useGameState';
-import { CHAMPIONS } from '@/lib/game-data';
-import { Trophy, Swords, ChevronRight, Crown, User } from 'lucide-react';
+import { CHAMPIONS, RIVAL_TEAM_ID } from '@/lib/game-data';
+import { Trophy, Swords, ChevronRight, Crown, User, Eye, Ghost } from 'lucide-react';
 
 export default function BracketScreen() {
   const { state, dispatch } = useGame();
-  const [simulating, setSimulating] = useState(false);
 
   const tournament = state.tournament;
-  if (!tournament) return null;
+  const currentRoundIdx = tournament?.currentRound ?? 0;
+  const currentRound = tournament?.rounds[currentRoundIdx];
+  const winnersKey = currentRound?.matches.map(m => `${m.id}:${m.winner ?? '-'}`).join('|') ?? '';
 
-  const currentRoundIdx = tournament.currentRound;
-  const currentRound = tournament.rounds[currentRoundIdx];
-
-  // Simulate AI matches on mount
+  // Abrir espectador del siguiente partido IA
   useEffect(() => {
-    if (currentRound && !simulating) {
-      const hasUnsimulatedAI = currentRound.matches.some(m => !m.isPlayerMatch && m.winner === null);
-      if (hasUnsimulatedAI) {
-        setSimulating(true);
-        const timer = setTimeout(() => {
-          dispatch({ type: 'SIMULATE_AI_MATCHES' });
-          setSimulating(false);
-        }, 800);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [currentRoundIdx]);
+    if (!currentRound) return;
+    const next = currentRound.matches.find(m => !m.isPlayerMatch && m.winner === null);
+    if (!next) return;
+    const timer = setTimeout(() => {
+      dispatch({ type: 'START_SPECTATE', matchId: next.id });
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [currentRoundIdx, winnersKey, dispatch, currentRound]);
 
-  const playerMatch = currentRound?.matches.find(m => m.isPlayerMatch && m.winner === null);
+  if (!tournament || !currentRound) return null;
+
+  const playerMatch = currentRound.matches.find(m => m.isPlayerMatch && m.winner === null);
+  const pendingAi = currentRound.matches.some(m => !m.isPlayerMatch && m.winner === null);
+  const simulating = pendingAi;
 
   const handleStartMatch = (matchId: string) => {
-    dispatch({ type: 'START_MATCH', matchId });
+    if (simulating) return;
+    dispatch({ type: 'PREPARE_MATCH', matchId });
   };
 
   const handleAdvance = () => {
@@ -43,13 +42,14 @@ export default function BracketScreen() {
     return match.winner === 'blue' ? match.teamA.name : match.teamB.name;
   };
 
+  const isRivalTeam = (id: string) => id === RIVAL_TEAM_ID || id === tournament.rivalTeamId;
+
   return (
-    <div className="min-h-screen bg-[#0A0E1A] flex flex-col">
-      {/* Header */}
-      <div className="bg-[#0A0E1A]/95 backdrop-blur-sm border-b border-[#1E2740] px-4 py-4">
+    <div className="h-app bg-[#0A0E1A] flex flex-col overflow-hidden">
+      <div className="shrink-0 bg-[#0A0E1A]/95 backdrop-blur-sm border-b border-[#1E2740] px-4 py-3 safe-top">
         <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
               <h2 className="text-[#F0E6D2] font-bold text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
                 Torneo
               </h2>
@@ -57,15 +57,22 @@ export default function BracketScreen() {
                 {currentRound?.roundName || ''} · Ronda {currentRoundIdx + 1}/4
               </p>
             </div>
-            <div className="flex items-center gap-2 bg-[#141B2D] rounded-lg px-3 py-2">
-              <Crown className="w-4 h-4 text-[#C9A84C]" />
-              <span className="text-[#C9A84C] font-bold text-sm">
+            <div className="flex items-center gap-2 bg-[#141B2D] rounded-lg px-3 py-2 max-w-[45%] min-w-0">
+              <Crown className="w-4 h-4 text-[#C9A84C] shrink-0" />
+              <span className="text-[#C9A84C] font-bold text-sm truncate">
                 {state.playerTeamName || 'Mi Equipo'}
               </span>
             </div>
           </div>
 
-          {/* Round indicator */}
+          <div className="mt-2 flex items-center gap-2 rounded-lg border border-[#6B1FA6]/35 bg-[#6B1FA6]/10 px-2.5 py-1.5">
+            <Ghost className="w-3.5 h-3.5 text-[#C39BD3] shrink-0" />
+            <p className="text-[11px] text-[#C39BD3] truncate">
+              Rival recurrente: <span className="font-bold">La Sombra Eterna</span>
+              {state.defeatedRival ? ' · ¡vencida!' : ' · te persigue en el bracket'}
+            </p>
+          </div>
+
           <div className="flex gap-2 mt-3">
             {['Octavos', 'Cuartos', 'Semifinal', 'Final'].map((name, i) => (
               <div
@@ -81,13 +88,12 @@ export default function BracketScreen() {
         </div>
       </div>
 
-      {/* Matches */}
-      <div className="flex-1 px-4 py-4 max-w-lg mx-auto w-full">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 max-w-lg mx-auto w-full safe-bottom">
         {simulating && (
-          <div className="text-center py-4 mb-4">
-            <div className="inline-flex items-center gap-2 text-[#8B9BB4]">
-              <div className="w-4 h-4 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
-              Simulando partidos IA...
+          <div className="text-center py-2 mb-3">
+            <div className="inline-flex items-center gap-2 text-[#8B9BB4] text-sm">
+              <Eye className="w-4 h-4 text-[#C9A84C]" />
+              Abriendo espectáculo IA…
             </div>
           </div>
         )}
@@ -97,23 +103,29 @@ export default function BracketScreen() {
             const isPlayer = match.isPlayerMatch;
             const winner = match.winner;
             const winnerName = getMatchWinner(match);
+            const hasRival = isRivalTeam(match.teamA.id) || isRivalTeam(match.teamB.id);
 
             return (
               <div
                 key={match.id}
                 className={`rounded-xl border-2 p-4 transition-all ${
-                  isPlayer && !winner
+                  hasRival && !winner
+                    ? 'border-[#6B1FA6] bg-[#6B1FA6]/10 shadow-[0_0_18px_rgba(107,31,166,0.2)]'
+                    : isPlayer && !winner
                     ? 'border-[#C9A84C] bg-[#C9A84C]/5 shadow-[0_0_20px_rgba(201,168,76,0.1)]'
                     : winner
                     ? 'border-[#1E2740] bg-[#0D111F] opacity-60'
                     : 'border-[#1E2740] bg-[#141B2D]'
                 }`}
               >
-                {/* Teams */}
-                <div className="flex items-center justify-between">
-                  {/* Team A */}
-                  <div className={`flex items-center gap-2 flex-1 ${winner === 'red' ? 'opacity-40' : ''}`}>
-                    <div className="flex -space-x-1.5">
+                {hasRival && (
+                  <p className="text-[10px] text-[#C39BD3] font-bold uppercase tracking-wider mb-2 flex items-center gap-1">
+                    <Ghost className="w-3 h-3" /> Rivalidad
+                  </p>
+                )}
+                <div className="flex items-center justify-between gap-1">
+                  <div className={`flex items-center gap-2 flex-1 min-w-0 ${winner === 'red' ? 'opacity-40' : ''}`}>
+                    <div className="flex -space-x-1.5 shrink-0">
                       {match.teamA.champions.slice(0, 3).map(c => {
                         const def = CHAMPIONS.find(ch => ch.id === c.defId);
                         return def?.image ? (
@@ -125,13 +137,15 @@ export default function BracketScreen() {
                         );
                       })}
                     </div>
-                    <span className={`text-sm font-bold truncate ${match.teamA.id === 'player' ? 'text-[#C9A84C]' : 'text-[#F0E6D2]'}`}>
+                    <span className={`text-sm font-bold truncate min-w-0 ${
+                      match.teamA.id === 'player' ? 'text-[#C9A84C]' :
+                      isRivalTeam(match.teamA.id) ? 'text-[#C39BD3]' : 'text-[#F0E6D2]'
+                    }`}>
                       {match.teamA.name}
                     </span>
                   </div>
 
-                  {/* VS / Winner */}
-                  <div className="mx-3 flex-shrink-0">
+                  <div className="mx-2 flex-shrink-0">
                     {winner ? (
                       <Trophy className="w-4 h-4 text-[#C9A84C]" />
                     ) : (
@@ -139,12 +153,14 @@ export default function BracketScreen() {
                     )}
                   </div>
 
-                  {/* Team B */}
-                  <div className={`flex items-center gap-2 flex-1 justify-end ${winner === 'blue' ? 'opacity-40' : ''}`}>
-                    <span className={`text-sm font-bold truncate text-right ${match.teamB.id === 'player' ? 'text-[#C9A84C]' : 'text-[#F0E6D2]'}`}>
+                  <div className={`flex items-center gap-2 flex-1 min-w-0 justify-end ${winner === 'blue' ? 'opacity-40' : ''}`}>
+                    <span className={`text-sm font-bold truncate min-w-0 text-right ${
+                      match.teamB.id === 'player' ? 'text-[#C9A84C]' :
+                      isRivalTeam(match.teamB.id) ? 'text-[#C39BD3]' : 'text-[#F0E6D2]'
+                    }`}>
                       {match.teamB.name}
                     </span>
-                    <div className="flex -space-x-1.5">
+                    <div className="flex -space-x-1.5 shrink-0">
                       {match.teamB.champions.slice(0, 3).map(c => {
                         const def = CHAMPIONS.find(ch => ch.id === c.defId);
                         return def?.image ? (
@@ -159,28 +175,33 @@ export default function BracketScreen() {
                   </div>
                 </div>
 
-                {/* Result or Action */}
                 {winner ? (
                   <p className="text-center text-[#C9A84C] text-xs mt-2 font-bold">
                     Ganador: {winnerName}
                   </p>
                 ) : isPlayer ? (
                   <button
+                    type="button"
                     onClick={() => handleStartMatch(match.id)}
-                    className="w-full mt-3 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                    disabled={simulating}
+                    className="w-full mt-3 min-h-11 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold py-3 rounded-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-40"
                   >
                     <Swords className="w-4 h-4" />
                     JUGAR PARTIDO
                   </button>
-                ) : null}
+                ) : (
+                  <p className="text-center text-[#4A5570] text-xs mt-2">
+                    En cola de espectador…
+                  </p>
+                )}
               </div>
             );
           })}
         </div>
 
-        {/* Advance button if no player match */}
         {!playerMatch && currentRound?.matches.every(m => m.winner !== null) && (
           <button
+            type="button"
             onClick={handleAdvance}
             className="w-full mt-4 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform shadow-[0_4px_20px_rgba(201,168,76,0.3)]"
           >

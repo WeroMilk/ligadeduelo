@@ -2,6 +2,10 @@ import { useRef, useEffect, useCallback, useState } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import { getChampionDef, getItemDef } from '@/lib/game-engine';
 import { CHAMPIONS } from '@/lib/game-data';
+import CombatFeed from '@/components/CombatFeed';
+import {
+  playKillSound, playFirstBloodSound, playMultiKillSound, playTowerSound,
+} from '@/lib/sounds';
 import { Heart, Droplets, SkipForward, Play, User } from 'lucide-react';
 
 // Canvas dimensions
@@ -39,8 +43,24 @@ export default function SimulationScreen() {
   const snapshot = state.simulationSnapshot;
   const engine = state.simulationEngine;
   const isPaused = state.currentScreen === 'itemSelect';
+  const lastEventCount = useRef(0);
+  const championSkin = state.tournament?.championFrame ?? 'none';
 
   screenRef.current = state.currentScreen;
+
+  useEffect(() => {
+    if (!snapshot) return;
+    const events = snapshot.events;
+    if (events.length <= lastEventCount.current) return;
+    const newOnes = events.slice(lastEventCount.current);
+    for (const e of newOnes) {
+      if (e.type === 'first_blood') playFirstBloodSound();
+      else if (e.type === 'double_kill' || e.type === 'triple_kill' || e.type === 'quadra_kill') playMultiKillSound();
+      else if (e.type === 'kill') playKillSound();
+      else if (e.type === 'tower_destroyed' || e.type === 'inhibitor_destroyed') playTowerSound();
+    }
+    lastEventCount.current = events.length;
+  }, [snapshot?.events]);
 
   useEffect(() => {
     preloadChampionImages();
@@ -65,12 +85,28 @@ export default function SimulationScreen() {
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = CANVAS_W * dpr;
-    canvas.height = CANVAS_H * dpr;
+    const bw = Math.floor(CANVAS_W * dpr);
+    const bh = Math.floor(CANVAS_H * dpr);
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.width = bw;
+      canvas.height = bh;
+    }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Background
-    ctx.fillStyle = '#0F1525';
+    // Background (+ skin de campeón en victorias de torneo)
+    if (championSkin === 'gold') {
+      const g = ctx.createLinearGradient(0, 0, CANVAS_W, CANVAS_H);
+      g.addColorStop(0, '#1A1508');
+      g.addColorStop(1, '#0F1525');
+      ctx.fillStyle = g;
+    } else if (championSkin === 'obsidian') {
+      const g = ctx.createLinearGradient(0, 0, CANVAS_W, CANVAS_H);
+      g.addColorStop(0, '#12081A');
+      g.addColorStop(1, '#0A0E1A');
+      ctx.fillStyle = g;
+    } else {
+      ctx.fillStyle = '#0F1525';
+    }
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
     // Grid
@@ -222,13 +258,56 @@ export default function SimulationScreen() {
       ctx.fill();
     }
 
-    // Draw champions
-    for (const c of snapshot.champions) {
-      const def = getChampionDef(c.defId);
-      let x: number, y: number;
+    // Draw champions (con separación visual y nombres para todos)
+    type DrawChamp = {
+      c: (typeof snapshot.champions)[number];
+      def: ReturnType<typeof getChampionDef>;
+      x: number;
+      y: number;
+      nameY: number;
+    };
 
-      x = c.position.x * CANVAS_W;
-      y = laneY[Math.max(0, Math.min(2, c.position.lane))];
+    const drawList: DrawChamp[] = snapshot.champions.map(c => {
+      const def = getChampionDef(c.defId);
+      const lane = Math.max(0, Math.min(2, c.position.lane));
+      return {
+        c,
+        def,
+        x: c.position.x * CANVAS_W,
+        y: laneY[lane],
+        nameY: laneY[lane] - 26,
+      };
+    });
+
+    // Separación visual por línea (pixeles) por si aún quedan muy cerca
+    const minPx = 38;
+    for (let lane = 0; lane < 3; lane++) {
+      const row = drawList
+        .filter(d => d.c.isAlive && Math.max(0, Math.min(2, d.c.position.lane)) === lane)
+        .sort((a, b) => a.x - b.x);
+      for (let pass = 0; pass < 2; pass++) {
+        for (let i = 1; i < row.length; i++) {
+          if (row[i].x - row[i - 1].x < minPx) {
+            row[i].x = Math.min(CANVAS_W - 20, row[i - 1].x + minPx);
+          }
+        }
+        for (let i = row.length - 2; i >= 0; i--) {
+          if (row[i + 1].x - row[i].x < minPx) {
+            row[i].x = Math.max(20, row[i + 1].x - minPx);
+          }
+        }
+      }
+      // Alternar altura del nombre si siguen muy cerca (evita texto encima de texto)
+      for (let i = 1; i < row.length; i++) {
+        if (row[i].x - row[i - 1].x < minPx + 6) {
+          row[i].nameY = row[i].y - (i % 2 === 0 ? 26 : 38);
+          row[i - 1].nameY = row[i - 1].y - 26;
+        }
+      }
+    }
+
+    for (const d of drawList) {
+      const { c, def, x, y, nameY } = d;
 
       // Shadow
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -238,7 +317,6 @@ export default function SimulationScreen() {
 
       if (!c.isAlive) continue;
 
-      // Avatar circle
       const teamColor = c.team === 'blue' ? '#3498DB' : '#E74C3C';
       const radius = 14;
       const img = def.image ? getCachedImage(def.image) : null;
@@ -262,29 +340,29 @@ export default function SimulationScreen() {
         ctx.fillText(def.initials, x, y);
       }
 
-      // Border by team
-      ctx.strokeStyle = teamColor;
-      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = championSkin === 'gold' ? '#C9A84C' : championSkin === 'obsidian' ? '#9B59B6' : teamColor;
+      ctx.lineWidth = championSkin !== 'none' ? 3.5 : 2.5;
       ctx.beginPath();
       ctx.arc(x, y, 14, 0, Math.PI * 2);
       ctx.stroke();
 
-      // HP bar
       const hpPct = c.stats.hp / c.stats.maxHp;
       ctx.fillStyle = '#333';
       ctx.fillRect(x - 16, y - 22, 32, 5);
       ctx.fillStyle = hpPct > 0.5 ? '#2ECC71' : hpPct > 0.25 ? '#F39C12' : '#E74C3C';
       ctx.fillRect(x - 16, y - 22, 32 * hpPct, 5);
 
-      // Name for player team
-      if (c.team === 'blue') {
-        ctx.fillStyle = '#F0E6D2';
-        ctx.font = 'bold 9px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(def.name, x, y - 26);
-      }
+      // Nombre encima de todos los campeones
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(10,14,26,0.85)';
+      ctx.strokeText(def.name, x, nameY);
+      ctx.fillStyle = c.team === 'blue' ? '#F0E6D2' : '#FECACA';
+      ctx.fillText(def.name, x, nameY);
     }
-  }, [snapshot, imagesReady]);
+  }, [snapshot, imagesReady, championSkin]);
 
   useEffect(() => {
     draw();
@@ -320,20 +398,20 @@ export default function SimulationScreen() {
   const isComplete = snapshot?.isComplete || false;
 
   return (
-    <div className="min-h-screen bg-[#0A0E1A] flex flex-col">
+    <div className="h-app bg-[#0A0E1A] flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="bg-[#0A0E1A]/95 backdrop-blur-sm border-b border-[#1E2740] px-4 py-3">
-        <div className="max-w-lg mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-[#3498DB] font-bold text-sm">
+      <div className="shrink-0 bg-[#0A0E1A]/95 backdrop-blur-sm border-b border-[#1E2740] px-3 py-2.5 safe-top">
+        <div className="max-w-lg mx-auto flex items-center gap-2">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <span className="text-[#3498DB] font-bold text-xs sm:text-sm truncate">
               {state.playerTeamName || 'Mi Equipo'}
             </span>
-            <span className="text-[#C9A84C] font-bold">{blueTeam.kills}</span>
+            <span className="text-[#C9A84C] font-bold shrink-0">{blueTeam.kills}</span>
           </div>
-          <span className="text-[#8B9BB4] text-xs">VS</span>
-          <div className="flex items-center gap-2">
-            <span className="text-[#E74C3C] font-bold">{redTeam.kills}</span>
-            <span className="text-[#8B9BB4] font-bold text-sm">
+          <span className="text-[#8B9BB4] text-[10px] shrink-0">VS</span>
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-end">
+            <span className="text-[#E74C3C] font-bold shrink-0">{redTeam.kills}</span>
+            <span className="text-[#8B9BB4] font-bold text-xs sm:text-sm truncate">
               {state.currentMatch?.teamB.name || 'Rival'}
             </span>
           </div>
@@ -341,31 +419,33 @@ export default function SimulationScreen() {
       </div>
 
       {/* Canvas */}
-      <div className="px-4 pt-4 max-w-lg mx-auto w-full">
+      <div className="shrink-0 px-3 pt-2 max-w-lg mx-auto w-full">
         <div className="rounded-xl overflow-hidden border-2 border-[#1E2740] shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
           <canvas
             ref={canvasRef}
-            style={{ width: '100%', aspectRatio: `${CANVAS_W}/${CANVAS_H}` }}
-            className="block"
+            style={{ width: '100%', aspectRatio: `${CANVAS_W}/${CANVAS_H}`, maxHeight: '38dvh' }}
+            className="block mx-auto w-full bg-[#0F1525]"
           />
         </div>
       </div>
 
       {/* Controls */}
-      <div className="px-4 py-3 max-w-lg mx-auto w-full">
+      <div className="shrink-0 px-3 py-2 max-w-lg mx-auto w-full">
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={handleStep}
             disabled={isPaused || isComplete}
-            className="flex-1 bg-[#141B2D] border border-[#2A3550] hover:border-[#C9A84C] text-[#F0E6D2] font-bold py-3 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 min-h-11 bg-[#141B2D] border border-[#2A3550] hover:border-[#C9A84C] text-[#F0E6D2] font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <SkipForward className="w-4 h-4" />
             SIGUIENTE
           </button>
           <button
+            type="button"
             onClick={handleAutoPlay}
             disabled={isPaused || isComplete}
-            className="flex-1 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold py-3 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 min-h-11 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Play className="w-4 h-4" />
             AUTO
@@ -373,38 +453,40 @@ export default function SimulationScreen() {
         </div>
       </div>
 
+      {/* Feed de combate */}
+      <div className="shrink-0 px-3 pb-1 max-w-lg mx-auto w-full max-h-[22dvh] overflow-y-auto">
+        <CombatFeed events={snapshot?.events || []} max={5} />
+      </div>
+
       {/* Player Champions Panel */}
-      <div className="flex-1 px-4 pb-4 max-w-lg mx-auto w-full">
-        <h3 className="text-[#8B9BB4] text-xs uppercase tracking-wider mb-2">Tu Equipo</h3>
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 pb-3 max-w-lg mx-auto w-full safe-bottom">
+        <h3 className="text-[#8B9BB4] text-xs uppercase tracking-wider mb-2 sticky top-0 bg-[#0A0E1A] py-1 z-10">Tu Equipo</h3>
         <div className="flex flex-col gap-2">
           {playerChampions.map(champ => {
             const def = getChampionDef(champ.defId);
             const hpPct = champ.stats.hp / champ.stats.maxHp;
-            const manaPct = champ.stats.mana / champ.stats.maxMana;
+            const manaPct = champ.stats.maxMana > 0 ? champ.stats.mana / champ.stats.maxMana : 0;
 
             return (
               <div
                 key={champ.instanceId}
-                className={`bg-[#141B2D] rounded-xl border border-[#1E2740] p-2.5 flex items-center gap-3 ${!champ.isAlive ? 'opacity-40' : ''}`}
+                className={`bg-[#141B2D] rounded-xl border border-[#1E2740] p-2 flex items-center gap-2.5 ${!champ.isAlive ? 'opacity-40' : ''}`}
               >
-                {/* Avatar */}
                 {def.image ? (
-                  <img src={def.image} alt={def.name} className="w-10 h-10 rounded-full border-2 border-[#3498DB] object-cover flex-shrink-0" />
+                  <img src={def.image} alt={def.name} className="w-9 h-9 rounded-full border-2 border-[#3498DB] object-cover flex-shrink-0" />
                 ) : (
-                  <div className="w-10 h-10 rounded-full border-2 border-[#3498DB] flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ backgroundColor: def.color }}>
+                  <div className="w-9 h-9 rounded-full border-2 border-[#3498DB] flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ backgroundColor: def.color }}>
                     <User className="w-4 h-4" />
                   </div>
                 )}
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-[#F0E6D2] font-bold text-sm truncate">{def.name}</span>
-                    <span className="text-[#8B9BB4] text-[10px]">{champ.kills} kills</span>
-                    {!champ.isAlive && <span className="text-[#E74C3C] text-[10px] font-bold">MUERTO</span>}
+                    <span className="text-[#8B9BB4] text-[10px] shrink-0">{champ.kills} kills</span>
+                    {!champ.isAlive && <span className="text-[#E74C3C] text-[10px] font-bold shrink-0">MUERTO</span>}
                   </div>
 
-                  {/* HP Bar */}
                   <div className="flex items-center gap-1.5 mt-1">
                     <Heart className="w-3 h-3 text-[#E74C3C] flex-shrink-0" />
                     <div className="flex-1 h-2 bg-[#0A0E1A] rounded-full overflow-hidden">
@@ -416,12 +498,11 @@ export default function SimulationScreen() {
                         }}
                       />
                     </div>
-                    <span className="text-[10px] text-[#8B9BB4] w-12 text-right">
+                    <span className="text-[10px] text-[#8B9BB4] w-12 text-right shrink-0">
                       {Math.floor(champ.stats.hp)}/{champ.stats.maxHp}
                     </span>
                   </div>
 
-                  {/* Mana Bar */}
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <Droplets className="w-3 h-3 text-[#3498DB] flex-shrink-0" />
                     <div className="flex-1 h-1.5 bg-[#0A0E1A] rounded-full overflow-hidden">
@@ -430,20 +511,26 @@ export default function SimulationScreen() {
                         style={{ width: `${manaPct * 100}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-[#8B9BB4] w-12 text-right">
+                    <span className="text-[10px] text-[#8B9BB4] w-12 text-right shrink-0">
                       {Math.floor(champ.stats.mana)}/{champ.stats.maxMana}
                     </span>
                   </div>
+
+                  <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1 text-[10px]">
+                    <span className="text-[#E67E22]">AD {Math.floor(champ.stats.ad)}</span>
+                    <span className="text-[#9B59B6]">AP {Math.floor(champ.stats.ap)}</span>
+                    <span className="text-[#95A5A6]">ARM {Math.floor(champ.stats.armor)}</span>
+                    <span className="text-[#5DADE2]">MR {Math.floor(champ.stats.mr)}</span>
+                  </div>
                 </div>
 
-                {/* Items */}
                 <div className="grid grid-cols-3 gap-0.5 flex-shrink-0">
                   {Array.from({ length: 6 }).map((_, i) => {
                     const item = champ.items[i];
                     return (
                       <div
                         key={i}
-                        className="w-6 h-6 rounded bg-[#0A0E1A] border border-[#2A3550] flex items-center justify-center overflow-hidden"
+                        className="w-5 h-5 sm:w-6 sm:h-6 rounded bg-[#0A0E1A] border border-[#2A3550] flex items-center justify-center overflow-hidden"
                       >
                         {item ? (
                           <img

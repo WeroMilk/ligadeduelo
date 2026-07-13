@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import { CHAMPIONS, ROLE_COLORS, ROLE_NAMES } from '@/lib/game-data';
+import { preloadChampionImages } from '@/lib/preload-images';
 import type { Role } from '@/types/game';
 import { Shield, TreePine, Zap, Crosshair, Heart, Check, ChevronRight, User } from 'lucide-react';
 
@@ -19,6 +20,15 @@ export default function ChampionSelect() {
   const [activeRole, setActiveRole] = useState<Role>('top');
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    preloadChampionImages();
+  }, []);
+
+  // Prefetch visible role first, then the rest
+  useEffect(() => {
+    preloadChampionImages(CHAMPIONS.filter(c => c.role === activeRole).map(c => c.image));
+  }, [activeRole]);
+
   const selectedIds = state.selectedChampions.map(c => c.defId);
   const selectedByRole = state.selectedChampions.reduce((acc, c) => {
     const def = CHAMPIONS.find(ch => ch.id === c.defId);
@@ -28,24 +38,25 @@ export default function ChampionSelect() {
 
   const handleSelect = (defId: string) => {
     setError('');
+    // Tocár el mismo campeón = quitarlo
     if (selectedIds.includes(defId)) {
       dispatch({ type: 'DESELECT_CHAMPION', defId });
-      return;
-    }
-    if (state.selectedChampions.length >= 5) {
-      setError('Ya has seleccionado 5 campeones');
       return;
     }
     const def = CHAMPIONS.find(c => c.id === defId);
     if (!def) return;
 
+    const replacing = !!selectedByRole[def.role];
     dispatch({ type: 'SELECT_CHAMPION', defId });
 
-    // Pasar automáticamente al siguiente rol sin llenar
+    // Solo avanzar de rol si era una selección nueva (no un cambio)
+    if (replacing) return;
+
     const start = ROLES.indexOf(def.role);
+    const nextSelected = { ...selectedByRole, [def.role]: defId };
     for (let i = 1; i < ROLES.length; i++) {
       const nextRole = ROLES[(start + i) % ROLES.length];
-      if (!selectedByRole[nextRole]) {
+      if (!nextSelected[nextRole]) {
         setActiveRole(nextRole);
         break;
       }
@@ -64,9 +75,9 @@ export default function ChampionSelect() {
   const canConfirm = state.selectedChampions.length === 5;
 
   return (
-    <div className="min-h-screen bg-[#0A0E1A] flex flex-col">
+    <div className="h-app bg-[#0A0E1A] flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-[#0A0E1A]/95 backdrop-blur-sm border-b border-[#1E2740] px-4 py-4">
+      <div className="shrink-0 z-30 bg-[#0A0E1A]/95 backdrop-blur-sm border-b border-[#1E2740] px-4 py-3 safe-top">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <h2 className="text-[#F0E6D2] font-bold text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
             Selecciona tu Equipo
@@ -77,7 +88,7 @@ export default function ChampionSelect() {
         </div>
 
         {/* Role Tabs */}
-        <div className="flex gap-2 mt-3 max-w-lg mx-auto overflow-x-auto pb-1 scrollbar-hide">
+        <div className="flex gap-2 mt-3 max-w-lg mx-auto overflow-x-auto pb-1 scrollbar-hide touch-pan-x">
           {ROLES.map(role => {
             const isActive = activeRole === role;
             const isSelected = !!selectedByRole[role];
@@ -85,8 +96,9 @@ export default function ChampionSelect() {
             return (
               <button
                 key={role}
+                type="button"
                 onClick={() => { setActiveRole(role); setError(''); }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 ${
+                className={`flex items-center gap-1.5 px-3 min-h-11 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 ${
                   isActive
                     ? 'text-white shadow-lg'
                     : 'text-[#8B9BB4] bg-[#141B2D] hover:bg-[#1E2740]'
@@ -104,41 +116,45 @@ export default function ChampionSelect() {
 
       {/* Error */}
       {error && (
-        <div className="max-w-lg mx-auto px-4 mt-3">
+        <div className="shrink-0 max-w-lg mx-auto px-4 mt-2 w-full">
           <p className="text-[#E74C3C] text-sm text-center bg-[#E74C3C]/10 rounded-lg py-2 px-3">
             {error}
           </p>
         </div>
       )}
 
-      {/* Champion Grid */}
-      <div className="flex-1 px-4 py-4 max-w-lg mx-auto w-full">
-        <div className="grid grid-cols-2 gap-3">
+      {/* Champion Grid (scrollable) */}
+      <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 max-w-lg mx-auto w-full">
+        <div className="grid grid-cols-2 gap-2.5 pb-2">
           {roleChampions.map(champ => {
             const isSelected = selectedIds.includes(champ.id);
             return (
               <button
                 key={champ.id}
+                type="button"
                 onClick={() => handleSelect(champ.id)}
-                className={`relative rounded-xl p-3 border-2 transition-all text-left ${
+                className={`relative rounded-xl p-2.5 border-2 transition-all text-left active:scale-[0.98] ${
                   isSelected
                     ? 'border-[#C9A84C] bg-[#C9A84C]/10 shadow-[0_0_20px_rgba(201,168,76,0.15)]'
                     : 'border-[#1E2740] bg-[#141B2D] hover:border-[#2A3550] hover:bg-[#1A2035]'
                 }`}
               >
-                {/* Avatar */}
-                <div className="flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-1.5">
                   {champ.image ? (
                     <img
                       src={champ.image}
                       alt={champ.name}
-                      className={`w-16 h-16 rounded-full object-cover border-2 ${
+                      width={56}
+                      height={56}
+                      loading={champ.role === activeRole ? 'eager' : 'lazy'}
+                      decoding="async"
+                      className={`w-14 h-14 rounded-full object-cover border-2 ${
                         isSelected ? 'border-[#C9A84C]' : 'border-[#2A3550]'
                       }`}
                     />
                   ) : (
                     <div
-                      className="w-16 h-16 rounded-full flex items-center justify-center text-lg font-bold text-white border-2"
+                      className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold text-white border-2"
                       style={{
                         backgroundColor: champ.color,
                         borderColor: isSelected ? '#C9A84C' : '#2A3550',
@@ -148,13 +164,25 @@ export default function ChampionSelect() {
                     </div>
                   )}
 
-                  <div className="text-center">
-                    <p className="text-[#F0E6D2] font-bold text-sm">{champ.name}</p>
-                    <p className="text-[#8B9BB4] text-xs">{ROLE_NAMES[champ.role]}</p>
+                  <div className="text-center w-full">
+                    <p className="text-[#F0E6D2] font-bold text-sm truncate">{champ.name}</p>
+                    <p className="text-[#8B9BB4] text-[11px] mb-1.5">{ROLE_NAMES[champ.role]}</p>
+                    <div className="grid grid-cols-2 gap-x-1.5 gap-y-0.5 text-[10px] sm:text-[11px] text-left px-0.5">
+                      <span className="text-[#E74C3C]">HP {champ.baseStats.maxHp}</span>
+                      <span className="text-[#3498DB]">MN {champ.baseStats.maxMana}</span>
+                      <span className="text-[#E67E22]">AD {champ.baseStats.ad}</span>
+                      <span className="text-[#9B59B6]">AP {champ.baseStats.ap}</span>
+                      <span className="text-[#95A5A6]">ARM {champ.baseStats.armor}</span>
+                      <span className="text-[#5DADE2]">MR {champ.baseStats.mr}</span>
+                    </div>
+                    <p className="text-[#C9A84C] text-[10px] mt-1.5 leading-snug px-0.5 line-clamp-2">
+                      <span className="font-bold">{champ.passive.name}</span>
+                      {' · '}
+                      {champ.passive.description}
+                    </p>
                   </div>
                 </div>
 
-                {/* Selected checkmark */}
                 {isSelected && (
                   <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#C9A84C] flex items-center justify-center">
                     <Check className="w-4 h-4 text-[#0A0E1A]" />
@@ -166,10 +194,9 @@ export default function ChampionSelect() {
         </div>
       </div>
 
-      {/* Footer with selected champions */}
-      <div className="sticky bottom-0 bg-[#0A0E1A]/95 backdrop-blur-sm border-t border-[#1E2740] px-4 py-4">
-        <div className="max-w-lg mx-auto">
-          {/* Selected avatars row */}
+      {/* Footer fijo */}
+      <div className="shrink-0 bg-[#0A0E1A]/98 backdrop-blur-sm border-t border-[#1E2740] px-4 pt-3 safe-bottom">
+        <div className="max-w-lg mx-auto pb-3">
           <div className="flex justify-center gap-2 mb-3">
             {state.selectedChampions.map(c => {
               const def = CHAMPIONS.find(ch => ch.id === c.defId);
@@ -192,9 +219,10 @@ export default function ChampionSelect() {
           </div>
 
           <button
+            type="button"
             onClick={handleConfirm}
             disabled={!canConfirm}
-            className={`w-full py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all ${
+            className={`w-full min-h-12 py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all ${
               canConfirm
                 ? 'bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] shadow-[0_4px_20px_rgba(201,168,76,0.3)] active:scale-[0.98]'
                 : 'bg-[#1E2740] text-[#4A5570] cursor-not-allowed'

@@ -26,7 +26,7 @@ export default function VictoryScreen() {
   const steps = state.simulationSnapshot?.step || 0;
 
   return (
-    <div className="min-h-screen bg-[#0A0E1A] flex flex-col items-center justify-center relative overflow-hidden px-4">
+    <div className="min-h-app bg-[#0A0E1A] flex flex-col items-center justify-center relative overflow-y-auto px-4 py-8 safe-top safe-bottom">
       {/* Confetti */}
       <div className="absolute inset-0 pointer-events-none">
         {confetti.map(c => (

@@ -1,14 +1,22 @@
 import { useGame } from '@/hooks/useGameState';
-import { Crown, RotateCcw, User } from 'lucide-react';
+import { Crown, RotateCcw, User, Award } from 'lucide-react';
 import { getChampionDef } from '@/lib/game-engine';
 import { useEffect, useState } from 'react';
+import { playVictorySound } from '@/lib/sounds';
 
 export default function TournamentWin() {
   const { state, dispatch } = useGame();
   const [particles, setParticles] = useState<{ id: number; x: number; delay: number; color: string }[]>([]);
+  const frame = state.tournament?.championFrame ?? 'gold';
+  const titles = state.tournament?.titles?.length
+    ? state.tournament.titles
+    : ['Campeón de la Grieta'];
 
   useEffect(() => {
-    const colors = ['#C9A84C', '#F1C40F', '#E67E22', '#E74C3C', '#3498DB'];
+    playVictorySound();
+    const colors = frame === 'obsidian'
+      ? ['#9B59B6', '#6B1FA6', '#C39BD3', '#F0E6D2', '#C9A84C']
+      : ['#C9A84C', '#F1C40F', '#E67E22', '#E74C3C', '#3498DB'];
     const p = Array.from({ length: 40 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
@@ -16,17 +24,21 @@ export default function TournamentWin() {
       color: colors[Math.floor(Math.random() * colors.length)],
     }));
     setParticles(p);
-  }, []);
+  }, [frame]);
 
   const handleRestart = () => {
     dispatch({ type: 'RESET_TOURNAMENT' });
   };
 
   const champions = state.tournament?.playerTeam?.champions || [];
+  const ring =
+    frame === 'obsidian'
+      ? 'border-[#9B59B6] shadow-[0_0_16px_rgba(155,89,182,0.55)]'
+      : 'border-[#C9A84C] shadow-[0_0_16px_rgba(201,168,76,0.45)]';
+  const skinTint = frame === 'obsidian' ? 'hue-rotate-[-20deg] saturate-125' : 'hue-rotate-[8deg] saturate-125 brightness-110';
 
   return (
-    <div className="min-h-screen bg-[#0A0E1A] flex flex-col items-center justify-center relative overflow-hidden px-4">
-      {/* Particles */}
+    <div className="min-h-app bg-[#0A0E1A] flex flex-col items-center justify-center relative overflow-y-auto px-4 py-8 safe-top safe-bottom">
       <div className="absolute inset-0 pointer-events-none">
         {particles.map(p => (
           <div
@@ -43,18 +55,27 @@ export default function TournamentWin() {
         ))}
       </div>
 
-      {/* Golden glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#C9A84C] opacity-15 blur-[180px] rounded-full" />
+      <div
+        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] opacity-15 blur-[180px] rounded-full ${
+          frame === 'obsidian' ? 'bg-[#9B59B6]' : 'bg-[#C9A84C]'
+        }`}
+      />
 
       <div className="relative z-10 flex flex-col items-center gap-6 max-w-md w-full">
-        {/* Crown */}
-        <div className="w-28 h-28 rounded-full bg-gradient-to-br from-[#F1C40F] via-[#C9A84C] to-[#8B6914] flex items-center justify-center shadow-[0_0_80px_rgba(201,168,76,0.5)] animate-pulse-slow">
+        <div className={`w-28 h-28 rounded-full flex items-center justify-center animate-pulse-slow ${
+          frame === 'obsidian'
+            ? 'bg-gradient-to-br from-[#9B59B6] via-[#6B1FA6] to-[#2C1638] shadow-[0_0_80px_rgba(155,89,182,0.5)]'
+            : 'bg-gradient-to-br from-[#F1C40F] via-[#C9A84C] to-[#8B6914] shadow-[0_0_80px_rgba(201,168,76,0.5)]'
+        }`}>
           <Crown className="w-14 h-14 text-[#0A0E1A]" />
         </div>
 
         <div className="text-center">
           <p className="text-[#C9A84C] text-sm uppercase tracking-[0.3em] mb-2">Felicidades</p>
-          <h1 className="text-3xl font-bold text-[#F1C40F]" style={{ fontFamily: 'Cinzel, serif', textShadow: '0 2px 20px rgba(241,196,15,0.4)' }}>
+          <h1
+            className={`text-3xl font-bold ${frame === 'obsidian' ? 'text-[#C39BD3]' : 'text-[#F1C40F]'}`}
+            style={{ fontFamily: 'Cinzel, serif', textShadow: '0 2px 20px rgba(241,196,15,0.4)' }}
+          >
             ¡CAMPEÓN DEL TORNEO!
           </h1>
           <p className="text-[#8B9BB4] mt-2">
@@ -62,22 +83,54 @@ export default function TournamentWin() {
           </p>
         </div>
 
-        {/* Team showcase */}
-        <div className="w-full bg-[#141B2D] rounded-xl border border-[#C9A84C]/30 p-4">
-          <p className="text-[#C9A84C] text-xs uppercase tracking-wider text-center mb-3">Equipo Campeón</p>
-          <div className="flex justify-center gap-3">
+        {/* Títulos */}
+        <div className="w-full flex flex-wrap justify-center gap-2">
+          {titles.map(t => (
+            <span
+              key={t}
+              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border ${
+                frame === 'obsidian'
+                  ? 'border-[#9B59B6]/50 bg-[#9B59B6]/15 text-[#C39BD3]'
+                  : 'border-[#C9A84C]/50 bg-[#C9A84C]/15 text-[#C9A84C]'
+              }`}
+            >
+              <Award className="w-3.5 h-3.5" />
+              {t}
+            </span>
+          ))}
+        </div>
+
+        {/* Marco de avatar + skin de color */}
+        <div className={`w-full rounded-xl border p-4 ${
+          frame === 'obsidian' ? 'bg-[#12081A] border-[#9B59B6]/35' : 'bg-[#141B2D] border-[#C9A84C]/30'
+        }`}>
+          <p className={`text-xs uppercase tracking-wider text-center mb-3 ${
+            frame === 'obsidian' ? 'text-[#C39BD3]' : 'text-[#C9A84C]'
+          }`}>
+            Marco {frame === 'obsidian' ? 'Obsidiana' : 'Dorado'} · Skin de campeón
+          </p>
+          <div className="flex justify-center flex-wrap gap-3">
             {champions.map(c => {
               const def = getChampionDef(c.defId);
               return (
-                <div key={c.instanceId} className="flex flex-col items-center gap-1">
-                  {def.image ? (
-                    <img src={def.image} alt={def.name} className="w-14 h-14 rounded-full border-2 border-[#C9A84C] object-cover shadow-[0_0_10px_rgba(201,168,76,0.3)]" />
-                  ) : (
-                    <div className="w-14 h-14 rounded-full border-2 border-[#C9A84C] flex items-center justify-center font-bold text-white" style={{ backgroundColor: def.color }}>
-                      <User className="w-6 h-6" />
-                    </div>
-                  )}
-                  <span className="text-[#F0E6D2] text-[10px] font-bold">{def.name}</span>
+                <div key={c.instanceId} className="flex flex-col items-center gap-1 w-16">
+                  <div className={`p-0.5 rounded-full border-2 ${ring}`}>
+                    {def.image ? (
+                      <img
+                        src={def.image}
+                        alt={def.name}
+                        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover ${skinTint}`}
+                      />
+                    ) : (
+                      <div
+                        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center font-bold text-white ${skinTint}`}
+                        style={{ backgroundColor: def.color }}
+                      >
+                        <User className="w-6 h-6" />
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[#F0E6D2] text-[10px] font-bold truncate max-w-full text-center">{def.name}</span>
                 </div>
               );
             })}
@@ -85,6 +138,7 @@ export default function TournamentWin() {
         </div>
 
         <button
+          type="button"
           onClick={handleRestart}
           className="w-full bg-gradient-to-r from-[#C9A84C] to-[#F1C40F] text-[#0A0E1A] font-bold text-lg py-4 rounded-xl shadow-[0_4px_30px_rgba(201,168,76,0.4)] hover:shadow-[0_4px_40px_rgba(201,168,76,0.6)] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
         >

@@ -19,10 +19,24 @@ export default function ItemSelect() {
 
   useEffect(() => {
     if (!champ) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const scrollY = window.scrollY;
+    const { style } = document.body;
+    const prev = {
+      overflow: style.overflow,
+      position: style.position,
+      top: style.top,
+      width: style.width,
+    };
+    style.overflow = 'hidden';
+    style.position = 'fixed';
+    style.top = `-${scrollY}px`;
+    style.width = '100%';
     return () => {
-      document.body.style.overflow = prev;
+      style.overflow = prev.overflow;
+      style.position = prev.position;
+      style.top = prev.top;
+      style.width = prev.width;
+      window.scrollTo(0, scrollY);
     };
   }, [champ]);
 
@@ -59,18 +73,22 @@ export default function ItemSelect() {
 
   const popup = (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6 safe-top"
       role="dialog"
       aria-modal="true"
       aria-labelledby="item-select-title"
+      style={{ overscrollBehavior: 'none' }}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-[#0A0E1A]/75 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-[#0A0E1A]/80 backdrop-blur-sm touch-none" />
 
       {/* Panel */}
-      <div className="relative z-10 w-full max-w-md max-h-[min(92vh,720px)] overflow-y-auto bg-[#141B2D] rounded-2xl border-2 border-[#C9A84C] shadow-[0_0_40px_rgba(201,168,76,0.25)] p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-200">
+      <div
+        className="relative z-10 w-full sm:max-w-md max-h-[min(90dvh,720px)] overflow-y-auto overscroll-contain bg-[#141B2D] rounded-t-2xl sm:rounded-2xl border-2 border-[#C9A84C] border-b-0 sm:border-b-2 shadow-[0_0_40px_rgba(201,168,76,0.25)] p-4 sm:p-6 safe-bottom"
+      >
         {/* Header */}
         <div className="text-center mb-4 sm:mb-6">
+          <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-[#2A3550] sm:hidden" />
           <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#C9A84C]/20 mb-2 sm:mb-3">
             <Swords className="w-6 h-6 sm:w-7 sm:h-7 text-[#C9A84C]" />
           </div>
@@ -122,7 +140,7 @@ export default function ItemSelect() {
                     key={i}
                     type="button"
                     onClick={() => handleReplaceItem(i)}
-                    className="aspect-square rounded-lg border-2 border-[#E74C3C] hover:border-[#C9A84C] bg-[#0A0E1A] overflow-hidden active:scale-95 transition-transform"
+                    className="min-h-11 min-w-11 aspect-square rounded-lg border-2 border-[#E74C3C] hover:border-[#C9A84C] bg-[#0A0E1A] overflow-hidden active:scale-95 transition-transform"
                   >
                     {itemDef && (
                       <img src={itemDef.image} alt={itemDef.name} className="w-full h-full object-cover" />
@@ -134,9 +152,9 @@ export default function ItemSelect() {
             <button
               type="button"
               onClick={() => { setReplaceMode(false); setSelectedItemId(null); }}
-              className="mt-2 text-[#8B9BB4] text-xs flex items-center gap-1 hover:text-[#F0E6D2] transition-colors"
+              className="mt-3 min-h-11 w-full text-[#8B9BB4] text-sm flex items-center justify-center gap-2 hover:text-[#F0E6D2] transition-colors rounded-lg border border-[#2A3550]"
             >
-              <RefreshCw className="w-3 h-3" />
+              <RefreshCw className="w-4 h-4" />
               Volver a la lista
             </button>
           </div>
@@ -144,23 +162,23 @@ export default function ItemSelect() {
 
         {/* Item grid: 2 cols mobile, 4 cols desktop */}
         {!replaceMode && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pb-2">
             {ITEMS.map(item => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => handleSelectItem(item.id)}
-                className="bg-[#0A0E1A] rounded-xl border-2 border-[#2A3550] hover:border-[#C9A84C] focus:border-[#C9A84C] focus:outline-none p-2 sm:p-2.5 flex flex-col items-center gap-1 sm:gap-1.5 active:scale-95 transition-all"
+                className="bg-[#0A0E1A] rounded-xl border-2 border-[#2A3550] hover:border-[#C9A84C] focus:border-[#C9A84C] focus:outline-none p-2.5 min-h-[88px] flex flex-col items-center justify-center gap-1 active:scale-95 transition-all"
               >
                 <img
                   src={item.image}
                   alt={item.name}
                   className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover"
                 />
-                <span className="text-[#F0E6D2] text-[10px] sm:text-[11px] font-bold text-center leading-tight">
+                <span className="text-[#F0E6D2] text-[11px] font-bold text-center leading-tight">
                   {item.name}
                 </span>
-                <span className="text-[#8B9BB4] text-[9px] sm:text-[10px] text-center">{item.description}</span>
+                <span className="text-[#8B9BB4] text-[10px] text-center">{item.description}</span>
               </button>
             ))}
           </div>

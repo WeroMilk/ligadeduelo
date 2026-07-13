@@ -2,7 +2,9 @@ import type {
   Champion, TeamData, GameEvent, SimulationSnapshot,
   Minion, Structure, Position, TeamColor, Role,
 } from '@/types/game';
-import { BASE_STATS, ITEMS, ITEM_PRIORITY_BY_ROLE, CHAMPIONS } from './game-data';
+import { ITEMS, ITEM_PRIORITY_BY_ROLE, CHAMPIONS, getChampionBaseStats } from './game-data';
+import { enrichEventMessage } from './combat-flavor';
+import { applyBuffToStats, type BuffId } from './buffs';
 
 let instanceCounter = 0;
 function nextId() { return `e${++instanceCounter}`; }
@@ -19,18 +21,20 @@ function deepCloneChampion(c: Champion): Champion {
 function createChampion(defId: string, team: TeamColor): Champion {
   const def = CHAMPIONS.find(c => c.id === defId)!;
   const laneMap: Record<Role, number> = { top: 0, jungle: 1, mid: 1, adc: 2, support: 2 };
+  const xSpread: Record<Role, number> = { top: 0, jungle: 0.05, mid: 0, adc: 0, support: 0.09 };
+  const baseX = team === 'blue' ? 0.08 + xSpread[def.role] : 0.92 - xSpread[def.role];
   return {
     instanceId: nextId(),
     defId,
     team,
-    stats: { ...BASE_STATS },
+    stats: getChampionBaseStats(defId),
     items: [],
     isAlive: true,
     respawnTimer: 0,
     kills: 0,
     position: {
       lane: def.role === 'jungle' ? 1 : laneMap[def.role],
-      x: team === 'blue' ? 0.08 : 0.92,
+      x: baseX,
     },
   };
 }
@@ -69,15 +73,30 @@ export class GameEngine {
   private events: GameEvent[];
   private stepNumber: number = 0;
   private minionSpawnTimer: number = 0;
+  private firstBloodDone = false;
+  private killStreak: Record<string, number> = {};
+  private asBuffTurns: Record<string, number> = {};
+  private flurryActive: Record<string, number> = {};
+  private evolved = new Set<string>();
+  private lastLane: Record<string, number> = {};
 
-  constructor(teamA: TeamData, teamB: TeamData) {
+  constructor(teamA: TeamData, teamB: TeamData, blueBuffId?: BuffId | null) {
     this.teamBlue = { ...teamA, champions: teamA.champions.map(deepCloneChampion) };
     this.teamRed = { ...teamB, champions: teamB.champions.map(deepCloneChampion) };
+    if (blueBuffId) {
+      for (const c of this.teamBlue.champions) {
+        c.stats = applyBuffToStats(c.stats, blueBuffId);
+      }
+    }
     this.champions = [...this.teamBlue.champions, ...this.teamRed.champions];
     this.minions = [];
     this.structures = this.initializeStructures();
     this.events = [];
     this.spawnInitialMinions();
+    this.separateChampions();
+    for (const c of this.champions) {
+      this.lastLane[c.instanceId] = c.position.lane;
+    }
   }
 
   private initializeStructures(): Structure[] {
@@ -126,11 +145,14 @@ export class GameEngine {
     this.spawnMinionsIfNeeded();
     this.moveMinions();
     this.moveChampions();
+    this.separateChampions();
+    this.applyPassiveTick();
     this.resolveAttacks();
     this.resolveAbilities();
     this.checkDeaths();
     this.checkStructures();
     this.processRespawns();
+    this.tickBuffTimers();
 
     // Every 2 turns: AI equips one item for each red champion
     if (this.stepNumber > 0 && this.stepNumber % 2 === 0) {
@@ -278,11 +300,11 @@ export class GameEngine {
           ? Math.min(0.7, midX)
           : Math.max(0.3, midX);
       } else if (def.role === 'support') {
-        // Support: sigue al ADC del mismo equipo
+        // Support: sigue al ADC del mismo equipo, con espacio para no solaparse
         const adc = this.champions.find(o => o.team === c.team && getChampionDef(o.defId).role === 'adc');
         if (adc && adc.isAlive) {
           c.position.lane = adc.position.lane;
-          c.position.x = adc.team === 'blue' ? adc.position.x - 0.03 : adc.position.x + 0.03;
+          c.position.x = adc.team === 'blue' ? adc.position.x - 0.09 : adc.position.x + 0.09;
         }
       } else {
         // Top/Mid/ADC: avanzan lentamente por su carril
@@ -296,6 +318,79 @@ export class GameEngine {
     }
   }
 
+  /** Evita que campeones de la misma línea se amontonen. */
+  private separateChampions() {
+    const minGap = 0.085;
+    for (let lane = 0; lane < 3; lane++) {
+      const inLane = this.champions
+        .filter(c => c.isAlive && c.position.lane === lane)
+        .sort((a, b) => a.position.x - b.position.x);
+      if (inLane.length < 2) continue;
+
+      for (let pass = 0; pass < 3; pass++) {
+        for (let i = 1; i < inLane.length; i++) {
+          const minX = inLane[i - 1].position.x + minGap;
+          if (inLane[i].position.x < minX) {
+            inLane[i].position.x = Math.min(0.96, minX);
+          }
+        }
+        for (let i = inLane.length - 2; i >= 0; i--) {
+          const maxX = inLane[i + 1].position.x - minGap;
+          if (inLane[i].position.x > maxX) {
+            inLane[i].position.x = Math.max(0.04, maxX);
+          }
+        }
+      }
+    }
+  }
+
+  private tickBuffTimers() {
+    for (const id of Object.keys(this.asBuffTurns)) {
+      this.asBuffTurns[id]--;
+      if (this.asBuffTurns[id] <= 0) {
+        const champ = this.champions.find(c => c.instanceId === id);
+        if (champ) champ.stats.attackSpeed = Math.max(0.5, champ.stats.attackSpeed - 0.3);
+        delete this.asBuffTurns[id];
+      }
+    }
+    for (const id of Object.keys(this.flurryActive)) {
+      this.flurryActive[id]--;
+      if (this.flurryActive[id] <= 0) delete this.flurryActive[id];
+    }
+  }
+
+  private applyPassiveTick() {
+    for (const c of this.champions) {
+      if (!c.isAlive) continue;
+      const def = getChampionDef(c.defId);
+      const pid = def.passive.id;
+
+      if (pid === 'regen') {
+        c.stats.hp = Math.min(c.stats.maxHp, c.stats.hp + Math.floor(c.stats.maxHp * 0.03));
+      }
+      if (pid === 'salvation' || pid === 'guard' || pid === 'pix') {
+        const ally = this.champions
+          .filter(o => o.team === c.team && o.isAlive && o.instanceId !== c.instanceId)
+          .sort((a, b) => (a.stats.hp / a.stats.maxHp) - (b.stats.hp / b.stats.maxHp))[0];
+        if (ally) {
+          const heal = pid === 'salvation'
+            ? 40 + Math.floor(c.stats.ap * 0.2)
+            : pid === 'pix'
+              ? 25 + Math.floor(c.stats.ap * 0.15)
+              : 30;
+          ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + heal);
+        }
+      }
+      if (pid === 'flurry') {
+        const prev = this.lastLane[c.instanceId];
+        if (prev !== undefined && prev !== c.position.lane) {
+          this.flurryActive[c.instanceId] = 2;
+        }
+        this.lastLane[c.instanceId] = c.position.lane;
+      }
+    }
+  }
+
   private resolveAttacks() {
     // Champions attack
     for (const attacker of this.champions) {
@@ -305,14 +400,22 @@ export class GameEngine {
       if (!target) continue;
 
       if ('defId' in target) {
-        // Attacking champion
         const victim = target as Champion;
-        const dmg = this.calculatePhysicalDamage(attacker, victim);
+        let dmg = this.calculatePhysicalDamage(attacker, victim);
+        dmg = this.applyOnHitPassives(attacker, victim, dmg);
         victim.stats.hp = Math.max(0, victim.stats.hp - dmg);
+        // Darius execute
+        const aDef = getChampionDef(attacker.defId);
+        if (aDef.passive.id === 'execute' && victim.stats.hp > 0 && victim.stats.hp / victim.stats.maxHp < 0.2) {
+          victim.stats.hp = 0;
+        }
       } else {
-        // Attacking structure
         const struct = target as Structure;
-        const dmg = attacker.stats.ad * (1 + attacker.stats.attackSpeed);
+        let dmg = attacker.stats.ad * (1 + attacker.stats.attackSpeed);
+        const aDef = getChampionDef(attacker.defId);
+        if (aDef.passive.id === 'fortify' || aDef.passive.id === 'blast') {
+          dmg *= aDef.passive.id === 'blast' ? 1.3 : 1.25;
+        }
         struct.hp = Math.max(0, struct.hp - dmg);
       }
     }
@@ -320,12 +423,10 @@ export class GameEngine {
     // Minions attack structures
     for (const m of this.minions) {
       if (m.hp <= 0) continue;
-      // Find nearest enemy structure in same lane
       const enemyStruct = this.findNearestEnemyStructure(m);
       if (enemyStruct && this.distance(m.position, enemyStruct.position) < 0.08) {
         enemyStruct.hp = Math.max(0, enemyStruct.hp - 30);
       }
-      // Minions also attack enemy minions
       const enemyMinion = this.findNearestEnemyMinion(m);
       if (enemyMinion && this.distance(m.position, enemyMinion.position) < 0.06) {
         enemyMinion.hp -= 40;
@@ -333,25 +434,97 @@ export class GameEngine {
     }
   }
 
-  private resolveAbilities() {
-    for (const c of this.champions) {
-      if (!c.isAlive || c.stats.mana < 50) continue;
+  private applyOnHitPassives(attacker: Champion, victim: Champion, dmg: number): number {
+    const def = getChampionDef(attacker.defId);
+    const pid = def.passive.id;
+    let out = dmg;
 
-      const target = this.findBestTarget(c);
+    if (pid === 'shadow') {
+      out = Math.floor(out * 1.25);
+    }
+    if (this.flurryActive[attacker.instanceId]) {
+      out = Math.floor(out * 1.15);
+    }
+    if (pid === 'headshot' && Math.random() < 0.25) {
+      out = Math.floor(out * 1.6);
+    }
+    if (pid === 'essence') {
+      const steal = Math.min(25, victim.stats.mana);
+      victim.stats.mana -= steal;
+      attacker.stats.mana = Math.min(attacker.stats.maxMana, attacker.stats.mana + steal);
+    }
+    if (pid === 'rising' && attacker.stats.mana >= 20) {
+      attacker.stats.mana -= 20;
+      out += Math.floor(attacker.stats.ap * 0.8);
+    }
+    if (pid === 'hook') {
+      victim.stats.armor = Math.max(5, victim.stats.armor - 3);
+      const pull = attacker.team === 'blue' ? -0.04 : 0.04;
+      victim.position.x = Math.max(0.05, Math.min(0.95, victim.position.x + pull));
+    }
+    if (pid === 'sunlight') {
+      const allies = this.champions.filter(o =>
+        o.team === attacker.team && o.isAlive && o.instanceId !== attacker.instanceId
+        && this.distance(o.position, victim.position) < 0.15
+      );
+      for (const a of allies) {
+        victim.stats.hp = Math.max(0, victim.stats.hp - 12);
+      }
+    }
+    return out;
+  }
+
+  private resolveAbilities() {
+    for (const champ of this.champions) {
+      if (!champ.isAlive || champ.stats.mana < 50) continue;
+      const target = this.findBestTarget(champ);
       if (!target || !('defId' in target)) continue;
+      if (Math.random() >= 0.3) continue;
 
       const victim = target as Champion;
-      // 30% chance to use ability if mana available
-      if (Math.random() < 0.3) {
-        c.stats.mana -= 50;
-        const abilityDmg = c.stats.ap > 0
-          ? c.stats.ap * 1.5
-          : c.stats.ad * 1.2;
-        const mitigation = c.stats.ap > 0
-          ? victim.stats.mr / (victim.stats.mr + 100)
-          : victim.stats.armor / (victim.stats.armor + 100);
-        const dmg = Math.max(10, Math.floor(abilityDmg * (1 - mitigation)));
-        victim.stats.hp = Math.max(0, victim.stats.hp - dmg);
+      champ.stats.mana -= 50;
+      const def = getChampionDef(champ.defId);
+      let abilityDmg = champ.stats.ap > 0 ? champ.stats.ap * 1.5 : champ.stats.ad * 1.2;
+      if (def.passive.id === 'illumination' && Math.random() < 0.25) {
+        abilityDmg += champ.stats.ap * 0.4;
+      }
+      const mitigation = champ.stats.ap > 0
+        ? victim.stats.mr / (victim.stats.mr + 100)
+        : victim.stats.armor / (victim.stats.armor + 100);
+      const dmg = Math.max(10, Math.floor(abilityDmg * (1 - mitigation)));
+      victim.stats.hp = Math.max(0, victim.stats.hp - dmg);
+
+      this.events.push({
+        type: 'ability',
+        step: this.stepNumber,
+        actorTeam: champ.team,
+        actorName: def.name,
+        message: `${def.name} lanzó una habilidad`,
+        actorInstanceId: champ.instanceId,
+      });
+    }
+  }
+
+  private applyKillPassives(killer: Champion) {
+    const def = getChampionDef(killer.defId);
+    const pid = def.passive.id;
+    if (pid === 'contempt') killer.stats.ad += 12;
+    if (pid === 'getexcited') killer.stats.attackSpeed += 0.15;
+    if (pid === 'flow') {
+      if (!this.asBuffTurns[killer.instanceId]) killer.stats.attackSpeed += 0.3;
+      this.asBuffTurns[killer.instanceId] = 2;
+    }
+    if (pid === 'evolve' && killer.kills >= 2 && !this.evolved.has(killer.instanceId)) {
+      this.evolved.add(killer.instanceId);
+      killer.stats.ad += 10;
+      killer.stats.ap += 15;
+    }
+    if (pid === 'tears') {
+      for (const enemy of this.champions) {
+        if (enemy.team === killer.team || !enemy.isAlive) continue;
+        if (this.distance(enemy.position, killer.position) < 0.2) {
+          enemy.stats.hp = Math.max(0, enemy.stats.hp - 40);
+        }
       }
     }
   }
@@ -361,27 +534,36 @@ export class GameEngine {
       if (!c.isAlive) continue;
       if (c.stats.hp <= 0) {
         c.isAlive = false;
-        c.respawnTimer = 5; // 5 steps = revive
+        c.respawnTimer = 5;
+        this.killStreak[c.instanceId] = 0;
 
-        // Find killer
         const possibleKillers = this.champions.filter(k =>
-          k.team !== c.team && k.isAlive && this.distance(k.position, c.position) < 0.15
+          k.team !== c.team && k.isAlive && this.distance(k.position, c.position) < 0.18
         );
         const killer = possibleKillers[0];
 
         if (killer) {
           killer.kills++;
-          if (killer.team === 'blue') {
-            this.teamBlue.kills++;
-          } else {
-            this.teamRed.kills++;
-          }
+          if (killer.team === 'blue') this.teamBlue.kills++;
+          else this.teamRed.kills++;
+
+          const streak = (this.killStreak[killer.instanceId] || 0) + 1;
+          this.killStreak[killer.instanceId] = streak;
+          this.applyKillPassives(killer);
 
           const killerDef = getChampionDef(killer.defId);
           const victimDef = getChampionDef(c.defId);
 
-          this.events.push({
-            type: 'kill',
+          let eventType: GameEvent['type'] = 'kill';
+          if (!this.firstBloodDone) {
+            this.firstBloodDone = true;
+            eventType = 'first_blood';
+          } else if (streak === 2) eventType = 'double_kill';
+          else if (streak === 3) eventType = 'triple_kill';
+          else if (streak >= 4) eventType = 'quadra_kill';
+
+          const evt: GameEvent = {
+            type: eventType,
             step: this.stepNumber,
             actorTeam: killer.team,
             actorName: killerDef.name,
@@ -389,7 +571,9 @@ export class GameEngine {
             targetTeam: c.team,
             message: `${killerDef.name} mató a ${victimDef.name}`,
             actorInstanceId: killer.instanceId,
-          });
+          };
+          evt.message = enrichEventMessage(evt);
+          this.events.push(evt);
         }
       }
     }
@@ -401,16 +585,19 @@ export class GameEngine {
       if (s.hp <= 0) {
         s.isDestroyed = true;
         let typeName = '';
-        if (s.type === 'tower') typeName = 'Torreta';
-        else if (s.type === 'inhibitor') typeName = 'Inhibidor';
-        else if (s.type === 'nexus') typeName = 'Nexo';
+        let eventType: GameEvent['type'] = 'tower_destroyed';
+        if (s.type === 'tower') { typeName = 'Torreta'; eventType = 'tower_destroyed'; }
+        else if (s.type === 'inhibitor') { typeName = 'Inhibidor'; eventType = 'inhibitor_destroyed'; }
+        else if (s.type === 'nexus') { typeName = 'Nexo'; eventType = 'nexus_destroyed'; }
 
-        this.events.push({
-          type: s.type === 'tower' ? 'tower_destroyed' : s.type === 'inhibitor' ? 'inhibitor_destroyed' : 'nexus_destroyed',
+        const evt: GameEvent = {
+          type: eventType,
           step: this.stepNumber,
           message: `${typeName} ${s.team === 'blue' ? 'azul' : 'rojo'} destruido`,
           targetTeam: s.team,
-        });
+        };
+        evt.message = enrichEventMessage(evt);
+        this.events.push(evt);
       }
     }
   }

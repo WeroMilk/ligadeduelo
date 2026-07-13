@@ -6,11 +6,22 @@ export type GameScreen =
   | 'home'
   | 'championSelect'
   | 'bracket'
+  | 'buffSelect'
   | 'simulation'
   | 'itemSelect'
+  | 'spectator'
+  | 'spectatorVote'
   | 'victory'
   | 'defeat'
   | 'tournamentWin';
+
+export type BuffId = 'fury' | 'iron' | 'vital' | 'greed';
+
+export interface ChampionPassive {
+  id: string;
+  name: string;
+  description: string;
+}
 
 export interface Stats {
   hp: number;
@@ -37,9 +48,11 @@ export interface ChampionDef {
   id: string;
   name: string;
   role: Role;
-  image: string | null; // null = usar avatar CSS
-  color: string; // color para avatar CSS
+  image: string | null;
+  color: string;
   initials: string;
+  baseStats: Stats;
+  passive: ChampionPassive;
 }
 
 export interface Item {
@@ -92,8 +105,22 @@ export interface TeamData {
   kills: number;
 }
 
+export type GameEventType =
+  | 'kill'
+  | 'first_blood'
+  | 'double_kill'
+  | 'triple_kill'
+  | 'quadra_kill'
+  | 'tower_destroyed'
+  | 'inhibitor_destroyed'
+  | 'nexus_destroyed'
+  | 'minion_spawn'
+  | 'respawn'
+  | 'ability'
+  | 'step';
+
 export interface GameEvent {
-  type: 'kill' | 'tower_destroyed' | 'inhibitor_destroyed' | 'nexus_destroyed' | 'minion_spawn' | 'respawn' | 'step';
+  type: GameEventType;
   step: number;
   actorTeam?: TeamColor;
   actorName?: string;
@@ -127,6 +154,9 @@ export interface Tournament {
   currentRound: number;
   isComplete: boolean;
   champion: TeamData | null;
+  rivalTeamId: string;
+  titles: string[];
+  championFrame: 'none' | 'gold' | 'obsidian';
 }
 
 export interface SimulationSnapshot {
