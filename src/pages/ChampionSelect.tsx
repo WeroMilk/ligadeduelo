@@ -30,12 +30,25 @@ export default function ChampionSelect() {
     setError('');
     if (selectedIds.includes(defId)) {
       dispatch({ type: 'DESELECT_CHAMPION', defId });
-    } else {
-      if (state.selectedChampions.length >= 5) {
-        setError('Ya has seleccionado 5 campeones');
-        return;
+      return;
+    }
+    if (state.selectedChampions.length >= 5) {
+      setError('Ya has seleccionado 5 campeones');
+      return;
+    }
+    const def = CHAMPIONS.find(c => c.id === defId);
+    if (!def) return;
+
+    dispatch({ type: 'SELECT_CHAMPION', defId });
+
+    // Pasar automáticamente al siguiente rol sin llenar
+    const start = ROLES.indexOf(def.role);
+    for (let i = 1; i < ROLES.length; i++) {
+      const nextRole = ROLES[(start + i) % ROLES.length];
+      if (!selectedByRole[nextRole]) {
+        setActiveRole(nextRole);
+        break;
       }
-      dispatch({ type: 'SELECT_CHAMPION', defId });
     }
   };
 

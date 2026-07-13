@@ -298,12 +298,15 @@ export default function SimulationScreen() {
   const handleAutoPlay = () => {
     if (!engine || isPaused || screenRef.current !== 'simulation') return;
     cancelAnimationFrame(animationRef.current);
-    let count = 0;
+    let steps = 0;
+    const maxSteps = 600;
+
     const run = () => {
-      if (count >= 3 || screenRef.current !== 'simulation') return;
-      count++;
-      startSimulationStep();
-      if (screenRef.current === 'simulation' && count < 3) {
+      if (steps >= maxSteps) return;
+      steps++;
+      const result = startSimulationStep();
+      // Keep simulating until item draft or match end
+      if (result === 'continue') {
         animationRef.current = requestAnimationFrame(run);
       }
     };

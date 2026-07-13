@@ -203,14 +203,15 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, pendingItemChampion: action.champion, pendingItemQueue: [], pendingItemIndex: 1, pendingItemTotal: 1, currentScreen: 'itemSelect' };
 
     case 'PAUSE_FOR_ITEM_DRAFT': {
-      const [first, ...rest] = action.champions;
+      const eligible = action.champions.filter(c => c.items.length < 6);
+      const [first, ...rest] = eligible;
       if (!first) return { ...state, currentScreen: 'simulation' };
       return {
         ...state,
         pendingItemChampion: first,
         pendingItemQueue: rest,
         pendingItemIndex: 1,
-        pendingItemTotal: action.champions.length,
+        pendingItemTotal: eligible.length,
         currentScreen: 'itemSelect',
       };
     }
@@ -221,16 +222,22 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const snapshot = state.simulationEngine.getInitialSnapshot();
 
       if (state.pendingItemQueue.length > 0) {
-        const [next, ...rest] = state.pendingItemQueue;
-        const nextFresh = snapshot.champions.find(c => c.instanceId === next.instanceId) ?? next;
-        return {
-          ...state,
-          simulationSnapshot: snapshot,
-          pendingItemChampion: nextFresh,
-          pendingItemQueue: rest,
-          pendingItemIndex: state.pendingItemIndex + 1,
-          currentScreen: 'itemSelect',
-        };
+        const remaining = state.pendingItemQueue.filter(c => {
+          const fresh = snapshot.champions.find(x => x.instanceId === c.instanceId);
+          return (fresh?.items.length ?? c.items.length) < 6;
+        });
+        if (remaining.length > 0) {
+          const [next, ...rest] = remaining;
+          const nextFresh = snapshot.champions.find(c => c.instanceId === next.instanceId) ?? next;
+          return {
+            ...state,
+            simulationSnapshot: snapshot,
+            pendingItemChampion: nextFresh,
+            pendingItemQueue: rest,
+            pendingItemIndex: state.pendingItemIndex + 1,
+            currentScreen: 'itemSelect',
+          };
+        }
       }
 
       return {
@@ -377,7 +384,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 interface GameContextType {
   state: GameState;
   dispatch: React.Dispatch<GameAction>;
-  startSimulationStep: () => void;
+  startSimulationStep: () => 'continue' | 'items' | 'ended';
 }
 
 const GameContext = createContext<GameContextType | null>(null);
@@ -385,8 +392,8 @@ const GameContext = createContext<GameContextType | null>(null);
 export function GameProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
 
-  const startSimulationStep = useCallback(() => {
-    if (!state.simulationEngine) return;
+  const startSimulationStep = useCallback((): 'continue' | 'items' | 'ended' => {
+    if (!state.simulationEngine) return 'ended';
     const snapshot = state.simulationEngine.step();
     dispatch({ type: 'SIMULATION_STEP', snapshot });
 
@@ -394,16 +401,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (snapshot.isComplete) {
       const result = snapshot.winner === 'blue' ? 'win' : 'lose';
       dispatch({ type: 'MATCH_END', result });
-      return;
+      return 'ended';
     }
 
-    // Every 2 turns: player picks one item for each champion
+    // Every 2 turns: pick items only for champions still under 6
     if (snapshot.step > 0 && snapshot.step % 2 === 0) {
-      const blueChamps = snapshot.champions.filter(c => c.team === 'blue');
+      const blueChamps = snapshot.champions.filter(
+        c => c.team === 'blue' && c.items.length < 6
+      );
       if (blueChamps.length > 0) {
         dispatch({ type: 'PAUSE_FOR_ITEM_DRAFT', champions: blueChamps });
+        return 'items';
       }
     }
+
+    return 'continue';
   }, [state.simulationEngine]);
 
   return (
