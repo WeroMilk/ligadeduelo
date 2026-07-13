@@ -77,7 +77,7 @@ export default function ChampionSelect() {
   return (
     <div className="h-app bg-[#0A0E1A] flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="shrink-0 z-30 bg-[#0A0E1A]/95 backdrop-blur-sm border-b border-[#1E2740] px-4 py-3 safe-top">
+      <div className="shrink-0 z-30 bg-[#0A0E1A] border-b border-[#1E2740] px-4 py-3 safe-top">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <h2 className="text-[#F0E6D2] font-bold text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
             Selecciona tu Equipo
@@ -195,7 +195,7 @@ export default function ChampionSelect() {
       </div>
 
       {/* Footer fijo */}
-      <div className="shrink-0 bg-[#0A0E1A]/98 backdrop-blur-sm border-t border-[#1E2740] px-4 pt-3 safe-bottom">
+      <div className="shrink-0 bg-[#0A0E1A] border-t border-[#1E2740] px-4 pt-3 safe-bottom">
         <div className="max-w-lg mx-auto pb-3">
           <div className="flex justify-center gap-2 mb-3">
             {state.selectedChampions.map(c => {

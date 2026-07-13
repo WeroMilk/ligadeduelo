@@ -80,7 +80,7 @@ export default function ItemSelect() {
       style={{ overscrollBehavior: 'none' }}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-[#0A0E1A]/80 backdrop-blur-sm touch-none" />
+      <div className="absolute inset-0 bg-[#0A0E1A]/90 touch-none" />
 
       {/* Panel */}
       <div

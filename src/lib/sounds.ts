@@ -13,19 +13,24 @@ function ctx(): AudioContext | null {
 }
 
 function beep(freq: number, duration: number, type: OscillatorType = 'square', gain = 0.04) {
-  const c = ctx();
-  if (!c) return;
-  if (c.state === 'suspended') void c.resume();
-  const osc = c.createOscillator();
-  const g = c.createGain();
-  osc.type = type;
-  osc.frequency.value = freq;
-  g.gain.value = gain;
-  g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration);
-  osc.connect(g);
-  g.connect(c.destination);
-  osc.start();
-  osc.stop(c.currentTime + duration);
+  try {
+    const c = ctx();
+    if (!c) return;
+    if (c.state === 'suspended') void c.resume();
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    const now = c.currentTime;
+    g.gain.setValueAtTime(Math.max(0.0001, gain), now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(0.01, duration));
+    osc.connect(g);
+    g.connect(c.destination);
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+  } catch {
+    // Algunos WebViews móviles fallan con Web Audio; no tumbar la UI.
+  }
 }
 
 export function playKillSound() {

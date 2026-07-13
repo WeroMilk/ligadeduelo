@@ -2,7 +2,6 @@ import { createContext, useContext, useReducer, useCallback, type ReactNode } fr
 import type { GameScreen, Champion, TeamData, Tournament, Match, SimulationSnapshot, BuffId } from '@/types/game';
 import { GameEngine, createTeam, simulateAIMatch } from '@/lib/game-engine';
 import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats, RIVAL_TEAM_ID, RIVAL_TEAM_NAME } from '@/lib/game-data';
-import { playVictorySound } from '@/lib/sounds';
 
 // ========== STATE ==========
 
@@ -306,7 +305,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           defeatedRival = true;
         }
       }
-      if (action.result === 'win') playVictorySound();
       return {
         ...state,
         tournament,

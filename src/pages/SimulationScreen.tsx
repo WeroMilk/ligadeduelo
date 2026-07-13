@@ -395,7 +395,7 @@ export default function SimulationScreen() {
   return (
     <div className="h-app bg-[#0A0E1A] flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="shrink-0 bg-[#0A0E1A]/95 backdrop-blur-sm border-b border-[#1E2740] px-3 py-2.5 safe-top">
+      <div className="shrink-0 bg-[#0A0E1A] border-b border-[#1E2740] px-3 py-2.5 safe-top">
         <div className="max-w-lg mx-auto flex items-center gap-2">
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <span className="text-[#3498DB] font-bold text-xs sm:text-sm truncate">

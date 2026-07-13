@@ -1,12 +1,14 @@
 import { useGame } from '@/hooks/useGameState';
 import { Trophy, ChevronRight, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { playVictorySound } from '@/lib/sounds';
 
 export default function VictoryScreen() {
   const { state, dispatch } = useGame();
   const [confetti, setConfetti] = useState<{ id: number; x: number; delay: number; color: string }[]>([]);
 
   useEffect(() => {
+    playVictorySound();
     const colors = ['#C9A84C', '#E74C3C', '#3498DB', '#2ECC71', '#9B59B6', '#E67E22'];
     const c = Array.from({ length: 30 }, (_, i) => ({
       id: i,
