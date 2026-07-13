@@ -463,12 +463,12 @@ export class GameEngine {
       victim.position.x = Math.max(0.05, Math.min(0.95, victim.position.x + pull));
     }
     if (pid === 'sunlight') {
-      const allies = this.champions.filter(o =>
+      const allyCount = this.champions.filter(o =>
         o.team === attacker.team && o.isAlive && o.instanceId !== attacker.instanceId
         && this.distance(o.position, victim.position) < 0.15
-      );
-      for (const a of allies) {
-        victim.stats.hp = Math.max(0, victim.stats.hp - 12);
+      ).length;
+      if (allyCount > 0) {
+        victim.stats.hp = Math.max(0, victim.stats.hp - 12 * allyCount);
       }
     }
     return out;
