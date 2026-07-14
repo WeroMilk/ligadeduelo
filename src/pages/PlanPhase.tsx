@@ -1,6 +1,7 @@
 import { useGame } from '@/hooks/useGameState';
 import { getUltimate } from '@/lib/ultimates';
 import { champDef } from '@/lib/turn-engine';
+import Minimap from '@/components/Minimap';
 import type { CombatAction, LaneId } from '@/types/game';
 import { Swords, Sparkles, Shield, Crosshair, Ghost } from 'lucide-react';
 
@@ -30,40 +31,66 @@ export default function PlanPhase() {
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
       <div className="shrink-0 border-b border-[#1E2740] px-4 py-3 safe-top">
-        <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Planificación</p>
-              <h1 className="text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-                Ronda {tm.round}/{tm.maxRounds}
-              </h1>
+        <div className="max-w-lg mx-auto flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Planificación</p>
+                <h1 className="text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+                  Ronda {tm.round}/{tm.maxRounds}
+                </h1>
+              </div>
+              <div className="text-right text-sm">
+                <p className="text-[#3498DB] font-bold">{tm.blue.score} pts</p>
+                <p className="text-[#E74C3C] font-bold">{tm.red.score} pts</p>
+              </div>
             </div>
-            <div className="text-right text-sm">
-              <p className="text-[#3498DB] font-bold">{tm.blue.score} pts</p>
-              <p className="text-[#E74C3C] font-bold">{tm.red.score} pts</p>
-            </div>
-          </div>
-          <p className="mt-2 text-sm text-[#8B9BB4]">
-            Elige si cada campeón ataca o defiende
-            <span className={`ml-2 font-bold ${allAssigned ? 'text-[#2ECC71]' : 'text-[#C9A84C]'}`}>
-              {readyCount}/{living.length} listos
-            </span>
-          </p>
-          {objLabel && (
-            <div className="mt-2 flex items-center gap-2 rounded-lg border border-[#E67E22]/40 bg-[#E67E22]/10 px-3 py-2 text-xs text-[#E67E22]">
-              <Ghost className="w-3.5 h-3.5" />
-              Objetivo: <span className="font-bold">{objLabel}</span> — manda a la jungla a contestarlo
-            </div>
-          )}
-          {state.ahriPeekAction && (
-            <div className="mt-2 rounded-lg border border-[#9B59B6]/40 bg-[#9B59B6]/10 px-3 py-2 text-xs text-[#C39BD3]">
-              Encanto de Ahri: el mid enemigo jugó{' '}
-              <span className="font-bold uppercase">
-                {state.ahriPeekAction === 'attack' ? 'Atacar' : state.ahriPeekAction === 'defend' ? 'Defender' : 'Habilidad'}
+            <p className="mt-2 text-sm text-[#8B9BB4]">
+              Elige si cada campeón ataca o defiende
+              <span className={`ml-2 font-bold ${allAssigned ? 'text-[#2ECC71]' : 'text-[#C9A84C]'}`}>
+                {readyCount}/{living.length} listos
               </span>
-            </div>
-          )}
+            </p>
+            {objLabel && (
+              <div className="mt-2 flex items-center gap-2 rounded-lg border border-[#E67E22]/40 bg-[#E67E22]/10 px-3 py-2 text-xs text-[#E67E22]">
+                <Ghost className="w-3.5 h-3.5" />
+                Objetivo: <span className="font-bold">{objLabel}</span> — manda a la jungla a contestarlo
+              </div>
+            )}
+            {state.ahriPeekAction && (
+              <div className="mt-2 rounded-lg border border-[#9B59B6]/40 bg-[#9B59B6]/10 px-3 py-2 text-xs text-[#C39BD3]">
+                Encanto de Ahri: el mid enemigo jugó{' '}
+                <span className="font-bold uppercase">
+                  {state.ahriPeekAction === 'attack' ? 'Atacar' : state.ahriPeekAction === 'defend' ? 'Defender' : 'Habilidad'}
+                </span>
+              </div>
+            )}
+          </div>
+          <Minimap
+            className="hidden sm:block"
+            size={132}
+            blueChampions={tm.blue.champions}
+            redChampions={tm.red.champions}
+            structures={tm.structures}
+            objective={tm.objective}
+            bluePlan={state.playerPlan}
+            redPlan={state.enemyPlanPreview}
+            showActions
+          />
         </div>
+      </div>
+
+      {/* Mobile floating minimap */}
+      <div className="sm:hidden fixed right-3 bottom-20 z-40 pointer-events-none safe-bottom">
+        <Minimap
+          size={112}
+          blueChampions={tm.blue.champions}
+          redChampions={tm.red.champions}
+          structures={tm.structures}
+          objective={tm.objective}
+          bluePlan={state.playerPlan}
+          showActions
+        />
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 max-w-lg mx-auto w-full space-y-3">

@@ -1,5 +1,6 @@
 import { useGame } from '@/hooks/useGameState';
 import { actionLabelEs, champDef } from '@/lib/turn-engine';
+import Minimap from '@/components/Minimap';
 import type { CombatAction, DuelFighterSummary, DuelSummary, LaneId } from '@/types/game';
 import { Swords, Sparkles, Shield, Castle, Ghost } from 'lucide-react';
 
@@ -94,32 +95,60 @@ export default function ResolvePhase() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-[#1E2740] px-4 py-3 safe-top max-w-lg mx-auto w-full">
-        <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Resolución</p>
-        <h1 className="text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-          Ronda {res.round} revelada
-        </h1>
-        <div className="flex justify-between mt-2 text-sm font-bold">
-          <span className="text-[#3498DB]">{tm.blue.name}: {tm.blue.score} (+{res.blueScoreDelta})</span>
-          <span className="text-[#E74C3C]">{tm.red.name}: {tm.red.score} (+{res.redScoreDelta})</span>
-        </div>
+      <div className="shrink-0 border-b border-[#1E2740] px-4 py-3 safe-top">
+        <div className="max-w-lg mx-auto flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Resolución</p>
+            <h1 className="text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+              Ronda {res.round} revelada
+            </h1>
+            <div className="flex justify-between mt-2 text-sm font-bold">
+              <span className="text-[#3498DB]">{tm.blue.name}: {tm.blue.score} (+{res.blueScoreDelta})</span>
+              <span className="text-[#E74C3C]">{tm.red.name}: {tm.red.score} (+{res.redScoreDelta})</span>
+            </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[11px]">
-          <div className="rounded-lg border border-[#1E2740] bg-[#141B2D] px-2 py-1.5">
-            <p className="text-[#8B9BB4]">Kills</p>
-            <p className="font-bold text-[#F0E6D2]">{res.blueKillsDelta ?? 0} – {res.redKillsDelta ?? 0}</p>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[11px]">
+              <div className="rounded-lg border border-[#1E2740] bg-[#141B2D] px-2 py-1.5">
+                <p className="text-[#8B9BB4]">Kills</p>
+                <p className="font-bold text-[#F0E6D2]">{res.blueKillsDelta ?? 0} – {res.redKillsDelta ?? 0}</p>
+              </div>
+              <div className="rounded-lg border border-[#1E2740] bg-[#141B2D] px-2 py-1.5">
+                <p className="text-[#8B9BB4]">Torres</p>
+                <p className="font-bold text-[#F0E6D2]">{res.towersTakenBlue ?? 0} – {res.towersTakenRed ?? 0}</p>
+              </div>
+              <div className="rounded-lg border border-[#1E2740] bg-[#141B2D] px-2 py-1.5">
+                <p className="text-[#8B9BB4]">Objetivo</p>
+                <p className="font-bold text-[#F0E6D2] truncate">
+                  {objName && objWinnerName ? `${objName}: ${objWinnerName}` : objName ? 'Sin pelea' : '—'}
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="rounded-lg border border-[#1E2740] bg-[#141B2D] px-2 py-1.5">
-            <p className="text-[#8B9BB4]">Torres</p>
-            <p className="font-bold text-[#F0E6D2]">{res.towersTakenBlue ?? 0} – {res.towersTakenRed ?? 0}</p>
-          </div>
-          <div className="rounded-lg border border-[#1E2740] bg-[#141B2D] px-2 py-1.5">
-            <p className="text-[#8B9BB4]">Objetivo</p>
-            <p className="font-bold text-[#F0E6D2] truncate">
-              {objName && objWinnerName ? `${objName}: ${objWinnerName}` : objName ? 'Sin pelea' : '—'}
-            </p>
-          </div>
+          <Minimap
+            className="hidden sm:block"
+            size={140}
+            blueChampions={tm.blue.champions}
+            redChampions={tm.red.champions}
+            structures={tm.structures}
+            objective={tm.objective}
+            bluePlan={state.playerPlan}
+            redPlan={state.enemyPlanPreview}
+            showActions
+          />
         </div>
+      </div>
+
+      <div className="sm:hidden fixed right-3 bottom-20 z-40 pointer-events-none safe-bottom">
+        <Minimap
+          size={112}
+          blueChampions={tm.blue.champions}
+          redChampions={tm.red.champions}
+          structures={tm.structures}
+          objective={tm.objective}
+          bluePlan={state.playerPlan}
+          redPlan={state.enemyPlanPreview}
+          showActions
+        />
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 max-w-lg mx-auto w-full space-y-4">
