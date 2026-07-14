@@ -12,8 +12,8 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-app w-full bg-[#0A0E1A] flex flex-col items-center justify-center relative overflow-y-auto px-4 py-8 safe-top safe-bottom">
-      <div className="relative z-10 flex flex-col items-center gap-8 w-full max-w-md">
+    <div className="screen-center relative bg-[#0A0E1A] px-4 py-8 safe-top safe-bottom">
+      <div className="relative z-10 mx-auto flex w-full max-w-md flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-3">
           <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#8B6914] flex items-center justify-center shadow-[0_0_40px_rgba(201,168,76,0.3)]">
             <Swords className="w-10 h-10 text-[#0A0E1A]" />

@@ -59,7 +59,7 @@ export default function BracketScreen() {
   const isRivalTeam = (id: string) => id === RIVAL_TEAM_ID || id === tournament.rivalTeamId;
 
   return (
-    <div className="h-app bg-[#0A0E1A] flex flex-col overflow-hidden">
+    <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
       <div className="shrink-0 bg-[#0A0E1A] border-b border-[#1E2740] px-4 py-3 safe-top">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between gap-2">

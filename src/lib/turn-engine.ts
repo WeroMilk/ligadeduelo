@@ -1,0 +1,830 @@
+import type {
+  Champion, TeamData, TeamPlan, CombatAction, LaneId, TeamColor,
+  TurnMatchState, RoundResolution, CombatLogLine, Structure, ObjectiveType,
+  DuelSummary, DuelFighterSummary,
+} from '@/types/game';
+import { CHAMPIONS, getChampionBaseStats, ITEMS, ITEM_PRIORITY_BY_ROLE, MAX_MATCH_ROUNDS, GOLD_PER_ROUND, GOLD_PER_KILL, POINTS_KILL, POINTS_TOWER, POINTS_OBJECTIVE } from './game-data';
+import { applyBuffToStats, type BuffId } from './buffs';
+import type { Role } from '@/types/game';
+
+let idCounter = 0;
+function uid(prefix = 'c') { return `${prefix}${++idCounter}`; }
+function logId() { return `l${++idCounter}`; }
+function duelId() { return `d${++idCounter}`; }
+
+export function actionLabelEs(action: CombatAction): string {
+  if (action === 'attack') return 'Atacar';
+  if (action === 'ability') return 'Habilidad';
+  return 'Defender';
+}
+
+function laneLabel(lane: LaneId): string {
+  return lane === 0 ? 'Top' : lane === 1 ? 'Mid' : 'Bot';
+}
+
+function deepCloneChamp(c: Champion): Champion {
+  return {
+    ...c,
+    stats: { ...c.stats },
+    items: c.items.map(i => ({ ...i })),
+    position: { ...c.position },
+  };
+}
+
+function deepCloneTeam(t: TeamData): TeamData {
+  return {
+    ...t,
+    champions: t.champions.map(deepCloneChamp),
+  };
+}
+
+function roleLane(role: Role): LaneId {
+  if (role === 'top') return 0;
+  if (role === 'adc' || role === 'support') return 2;
+  return 1; // mid + jungle home mid
+}
+
+export function createTurnChampion(defId: string, team: TeamColor): Champion {
+  const def = CHAMPIONS.find(c => c.id === defId)!;
+  const lane = roleLane(def.role);
+  return {
+    instanceId: uid(team === 'blue' ? 'b' : 'r'),
+    defId,
+    team,
+    stats: getChampionBaseStats(defId),
+    items: [],
+    isAlive: true,
+    respawnTimer: 0,
+    kills: 0,
+    position: { lane, x: team === 'blue' ? 0.2 : 0.8 },
+    gold: 100,
+    tearStacks: 0,
+    burnPending: 0,
+    ultimateUsed: false,
+    siegeStacks: 0,
+  };
+}
+
+export function createTurnTeam(id: string, name: string, color: TeamColor, champIds: string[]): TeamData {
+  return {
+    id,
+    name,
+    color,
+    champions: champIds.map(cid => createTurnChampion(cid, color)),
+    nexusHp: 1,
+    maxNexusHp: 1,
+    kills: 0,
+    score: 0,
+    damageBuff: 0,
+  };
+}
+
+function initStructures(): Structure[] {
+  return [
+    { id: 'tower_blue_0', type: 'tower', team: 'blue', lane: 0, hp: 1, maxHp: 1, position: { lane: 0, x: 0.25 }, isDestroyed: false },
+    { id: 'tower_blue_1', type: 'tower', team: 'blue', lane: 1, hp: 1, maxHp: 1, position: { lane: 1, x: 0.25 }, isDestroyed: false },
+    { id: 'tower_blue_2', type: 'tower', team: 'blue', lane: 2, hp: 1, maxHp: 1, position: { lane: 2, x: 0.25 }, isDestroyed: false },
+    { id: 'tower_red_0', type: 'tower', team: 'red', lane: 0, hp: 1, maxHp: 1, position: { lane: 0, x: 0.75 }, isDestroyed: false },
+    { id: 'tower_red_1', type: 'tower', team: 'red', lane: 1, hp: 1, maxHp: 1, position: { lane: 1, x: 0.75 }, isDestroyed: false },
+    { id: 'tower_red_2', type: 'tower', team: 'red', lane: 2, hp: 1, maxHp: 1, position: { lane: 2, x: 0.75 }, isDestroyed: false },
+    { id: 'nexus_blue', type: 'nexus', team: 'blue', lane: -1, hp: 1, maxHp: 1, position: { lane: 1, x: 0.05 }, isDestroyed: false },
+    { id: 'nexus_red', type: 'nexus', team: 'red', lane: -1, hp: 1, maxHp: 1, position: { lane: 1, x: 0.95 }, isDestroyed: false },
+  ];
+}
+
+export function createTurnMatch(blue: TeamData, red: TeamData, buffId?: BuffId | null): TurnMatchState {
+  const b = deepCloneTeam(blue);
+  const r = deepCloneTeam({ ...red, color: 'red' });
+  for (const c of r.champions) c.team = 'red';
+  if (buffId) {
+    for (const c of b.champions) c.stats = applyBuffToStats(c.stats, buffId);
+  }
+  return {
+    blue: b,
+    red: r,
+    round: 1,
+    maxRounds: MAX_MATCH_ROUNDS,
+    objective: objectiveForRound(1),
+    structures: initStructures(),
+    lastResolution: null,
+    isComplete: false,
+    winner: null,
+  };
+}
+
+export function objectiveForRound(round: number): ObjectiveType {
+  if (round === 6 || round === 9) return 'baron';
+  if (round % 3 === 0) return 'dragon';
+  return null;
+}
+
+function hasItem(c: Champion, id: string) {
+  return c.items.some(i => i.defId === id);
+}
+
+function champDef(c: Champion) {
+  return CHAMPIONS.find(d => d.id === c.defId)!;
+}
+
+export { champDef };
+
+function priority(c: Champion, action: CombatAction, usedUlt: boolean): number {
+  let p = c.stats.attackSpeed * 100 + c.stats.moveSpeed;
+  if (hasItem(c, 'dagger')) p += 50;
+  if (action === 'attack') p += 10;
+  if (usedUlt && c.defId === 'kayn' && action === 'attack') p += 200;
+  return p;
+}
+
+function pushLog(log: CombatLogLine[], text: string, tone: CombatLogLine['tone'] = 'neutral') {
+  log.push({ id: logId(), text, tone });
+}
+
+function living(team: TeamData) {
+  return team.champions.filter(c => c.isAlive && c.stats.hp > 0);
+}
+
+function applyBurn(champs: Champion[], log: CombatLogLine[]) {
+  for (const c of champs) {
+    if (!c.isAlive || c.burnPending <= 0) continue;
+    c.stats.hp = Math.max(0, c.stats.hp - c.burnPending);
+    pushLog(log, `${champDef(c).name} sufre ${c.burnPending} de quema`, 'neutral');
+    c.burnPending = 0;
+    if (c.stats.hp <= 0) {
+      c.isAlive = false;
+      pushLog(log, `${champDef(c).name} muere por la quema`, 'kill');
+    }
+  }
+}
+
+function dealDamage(_attacker: Champion, defender: Champion, raw: number, magic: boolean): number {
+  let dmg = raw;
+  if (magic && hasItem(defender, 'null_magic')) dmg = Math.max(5, dmg - 40);
+  const mit = magic
+    ? defender.stats.mr / (defender.stats.mr + 100)
+    : defender.stats.armor / (defender.stats.armor + 100);
+  dmg = Math.max(8, Math.floor(dmg * (1 - mit)));
+  defender.stats.hp = Math.max(0, defender.stats.hp - dmg);
+  return dmg;
+}
+
+function actionDamage(c: Champion, action: CombatAction, teamBuff: number, tearDouble: boolean): { dmg: number; magic: boolean } {
+  if (action === 'defend') return { dmg: 0, magic: false };
+  if (action === 'attack') {
+    let dmg = Math.floor(c.stats.ad * 0.85) + 20 + teamBuff;
+    if (hasItem(c, 'long_sword')) dmg += 35;
+    return { dmg, magic: false };
+  }
+  // ability
+  let dmg = Math.floor(c.stats.ap * 1.1) + 30 + teamBuff;
+  if (hasItem(c, 'blasting_wand')) dmg += 45;
+  if (tearDouble) dmg *= 2;
+  return { dmg, magic: true };
+}
+
+type Fighter = { champ: Champion; action: CombatAction; ult: boolean; lane: number };
+
+function fighterSnap(f: Fighter, hpBefore: number, damageDealt: number): DuelFighterSummary {
+  return {
+    instanceId: f.champ.instanceId,
+    name: champDef(f.champ).name,
+    image: champDef(f.champ).image,
+    action: f.action,
+    usedUlt: f.ult,
+    hpBefore,
+    hpAfter: Math.max(0, Math.floor(f.champ.stats.hp)),
+    maxHp: f.champ.stats.maxHp,
+    isAlive: f.champ.isAlive && f.champ.stats.hp > 0,
+    damageDealt,
+  };
+}
+
+function resolveDuel(
+  a: Fighter,
+  b: Fighter,
+  state: TurnMatchState,
+  log: CombatLogLine[],
+  duels: DuelSummary[],
+  lane: LaneId,
+): { blueKill: boolean; redKill: boolean } {
+  let blueKill = false;
+  let redKill = false;
+
+  const hpA = a.champ.stats.hp;
+  const hpB = b.champ.stats.hp;
+  let dmgByA = 0;
+  let dmgByB = 0;
+  const notes: string[] = [];
+
+  // Ult effects pre
+  if (a.ult && a.champ.defId === 'amumu' && b.action === 'defend') b.action = 'attack';
+  if (b.ult && b.champ.defId === 'amumu' && a.action === 'defend') a.action = 'attack';
+  if (a.ult && a.champ.defId === 'leona' && b.action === 'attack') b.action = 'defend';
+  if (b.ult && b.champ.defId === 'leona' && a.action === 'attack') a.action = 'defend';
+  if (a.ult && a.champ.defId === 'thresh') b.champ.stats.armor = Math.max(5, b.champ.stats.armor - 20);
+  if (b.ult && b.champ.defId === 'thresh') a.champ.stats.armor = Math.max(5, a.champ.stats.armor - 20);
+
+  const order = [a, b].sort((x, y) => priority(y.champ, y.action, y.ult) - priority(x.champ, x.action, x.ult));
+
+  for (const atk of order) {
+    if (!atk.champ.isAlive || atk.champ.stats.hp <= 0) continue;
+    const def = atk === a ? b : a;
+    if (!def.champ.isAlive) continue;
+
+    let tearDouble = false;
+    if (atk.action === 'ability' && hasItem(atk.champ, 'tear')) {
+      atk.champ.tearStacks += 1;
+      if (atk.champ.tearStacks >= 5) {
+        tearDouble = true;
+        atk.champ.tearStacks = 0;
+        pushLog(log, `${champDef(atk.champ).name} descarga la Lágrima (×2)`, 'ulti');
+      }
+    }
+
+    const team = atk.champ.team === 'blue' ? state.blue : state.red;
+    let { dmg, magic } = actionDamage(atk.champ, atk.action, team.damageBuff, tearDouble);
+
+    if (atk.ult && atk.champ.defId === 'lux' && atk.action === 'ability') dmg = Math.floor(dmg * 1.5);
+    if (atk.ult && atk.champ.defId === 'vi' && atk.action === 'attack') dmg += 50;
+    if (atk.ult && atk.champ.defId === 'ezreal' && atk.action === 'ability') dmg += 35;
+    if (atk.ult && atk.champ.defId === 'jinx' && atk.action === 'ability') dmg += atk.champ.kills * 15;
+    if (atk.ult && atk.champ.defId === 'lee_sin') dmg += 40;
+    if (atk.ult && atk.champ.defId === 'garen' && atk.action === 'attack') {
+      dmg = Math.floor(dmg * 1.25);
+    }
+    if (atk.ult && atk.champ.defId === 'generic') dmg += 25;
+
+    if (champDef(atk.champ).passive.id === 'execute' && def.champ.stats.hp / def.champ.stats.maxHp < 0.2) {
+      dmg = def.champ.stats.hp;
+      pushLog(log, `${champDef(atk.champ).name} ejecuta`, 'kill');
+    }
+    if (atk.ult && atk.champ.defId === 'kaisa' && atk.action === 'attack' && def.champ.stats.hp / def.champ.stats.maxHp < 0.35) {
+      dmg = def.champ.stats.hp;
+      pushLog(log, `${champDef(atk.champ).name} ejecuta por instinto`, 'ulti');
+    }
+
+    if (atk.action === 'defend') {
+      pushLog(log, `${champDef(atk.champ).name} elige Defender y no ataca`);
+      notes.push(`${champDef(atk.champ).name} defiende`);
+      continue;
+    }
+
+    let mitigated = dmg;
+    const ignoreDefend = (atk.ult && atk.champ.defId === 'caitlyn' && atk.action === 'attack')
+      || (champDef(atk.champ).passive.id === 'headshot' && Math.random() < 0.15);
+    if (def.action === 'defend' && !ignoreDefend) {
+      if (def.ult && def.champ.defId === 'malphite') {
+        mitigated = 0;
+        pushLog(log, `${champDef(def.champ).name} anula el golpe (Inquebrantable)`, 'ulti');
+      } else {
+        mitigated = Math.floor(dmg * 0.4);
+        pushLog(log, `${champDef(def.champ).name} Defiende y reduce el golpe a ${mitigated}`);
+      }
+    }
+    if (ignoreDefend && def.action === 'defend') {
+      pushLog(log, `${champDef(atk.champ).name} ignora la defensa`, 'ulti');
+    }
+
+    const dealt = dealDamage(atk.champ, def.champ, mitigated, magic);
+    if (atk === a) dmgByA += dealt;
+    else dmgByB += dealt;
+
+    const dmgType = magic ? 'daño mágico' : 'daño físico';
+    pushLog(
+      log,
+      `${champDef(atk.champ).name} ${actionLabelEs(atk.action)} a ${champDef(def.champ).name} · ${dealt} de ${dmgType}`,
+    );
+    notes.push(
+      `${champDef(atk.champ).name} ${actionLabelEs(atk.action).toLowerCase()}, ${champDef(def.champ).name}${
+        def.action === 'defend' ? ' defiende' : ''
+      } → ${dealt} dmg`,
+    );
+
+    if (atk.action === 'attack' && hasItem(atk.champ, 'cloth_armor')) {
+      def.champ.burnPending += 25;
+    }
+
+    if (atk.ult && atk.champ.defId === 'yasuo' && atk.action === 'attack' && def.champ.isAlive && def.champ.stats.hp > 0) {
+      const second = dealDamage(atk.champ, def.champ, Math.floor(mitigated * 0.6), false);
+      if (atk === a) dmgByA += second;
+      else dmgByB += second;
+      pushLog(log, `${champDef(atk.champ).name} Segundo Aliento: +${second}`, 'ulti');
+    }
+
+    if (def.champ.stats.hp <= 0) {
+      def.champ.isAlive = false;
+      atk.champ.kills += 1;
+      atk.champ.gold += GOLD_PER_KILL;
+      if (atk.champ.team === 'blue') {
+        state.blue.kills += 1;
+        state.blue.score += POINTS_KILL;
+        blueKill = true;
+      } else {
+        state.red.kills += 1;
+        state.red.score += POINTS_KILL;
+        redKill = true;
+      }
+      pushLog(log, `¡${champDef(atk.champ).name} elimina a ${champDef(def.champ).name}! (+${POINTS_KILL} pts)`, 'kill');
+      notes.push(`${champDef(def.champ).name} KO`);
+
+      if (atk.ult && atk.champ.defId === 'darius') {
+        atk.champ.stats.hp = Math.min(atk.champ.stats.maxHp, atk.champ.stats.hp + 80);
+        pushLog(log, `${champDef(atk.champ).name} se cura 80`, 'ulti');
+      }
+    } else if (atk.ult && atk.champ.defId === 'zed') {
+      def.champ.stats.hp = Math.max(0, def.champ.stats.hp - 30);
+      if (atk === a) dmgByA += 30;
+      else dmgByB += 30;
+      pushLog(log, `Marca Mortal: +30 a ${champDef(def.champ).name}`, 'ulti');
+      if (def.champ.stats.hp <= 0) {
+        def.champ.isAlive = false;
+        atk.champ.kills += 1;
+        atk.champ.gold += GOLD_PER_KILL;
+        if (atk.champ.team === 'blue') { state.blue.kills++; state.blue.score += POINTS_KILL; blueKill = true; }
+        else { state.red.kills++; state.red.score += POINTS_KILL; redKill = true; }
+        pushLog(log, `${champDef(def.champ).name} cae por la marca`, 'kill');
+        notes.push(`${champDef(def.champ).name} KO`);
+      }
+    }
+  }
+
+  const blueF = a.champ.team === 'blue' ? a : b;
+  const redF = a.champ.team === 'red' ? a : b;
+  const blueDmg = a.champ.team === 'blue' ? dmgByA : dmgByB;
+  const redDmg = a.champ.team === 'red' ? dmgByA : dmgByB;
+  const blueHpBefore = a.champ.team === 'blue' ? hpA : hpB;
+  const redHpBefore = a.champ.team === 'red' ? hpA : hpB;
+
+  duels.push({
+    id: duelId(),
+    lane,
+    kind: 'duel',
+    blue: fighterSnap(blueF, blueHpBefore, blueDmg),
+    red: fighterSnap(redF, redHpBefore, redDmg),
+    summary: notes[0] || `${champDef(blueF.champ).name} vs ${champDef(redF.champ).name}`,
+  });
+
+  return { blueKill, redKill };
+}
+
+function fightersInLane(
+  state: TurnMatchState,
+  lane: LaneId,
+  bluePlan: TeamPlan,
+  redPlan: TeamPlan,
+): { blue: Fighter[]; red: Fighter[] } {
+  const collect = (team: TeamData, plan: TeamPlan): Fighter[] => {
+    const out: Fighter[] = [];
+    for (const c of living(team)) {
+      const def = champDef(c);
+      let laneNow = c.position.lane as number;
+      if (plan.bootsLane?.[c.instanceId] !== undefined && hasItem(c, 'boots')) {
+        laneNow = plan.bootsLane[c.instanceId];
+      }
+      if (def.role === 'jungle') {
+        const jt = plan.jungleTarget;
+        if (jt === 'objective') continue; // handled separately
+        if (typeof jt === 'number') laneNow = jt;
+        else laneNow = 1;
+      }
+      if (laneNow !== lane) continue;
+      const action = plan.actions[c.instanceId] || 'attack';
+      const ult = plan.ultimates.includes(c.instanceId);
+      out.push({ champ: c, action, ult, lane: laneNow });
+    }
+    return out;
+  };
+  return { blue: collect(state.blue, bluePlan), red: collect(state.red, redPlan) };
+}
+
+function resolveLaneGroup(
+  state: TurnMatchState,
+  lane: LaneId,
+  bluePlan: TeamPlan,
+  redPlan: TeamPlan,
+  log: CombatLogLine[],
+  duels: DuelSummary[],
+  towerStats: { blue: number; red: number },
+) {
+  const { blue, red } = fightersInLane(state, lane, bluePlan, redPlan);
+  if (blue.length === 0 && red.length === 0) return;
+
+  pushLog(log, `— Línea ${laneLabel(lane)} —`, 'section');
+
+  for (const f of [...blue, ...red]) {
+    if (!f.ult) continue;
+    const team = f.champ.team === 'blue' ? state.blue : state.red;
+    if (f.champ.defId === 'soraka') {
+      for (const a of living(team)) a.stats.hp = Math.min(a.stats.maxHp, a.stats.hp + 100);
+      pushLog(log, `${champDef(f.champ).name} Wish cura al equipo`, 'ulti');
+    }
+    if (f.champ.defId === 'lulu' || f.champ.defId === 'shen') {
+      const ally = living(team).filter(x => x.instanceId !== f.champ.instanceId)
+        .sort((x, y) => (x.stats.hp / x.stats.maxHp) - (y.stats.hp / y.stats.maxHp))[0];
+      if (ally) {
+        if (f.champ.defId === 'lulu') {
+          ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + 120);
+          pushLog(log, `Wild Growth escuda a ${champDef(ally).name}`, 'ulti');
+        }
+        if (f.champ.defId === 'shen') {
+          const plan = f.champ.team === 'blue' ? bluePlan : redPlan;
+          plan.actions[ally.instanceId] = 'defend';
+          pushLog(log, `Stand United protege a ${champDef(ally).name}`, 'ulti');
+        }
+      }
+    }
+  }
+
+  const fought = new Set<string>();
+  const redQ = [...red];
+  for (const bf of blue) {
+    const enemy = redQ.find(r => r.champ.isAlive && r.champ.stats.hp > 0 && !fought.has(r.champ.instanceId));
+    if (enemy && enemy.champ.isAlive) {
+      fought.add(bf.champ.instanceId);
+      fought.add(enemy.champ.instanceId);
+      resolveDuel(bf, enemy, state, log, duels, lane);
+    } else if (bf.action !== 'defend') {
+      siegeTower(state, 'red', lane, bf.champ, log, duels, towerStats);
+    }
+  }
+  for (const rf of red) {
+    if (!rf.champ.isAlive || fought.has(rf.champ.instanceId)) continue;
+    const hasBlue = blue.some(b => b.champ.isAlive && b.champ.stats.hp > 0);
+    if (!hasBlue && rf.action !== 'defend') {
+      siegeTower(state, 'blue', lane, rf.champ, log, duels, towerStats);
+    }
+  }
+}
+
+function siegeTower(
+  state: TurnMatchState,
+  towerTeam: TeamColor,
+  lane: LaneId,
+  sieger: Champion,
+  log: CombatLogLine[],
+  duels: DuelSummary[],
+  towerStats: { blue: number; red: number },
+) {
+  const siegerSnap: DuelFighterSummary = {
+    instanceId: sieger.instanceId,
+    name: champDef(sieger).name,
+    image: champDef(sieger).image,
+    action: 'attack',
+    usedUlt: false,
+    hpBefore: Math.floor(sieger.stats.hp),
+    hpAfter: Math.floor(sieger.stats.hp),
+    maxHp: sieger.stats.maxHp,
+    isAlive: true,
+    damageDealt: 0,
+  };
+
+  const tower = state.structures.find(s => s.type === 'tower' && s.team === towerTeam && s.lane === lane && !s.isDestroyed);
+  if (!tower) {
+    const nexus = state.structures.find(s => s.type === 'nexus' && s.team === towerTeam && !s.isDestroyed);
+    if (nexus) {
+      sieger.siegeStacks += 1;
+      pushLog(log, `${champDef(sieger).name} presiona el Nexo (${sieger.siegeStacks}/1)`);
+      duels.push({
+        id: duelId(),
+        lane,
+        kind: 'siege',
+        blue: sieger.team === 'blue' ? siegerSnap : undefined,
+        red: sieger.team === 'red' ? siegerSnap : undefined,
+        summary: `${champDef(sieger).name} asedia el Nexo`,
+      });
+      if (sieger.siegeStacks >= 1) {
+        nexus.isDestroyed = true;
+        pushLog(log, `¡NEXO DESTRUIDO por ${champDef(sieger).name}! Victoria automática`, 'tower');
+      }
+    }
+    return;
+  }
+  sieger.siegeStacks += 1;
+  pushLog(log, `${champDef(sieger).name} asedia la torre ${laneLabel(lane)} (${sieger.siegeStacks}/2)`);
+  let summary = `${champDef(sieger).name} asedia torre ${laneLabel(lane)} (${sieger.siegeStacks}/2)`;
+  if (sieger.siegeStacks >= 2) {
+    tower.isDestroyed = true;
+    sieger.siegeStacks = 0;
+    if (sieger.team === 'blue') {
+      state.blue.score += POINTS_TOWER;
+      towerStats.blue += 1;
+    } else {
+      state.red.score += POINTS_TOWER;
+      towerStats.red += 1;
+    }
+    pushLog(log, `¡Torreta destruida! +${POINTS_TOWER} pts para ${sieger.team === 'blue' ? state.blue.name : state.red.name}`, 'tower');
+    summary = `${champDef(sieger).name} destruye la torre ${laneLabel(lane)}`;
+  }
+  duels.push({
+    id: duelId(),
+    lane,
+    kind: 'siege',
+    blue: sieger.team === 'blue' ? siegerSnap : undefined,
+    red: sieger.team === 'red' ? siegerSnap : undefined,
+    summary,
+  });
+}
+
+function resolveObjective(
+  state: TurnMatchState,
+  bluePlan: TeamPlan,
+  redPlan: TeamPlan,
+  log: CombatLogLine[],
+  duels: DuelSummary[],
+): TeamColor | null {
+  if (!state.objective) return null;
+  const obj = state.objective;
+  const name = obj === 'baron' ? 'Barón Nashor' : 'Dragón';
+
+  const participants = (team: TeamData, plan: TeamPlan) =>
+    living(team).filter(c => {
+      const def = champDef(c);
+      if (def.role === 'jungle' && plan.jungleTarget === 'objective') return true;
+      return false;
+    });
+
+  const blueP = participants(state.blue, bluePlan);
+  const redP = participants(state.red, redPlan);
+
+  pushLog(log, `— Objetivo: ${name} —`, 'section');
+
+  if (blueP.length === 0 && redP.length === 0) {
+    pushLog(log, `${name}: nadie lo contestó esta ronda`);
+    return null;
+  }
+
+  pushLog(log, `¡Pelea por el ${name}!`, 'objective');
+
+  const power = (arr: Champion[]) => arr.reduce((s, c) => s + c.stats.ad + c.stats.ap + c.stats.hp * 0.05, 0);
+  const bp = power(blueP);
+  const rp = power(redP);
+
+  if (blueP[0] && redP[0]) {
+    resolveDuel(
+      { champ: blueP[0], action: bluePlan.actions[blueP[0].instanceId] || 'attack', ult: bluePlan.ultimates.includes(blueP[0].instanceId), lane: 1 },
+      { champ: redP[0], action: redPlan.actions[redP[0].instanceId] || 'attack', ult: redPlan.ultimates.includes(redP[0].instanceId), lane: 1 },
+      state,
+      log,
+      duels,
+      1,
+    );
+  }
+
+  const winner: TeamColor | null = bp === rp ? (Math.random() < 0.5 ? 'blue' : 'red') : bp > rp ? 'blue' : 'red';
+  const wTeam = winner === 'blue' ? state.blue : state.red;
+  wTeam.score += POINTS_OBJECTIVE;
+  wTeam.damageBuff += 5;
+  pushLog(log, `${wTeam.name} conquista el ${name}! +${POINTS_OBJECTIVE} pts y +5 daño de equipo`, 'objective');
+  return winner;
+}
+
+function markUltimatesUsed(state: TurnMatchState, bluePlan: TeamPlan, redPlan: TeamPlan) {
+  for (const id of bluePlan.ultimates) {
+    const c = state.blue.champions.find(x => x.instanceId === id);
+    if (c) c.ultimateUsed = true;
+  }
+  for (const id of redPlan.ultimates) {
+    const c = state.red.champions.find(x => x.instanceId === id);
+    if (c) c.ultimateUsed = true;
+  }
+}
+
+function applyBootsLanes(state: TurnMatchState, bluePlan: TeamPlan, redPlan: TeamPlan) {
+  const apply = (team: TeamData, plan: TeamPlan) => {
+    for (const c of team.champions) {
+      const lane = plan.bootsLane?.[c.instanceId];
+      if (lane !== undefined && hasItem(c, 'boots')) {
+        c.position.lane = lane;
+      }
+    }
+  };
+  apply(state.blue, bluePlan);
+  apply(state.red, redPlan);
+}
+
+function income(state: TurnMatchState) {
+  for (const c of [...state.blue.champions, ...state.red.champions]) {
+    if (c.isAlive) c.gold += GOLD_PER_ROUND;
+  }
+}
+
+function reviveDead(state: TurnMatchState, log: CombatLogLine[]) {
+  for (const c of [...state.blue.champions, ...state.red.champions]) {
+    if (c.isAlive) continue;
+    c.respawnTimer -= 1;
+    if (c.respawnTimer <= 0) {
+      c.isAlive = true;
+      c.stats.hp = Math.floor(c.stats.maxHp * 0.7);
+      c.respawnTimer = 0;
+      c.siegeStacks = 0;
+      const def = champDef(c);
+      c.position.lane = roleLane(def.role);
+      pushLog(log, `${def.name} revive con 70% de vida`);
+    }
+  }
+}
+
+function onDeathSetRespawn(state: TurnMatchState) {
+  for (const c of [...state.blue.champions, ...state.red.champions]) {
+    if (!c.isAlive && c.stats.hp <= 0 && c.respawnTimer <= 0) {
+      c.respawnTimer = 2;
+    }
+  }
+}
+
+export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan: TeamPlan): TurnMatchState {
+  const next = {
+    ...state,
+    blue: deepCloneTeam(state.blue),
+    red: deepCloneTeam(state.red),
+    structures: state.structures.map(s => ({ ...s })),
+  };
+  const log: CombatLogLine[] = [];
+  const duels: DuelSummary[] = [];
+  const towerStats = { blue: 0, red: 0 };
+  const scoreBeforeB = next.blue.score;
+  const scoreBeforeR = next.red.score;
+  const killsBeforeB = next.blue.kills;
+  const killsBeforeR = next.red.kills;
+
+  applyBurn([...next.blue.champions, ...next.red.champions], log);
+  applyBootsLanes(next, bluePlan, redPlan);
+  markUltimatesUsed(next, bluePlan, redPlan);
+
+  pushLog(log, `— Ronda ${next.round} —`, 'section');
+
+  // Reveal flavor
+  for (const c of living(next.blue)) {
+    const a = bluePlan.actions[c.instanceId];
+    if (a) c.revealedAction = a;
+  }
+  for (const c of living(next.red)) {
+    const a = redPlan.actions[c.instanceId];
+    if (a) c.revealedAction = a;
+  }
+
+  resolveLaneGroup(next, 0, bluePlan, redPlan, log, duels, towerStats);
+  resolveLaneGroup(next, 1, bluePlan, redPlan, log, duels, towerStats);
+  resolveLaneGroup(next, 2, bluePlan, redPlan, log, duels, towerStats);
+
+  const objWinner = resolveObjective(next, bluePlan, redPlan, log, duels);
+
+  onDeathSetRespawn(next);
+  income(next);
+  reviveDead(next, log);
+
+  let matchOver = false;
+  let winner: TeamColor | null = null;
+  let autoNexus = false;
+
+  const nexusBlue = next.structures.find(s => s.id === 'nexus_blue');
+  const nexusRed = next.structures.find(s => s.id === 'nexus_red');
+  if (nexusRed?.isDestroyed) { matchOver = true; winner = 'blue'; autoNexus = true; next.blue.score += 10; }
+  if (nexusBlue?.isDestroyed) { matchOver = true; winner = 'red'; autoNexus = true; next.red.score += 10; }
+
+  if (!matchOver && next.round >= next.maxRounds) {
+    matchOver = true;
+    winner = next.blue.score >= next.red.score ? 'blue' : 'red';
+    if (next.blue.score === next.red.score) {
+      winner = next.blue.kills >= next.red.kills ? 'blue' : 'red';
+    }
+    pushLog(log, `Fin de las ${next.maxRounds} rondas. Marcador ${next.blue.score}–${next.red.score}`);
+  }
+
+  const resolution: RoundResolution = {
+    round: next.round,
+    log,
+    duels,
+    blueScoreDelta: next.blue.score - scoreBeforeB,
+    redScoreDelta: next.red.score - scoreBeforeR,
+    blueKillsDelta: next.blue.kills - killsBeforeB,
+    redKillsDelta: next.red.kills - killsBeforeR,
+    towersTakenBlue: towerStats.blue,
+    towersTakenRed: towerStats.red,
+    objective: next.objective,
+    objectiveWinner: objWinner,
+    matchOver,
+    winner,
+    autoNexus,
+  };
+
+  next.lastResolution = resolution;
+  if (matchOver) {
+    next.isComplete = true;
+    next.winner = winner;
+  } else {
+    next.round += 1;
+    next.objective = objectiveForRound(next.round);
+  }
+
+  return next;
+}
+
+/** Plan IA simple. */
+export function generateAIPlan(state: TurnMatchState, team: 'blue' | 'red'): TeamPlan {
+  const t = team === 'blue' ? state.blue : state.red;
+  const enemy = team === 'blue' ? state.red : state.blue;
+  const actions: Record<string, CombatAction> = {};
+  const ultimates: string[] = [];
+  const bootsLane: Record<string, LaneId> = {};
+  let jungleTarget: TeamPlan['jungleTarget'] = 1;
+
+  for (const c of living(t)) {
+    const def = champDef(c);
+    const hpPct = c.stats.hp / c.stats.maxHp;
+    let action: CombatAction = 'attack';
+    if (hpPct < 0.35) action = 'defend';
+    else if (def.baseStats.ap >= def.baseStats.ad) action = Math.random() < 0.55 ? 'ability' : 'attack';
+    else action = Math.random() < 0.7 ? 'attack' : (Math.random() < 0.5 ? 'ability' : 'defend');
+    actions[c.instanceId] = action;
+
+    if (!c.ultimateUsed && Math.random() < 0.22) {
+      ultimates.push(c.instanceId);
+    }
+
+    if (hasItem(c, 'boots') && Math.random() < 0.35) {
+      bootsLane[c.instanceId] = ([0, 1, 2] as LaneId[])[Math.floor(Math.random() * 3)];
+    }
+
+    if (def.role === 'jungle') {
+      if (state.objective && Math.random() < 0.45) jungleTarget = 'objective';
+      else {
+        const weak = living(enemy).sort((a, b) => a.stats.hp - b.stats.hp)[0];
+        jungleTarget = weak ? (weak.position.lane as LaneId) : 1;
+      }
+    }
+  }
+
+  return { actions, ultimates, bootsLane, jungleTarget };
+}
+
+export function buyItem(champ: Champion, itemId: string): boolean {
+  const item = ITEMS.find(i => i.id === itemId);
+  if (!item || champ.items.length >= 6) return false;
+  const cost = 80;
+  if (champ.gold < cost) return false;
+  champ.gold -= cost;
+  champ.items.push({ defId: itemId });
+  if (item.statBonus.maxHp) {
+    champ.stats.maxHp += item.statBonus.maxHp;
+    champ.stats.hp += item.statBonus.maxHp;
+  }
+  if (item.statBonus.maxMana) {
+    champ.stats.maxMana += (item.statBonus.maxMana || 0);
+    champ.stats.mana += (item.statBonus.maxMana || 0);
+  }
+  if (item.statBonus.ad) champ.stats.ad += item.statBonus.ad;
+  if (item.statBonus.ap) champ.stats.ap += item.statBonus.ap;
+  if (item.statBonus.attackSpeed) champ.stats.attackSpeed += item.statBonus.attackSpeed;
+  if (item.statBonus.armor) champ.stats.armor += item.statBonus.armor;
+  if (item.statBonus.mr) champ.stats.mr += item.statBonus.mr;
+  if (item.statBonus.moveSpeed) champ.stats.moveSpeed += item.statBonus.moveSpeed;
+  return true;
+}
+
+export function aiBuyItems(team: TeamData) {
+  for (const c of living(team)) {
+    if (c.items.length >= 6 || c.gold < 80) continue;
+    const def = champDef(c);
+    const prio = ITEM_PRIORITY_BY_ROLE[def.role];
+    for (const id of prio) {
+      if (c.items.some(i => i.defId === id)) continue;
+      if (buyItem(c, id)) break;
+    }
+  }
+}
+
+/** Simula un partido IA completo (bracket). */
+export function simulateAITurnMatch(teamA: TeamData, teamB: TeamData): { winner: TeamColor; blueScore: number; redScore: number; blueKills: number; redKills: number } {
+  let state = createTurnMatch(
+    { ...teamA, color: 'blue', champions: teamA.champions.map(c => ({ ...deepCloneChamp(c), team: 'blue' as const })) },
+    { ...teamB, color: 'red', champions: teamB.champions.map(c => ({ ...deepCloneChamp(c), team: 'red' as const })) },
+  );
+  // reset instance for AI matches - recreate from def ids
+  state = createTurnMatch(
+    createTurnTeam(teamA.id, teamA.name, 'blue', teamA.champions.map(c => c.defId)),
+    createTurnTeam(teamB.id, teamB.name, 'red', teamB.champions.map(c => c.defId)),
+  );
+
+  while (!state.isComplete) {
+    const bluePlan = generateAIPlan(state, 'blue');
+    const redPlan = generateAIPlan(state, 'red');
+    state = resolveRound(state, bluePlan, redPlan);
+    if (!state.isComplete) {
+      aiBuyItems(state.blue);
+      aiBuyItems(state.red);
+    }
+  }
+
+  return {
+    winner: state.winner || 'blue',
+    blueScore: state.blue.score,
+    redScore: state.red.score,
+    blueKills: state.blue.kills,
+    redKills: state.red.kills,
+  };
+}
+
+export function getAhriReveal(_state: TurnMatchState, enemyMidAction: CombatAction | null): CombatAction | null {
+  return enemyMidAction;
+}

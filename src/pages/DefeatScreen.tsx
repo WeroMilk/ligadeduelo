@@ -16,7 +16,7 @@ export default function DefeatScreen() {
   };
 
   return (
-    <div className="min-h-app bg-[#0A0E1A] flex flex-col items-center justify-center relative overflow-y-auto px-4 py-8 safe-top safe-bottom">
+    <div className="screen-center relative bg-[#0A0E1A] px-4 py-8 safe-top safe-bottom">
       {/* Red vignette */}
       <div className="absolute inset-0 bg-gradient-radial from-[#E74C3C]/10 via-transparent to-transparent" />
 
@@ -36,14 +36,12 @@ export default function DefeatScreen() {
         </div>
 
         {/* Stats */}
-        <div className="w-full bg-[#141B2D] rounded-xl border border-[#E74C3C]/30 p-4">
-          <div className="text-center">
-            <p className="text-[#8B9BB4] text-sm">Ronda alcanzada</p>
-            <p className="text-2xl font-bold text-[#E74C3C] mt-1">{roundNames[currentRound] || 'Octavos'}</p>
-            <p className="text-[#8B9BB4] text-xs mt-1">
-              Posición: {currentRound === 0 ? 'Top 16' : currentRound === 1 ? 'Top 8' : currentRound === 2 ? 'Top 4' : '2do lugar'}
-            </p>
-          </div>
+        <div className="w-full bg-[#141B2D] rounded-xl border border-[#E74C3C]/30 p-4 text-center">
+          <p className="text-[#8B9BB4] text-sm">Marcador final</p>
+          <p className="text-2xl font-bold text-[#E74C3C] mt-1">
+            {state.turnMatch?.blue.score ?? 0} – {state.turnMatch?.red.score ?? 0}
+          </p>
+          <p className="text-[#8B9BB4] text-xs mt-2">Ronda: {roundNames[currentRound] || 'Octavos'}</p>
         </div>
 
         <div className="flex flex-col gap-3 w-full">

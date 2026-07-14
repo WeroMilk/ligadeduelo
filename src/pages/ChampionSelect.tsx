@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useGame } from '@/hooks/useGameState';
-import { CHAMPIONS, ROLE_COLORS, ROLE_NAMES } from '@/lib/game-data';
+import { ROLE_COLORS, ROLE_NAMES, CHAMPIONS } from '@/lib/game-data';
+import { getUltimate } from '@/lib/ultimates';
 import { preloadChampionImages } from '@/lib/preload-images';
 import type { Role } from '@/types/game';
 import { Shield, TreePine, Zap, Crosshair, Heart, Check, ChevronRight, User } from 'lucide-react';
@@ -75,7 +76,7 @@ export default function ChampionSelect() {
   const canConfirm = state.selectedChampions.length === 5;
 
   return (
-    <div className="h-app bg-[#0A0E1A] flex flex-col overflow-hidden">
+    <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="shrink-0 z-30 bg-[#0A0E1A] border-b border-[#1E2740] px-4 py-3 safe-top">
         <div className="flex items-center justify-between max-w-lg mx-auto">
@@ -179,6 +180,11 @@ export default function ChampionSelect() {
                       <span className="font-bold">{champ.passive.name}</span>
                       {' · '}
                       {champ.passive.description}
+                    </p>
+                    <p className="text-[#9B59B6] text-[10px] mt-1 leading-snug px-0.5 line-clamp-2">
+                      <span className="font-bold">ULT {getUltimate(champ.id).name}</span>
+                      {' · '}
+                      {getUltimate(champ.id).description}
                     </p>
                   </div>
                 </div>

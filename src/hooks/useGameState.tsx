@@ -1,9 +1,12 @@
-import { createContext, useContext, useReducer, useCallback, type ReactNode } from 'react';
-import type { GameScreen, Champion, TeamData, Tournament, Match, SimulationSnapshot, BuffId } from '@/types/game';
-import { GameEngine, createTeam, simulateAIMatch } from '@/lib/game-engine';
+import { createContext, useContext, useReducer, type ReactNode } from 'react';
+import type {
+  GameScreen, Champion, TeamData, Tournament, Match, BuffId, TeamPlan, TurnMatchState, CombatAction, LaneId,
+} from '@/types/game';
+import { createTeam, simulateAIMatch } from '@/lib/game-engine';
+import {
+  createTurnMatch, createTurnTeam, resolveRound, generateAIPlan, buyItem, aiBuyItems, champDef,
+} from '@/lib/turn-engine';
 import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats, RIVAL_TEAM_ID, RIVAL_TEAM_NAME } from '@/lib/game-data';
-
-// ========== STATE ==========
 
 interface GameState {
   currentScreen: GameScreen;
@@ -11,16 +14,17 @@ interface GameState {
   selectedChampions: Champion[];
   tournament: Tournament | null;
   currentMatch: Match | null;
-  simulationSnapshot: SimulationSnapshot | null;
-  simulationEngine: GameEngine | null;
-  pendingItemChampion: Champion | null;
-  pendingItemQueue: Champion[];
-  pendingItemIndex: number;
-  pendingItemTotal: number;
+  turnMatch: TurnMatchState | null;
+  playerPlan: TeamPlan;
+  enemyPlanPreview: TeamPlan | null;
+  ahriPeekAction: CombatAction | null;
+  shopQueue: Champion[];
   matchResult: 'win' | 'lose' | null;
   selectedBuffId: BuffId | null;
   defeatedRival: boolean;
 }
+
+const emptyPlan = (): TeamPlan => ({ actions: {}, ultimates: [], bootsLane: {}, jungleTarget: 1 });
 
 const initialState: GameState = {
   currentScreen: 'home',
@@ -28,18 +32,15 @@ const initialState: GameState = {
   selectedChampions: [],
   tournament: null,
   currentMatch: null,
-  simulationSnapshot: null,
-  simulationEngine: null,
-  pendingItemChampion: null,
-  pendingItemQueue: [],
-  pendingItemIndex: 0,
-  pendingItemTotal: 0,
+  turnMatch: null,
+  playerPlan: emptyPlan(),
+  enemyPlanPreview: null,
+  ahriPeekAction: null,
+  shopQueue: [],
   matchResult: null,
   selectedBuffId: null,
   defeatedRival: false,
 };
-
-// ========== ACTIONS ==========
 
 type GameAction =
   | { type: 'SET_SCREEN'; screen: GameScreen }
@@ -47,15 +48,18 @@ type GameAction =
   | { type: 'SELECT_CHAMPION'; defId: string }
   | { type: 'DESELECT_CHAMPION'; defId: string }
   | { type: 'CONFIRM_TEAM' }
-  | { type: 'GENERATE_TOURNAMENT' }
   | { type: 'PREPARE_MATCH'; matchId: string }
   | { type: 'SELECT_BUFF'; buffId: BuffId }
   | { type: 'START_MATCH_WITH_BUFF' }
-  | { type: 'SIMULATION_STEP'; snapshot: SimulationSnapshot }
-  | { type: 'PAUSE_FOR_ITEM'; champion: Champion }
-  | { type: 'PAUSE_FOR_ITEM_DRAFT'; champions: Champion[] }
-  | { type: 'SELECT_ITEM'; championInstanceId: string; itemDefId: string; replaceIndex?: number }
-  | { type: 'RESUME_SIMULATION' }
+  | { type: 'SET_PLAN_ACTION'; instanceId: string; action: CombatAction }
+  | { type: 'TOGGLE_ULTIMATE'; instanceId: string }
+  | { type: 'SET_JUNGLE_TARGET'; target: LaneId | 'objective' }
+  | { type: 'SET_BOOTS_LANE'; instanceId: string; lane: LaneId }
+  | { type: 'CONFIRM_PLAN' }
+  | { type: 'CONTINUE_AFTER_RESOLVE' }
+  | { type: 'BUY_ITEM'; instanceId: string; itemId: string }
+  | { type: 'SKIP_SHOP_CHAMP' }
+  | { type: 'FINISH_SHOP' }
   | { type: 'MATCH_END'; result: 'win' | 'lose' }
   | { type: 'ADVANCE_BRACKET' }
   | { type: 'SIMULATE_ONE_AI_MATCH' }
@@ -63,64 +67,46 @@ type GameAction =
 
 function generateAIChampions(): string[] {
   const roles = ['top', 'jungle', 'mid', 'adc', 'support'] as const;
-  const selected: string[] = [];
-  for (const role of roles) {
+  return roles.map(role => {
     const available = CHAMPIONS.filter(c => c.role === role);
-    const pick = available[Math.floor(Math.random() * available.length)];
-    selected.push(pick.id);
-  }
-  return selected;
+    return available[Math.floor(Math.random() * available.length)].id;
+  });
 }
 
-/** Equipo rival fijo: picks agresivos. */
 function generateRivalChampions(): string[] {
   return ['darius', 'kayn', 'zed', 'kaisa', 'thresh'];
 }
 
-function buildRewards(beatRival: boolean, roundName: string): { titles: string[]; frame: Tournament['championFrame'] } {
+function buildRewards(beatRival: boolean): { titles: string[]; frame: Tournament['championFrame'] } {
   const titles = ['Campeón de la Grieta'];
   if (beatRival) titles.push('Cazador de Sombras');
-  if (roundName === 'Final' || beatRival) titles.push('Estrella del Bracket');
-  return {
-    titles,
-    frame: beatRival ? 'obsidian' : 'gold',
-  };
+  titles.push('Estrella del Bracket');
+  return { titles, frame: beatRival ? 'obsidian' : 'gold' };
 }
 
 function generateTournament(playerTeam: TeamData): Tournament {
   const teams: TeamData[] = [playerTeam];
-  const rival = createTeam(RIVAL_TEAM_ID, RIVAL_TEAM_NAME, 'red', generateRivalChampions());
-  teams.push(rival);
-
+  teams.push(createTeam(RIVAL_TEAM_ID, RIVAL_TEAM_NAME, 'red', generateRivalChampions()));
   for (let i = 0; i < 14; i++) {
-    const champIds = generateAIChampions();
-    const name = AI_TEAM_NAMES[i] || `Equipo ${i + 1}`;
-    teams.push(createTeam(`ai_${i}`, name, 'red', champIds));
+    teams.push(createTeam(`ai_${i}`, AI_TEAM_NAMES[i] || `Equipo ${i + 1}`, 'red', generateAIChampions()));
   }
-
   const shuffled = [...teams].sort(() => Math.random() - 0.5);
-  // Preferir que el rival no quede en el mismo match del jugador en octavos si posible
-  // (pero que exista siempre en el bracket)
   const round1Matches: Match[] = [];
   for (let i = 0; i < 8; i++) {
     let teamA = shuffled[i * 2];
     let teamB = shuffled[i * 2 + 1];
-    if (teamB.id === playerTeam.id) {
-      [teamA, teamB] = [teamB, teamA];
-    }
-    const isPlayerMatch = teamA.id === playerTeam.id || teamB.id === playerTeam.id;
+    if (teamB.id === playerTeam.id) [teamA, teamB] = [teamB, teamA];
     round1Matches.push({
       id: `r1_m${i}`,
       round: 0,
       roundName: 'Octavos',
-      teamA, teamB,
+      teamA,
+      teamB,
       winner: null,
-      events: [],
-      isPlayerMatch,
+      isPlayerMatch: teamA.id === playerTeam.id || teamB.id === playerTeam.id,
       isSimulated: false,
     });
   }
-
   return {
     rounds: [
       { round: 0, roundName: 'Octavos', matches: round1Matches },
@@ -142,24 +128,29 @@ function matchInvolvesRival(match: Match, rivalId: string) {
   return match.teamA.id === rivalId || match.teamB.id === rivalId;
 }
 
+function defaultPlayerPlan(state: TurnMatchState): TeamPlan {
+  const plan = emptyPlan();
+  for (const c of state.blue.champions.filter(x => x.isAlive)) {
+    const def = champDef(c);
+    if (def.role === 'jungle') plan.jungleTarget = 1;
+  }
+  return plan;
+}
+
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'SET_SCREEN':
       return { ...state, currentScreen: action.screen };
-
     case 'SET_TEAM_NAME':
       return { ...state, playerTeamName: action.name };
-
     case 'SELECT_CHAMPION': {
       const def = CHAMPIONS.find(c => c.id === action.defId);
       if (!def) return state;
       if (state.selectedChampions.some(c => c.defId === action.defId)) return state;
-
       const withoutSameRole = state.selectedChampions.filter(c => {
         const cd = CHAMPIONS.find(x => x.id === c.defId);
         return cd?.role !== def.role;
       });
-
       const newChamp: Champion = {
         instanceId: `p_${action.defId}`,
         defId: action.defId,
@@ -170,24 +161,21 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         respawnTimer: 0,
         kills: 0,
         position: { lane: 0, x: 0 },
+        gold: 100,
+        tearStacks: 0,
+        burnPending: 0,
+        ultimateUsed: false,
+        siegeStacks: 0,
       };
       return { ...state, selectedChampions: [...withoutSameRole, newChamp] };
     }
-
     case 'DESELECT_CHAMPION':
       return { ...state, selectedChampions: state.selectedChampions.filter(c => c.defId !== action.defId) };
 
-    case 'CONFIRM_TEAM':
-    case 'GENERATE_TOURNAMENT': {
+    case 'CONFIRM_TEAM': {
       if (state.selectedChampions.length !== 5) return state;
-      const playerTeam = createTeam(
-        'player',
-        state.playerTeamName || 'Mi Equipo',
-        'blue',
-        state.selectedChampions.map(c => c.defId)
-      );
-      const tournament = generateTournament(playerTeam);
-      return { ...state, tournament, currentScreen: 'bracket', defeatedRival: false };
+      const playerTeam = createTeam('player', state.playerTeamName || 'Mi Equipo', 'blue', state.selectedChampions.map(c => c.defId));
+      return { ...state, tournament: generateTournament(playerTeam), currentScreen: 'bracket', defeatedRival: false };
     }
 
     case 'PREPARE_MATCH': {
@@ -195,13 +183,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const round = state.tournament.rounds[state.tournament.currentRound];
       const match = round.matches.find(m => m.id === action.matchId);
       if (!match) return state;
-      return {
-        ...state,
-        currentMatch: match,
-        selectedBuffId: null,
-        currentScreen: 'buffSelect',
-        matchResult: null,
-      };
+      return { ...state, currentMatch: match, selectedBuffId: null, currentScreen: 'buffSelect', matchResult: null };
     }
 
     case 'SELECT_BUFF':
@@ -209,110 +191,184 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'START_MATCH_WITH_BUFF': {
       if (!state.currentMatch || !state.selectedBuffId) return state;
-      const match = state.currentMatch;
-      const engine = new GameEngine(match.teamA, match.teamB, state.selectedBuffId);
-      const snapshot = engine.getInitialSnapshot();
+      const m = state.currentMatch;
+      const blue = createTurnTeam(m.teamA.id, m.teamA.name, 'blue', m.teamA.champions.map(c => c.defId));
+      const red = createTurnTeam(m.teamB.id, m.teamB.name, 'red', m.teamB.champions.map(c => c.defId));
+      const turnMatch = createTurnMatch(blue, red, state.selectedBuffId);
       return {
         ...state,
-        simulationEngine: engine,
-        simulationSnapshot: snapshot,
-        currentScreen: 'simulation',
-        pendingItemChampion: null,
-        pendingItemQueue: [],
-        pendingItemIndex: 0,
-        pendingItemTotal: 0,
-        matchResult: null,
+        turnMatch,
+        playerPlan: defaultPlayerPlan(turnMatch),
+        enemyPlanPreview: null,
+        ahriPeekAction: null,
+        currentScreen: 'planPhase',
       };
     }
 
-    case 'SIMULATION_STEP':
-      return { ...state, simulationSnapshot: action.snapshot };
-
-    case 'PAUSE_FOR_ITEM':
-      return { ...state, pendingItemChampion: action.champion, pendingItemQueue: [], pendingItemIndex: 1, pendingItemTotal: 1, currentScreen: 'itemSelect' };
-
-    case 'PAUSE_FOR_ITEM_DRAFT': {
-      const eligible = action.champions.filter(c => c.items.length < 6);
-      const [first, ...rest] = eligible;
-      if (!first) return { ...state, currentScreen: 'simulation' };
+    case 'SET_PLAN_ACTION':
       return {
         ...state,
-        pendingItemChampion: first,
-        pendingItemQueue: rest,
-        pendingItemIndex: 1,
-        pendingItemTotal: eligible.length,
-        currentScreen: 'itemSelect',
+        playerPlan: {
+          ...state.playerPlan,
+          actions: { ...state.playerPlan.actions, [action.instanceId]: action.action },
+        },
       };
-    }
 
-    case 'SELECT_ITEM': {
-      if (!state.simulationEngine) return state;
-      state.simulationEngine.equipItem(action.championInstanceId, action.itemDefId, action.replaceIndex);
-      const snapshot = state.simulationEngine.getInitialSnapshot();
+    case 'TOGGLE_ULTIMATE': {
+      const c = state.turnMatch?.blue.champions.find(x => x.instanceId === action.instanceId);
+      if (!c || c.ultimateUsed) return state;
+      const has = state.playerPlan.ultimates.includes(action.instanceId);
+      const ultimates = has
+        ? state.playerPlan.ultimates.filter(id => id !== action.instanceId)
+        : [...state.playerPlan.ultimates, action.instanceId];
 
-      if (state.pendingItemQueue.length > 0) {
-        const remaining = state.pendingItemQueue.filter(c => {
-          const fresh = snapshot.champions.find(x => x.instanceId === c.instanceId);
-          return (fresh?.items.length ?? c.items.length) < 6;
-        });
-        if (remaining.length > 0) {
-          const [next, ...rest] = remaining;
-          const nextFresh = snapshot.champions.find(c => c.instanceId === next.instanceId) ?? next;
-          return {
-            ...state,
-            simulationSnapshot: snapshot,
-            pendingItemChampion: nextFresh,
-            pendingItemQueue: rest,
-            pendingItemIndex: state.pendingItemIndex + 1,
-            currentScreen: 'itemSelect',
-          };
-        }
+      let ahriPeekAction = state.ahriPeekAction;
+      let enemyPlanPreview = state.enemyPlanPreview;
+      // Ahri charm peek
+      if (!has && c.defId === 'ahri' && state.turnMatch) {
+        enemyPlanPreview = generateAIPlan(state.turnMatch, 'red');
+        const mid = state.turnMatch.red.champions.find(x => champDef(x).role === 'mid' && x.isAlive);
+        ahriPeekAction = mid ? (enemyPlanPreview.actions[mid.instanceId] || 'attack') : null;
+      }
+      if (has && c.defId === 'ahri') {
+        ahriPeekAction = null;
       }
 
+      return { ...state, playerPlan: { ...state.playerPlan, ultimates }, ahriPeekAction, enemyPlanPreview };
+    }
+
+    case 'SET_JUNGLE_TARGET':
+      return { ...state, playerPlan: { ...state.playerPlan, jungleTarget: action.target } };
+
+    case 'SET_BOOTS_LANE':
       return {
         ...state,
-        simulationSnapshot: snapshot,
-        pendingItemChampion: null,
-        pendingItemQueue: [],
-        pendingItemIndex: 0,
-        pendingItemTotal: 0,
-        currentScreen: 'simulation',
+        playerPlan: {
+          ...state.playerPlan,
+          bootsLane: { ...state.playerPlan.bootsLane, [action.instanceId]: action.lane },
+        },
+      };
+
+    case 'CONFIRM_PLAN': {
+      if (!state.turnMatch) return state;
+      const redPlan = state.enemyPlanPreview || generateAIPlan(state.turnMatch, 'red');
+      const resolved = resolveRound(state.turnMatch, state.playerPlan, redPlan);
+      return {
+        ...state,
+        turnMatch: resolved,
+        enemyPlanPreview: redPlan,
+        currentScreen: 'resolvePhase',
+        ahriPeekAction: null,
       };
     }
 
-    case 'RESUME_SIMULATION':
-      return { ...state, currentScreen: 'simulation' };
-
-    case 'MATCH_END': {
-      let tournament = state.tournament;
-      let defeatedRival = state.defeatedRival;
-      if (tournament && state.currentMatch && state.simulationSnapshot?.winner) {
-        const winner = state.simulationSnapshot.winner;
-        const rounds = tournament.rounds.map((round, idx) => {
-          if (idx !== tournament!.currentRound) return round;
-          return {
-            ...round,
-            matches: round.matches.map(m =>
-              m.id === state.currentMatch!.id ? { ...m, winner } : m
-            ),
-          };
-        });
-        tournament = { ...tournament, rounds };
-        if (
-          action.result === 'win'
-          && matchInvolvesRival(state.currentMatch, tournament.rivalTeamId)
-        ) {
-          defeatedRival = true;
+    case 'CONTINUE_AFTER_RESOLVE': {
+      if (!state.turnMatch) return state;
+      if (state.turnMatch.isComplete) {
+        const result = state.turnMatch.winner === 'blue' ? 'win' : 'lose';
+        let defeatedRival = state.defeatedRival;
+        let tournament = state.tournament;
+        if (tournament && state.currentMatch) {
+          const winner = state.turnMatch.winner;
+          const rounds = tournament.rounds.map((round, idx) => {
+            if (idx !== tournament!.currentRound) return round;
+            return {
+              ...round,
+              matches: round.matches.map(m =>
+                m.id === state.currentMatch!.id ? { ...m, winner } : m
+              ),
+            };
+          });
+          tournament = { ...tournament, rounds };
+          if (result === 'win' && matchInvolvesRival(state.currentMatch, tournament.rivalTeamId)) {
+            defeatedRival = true;
+          }
         }
+        return {
+          ...state,
+          tournament,
+          defeatedRival,
+          matchResult: result,
+          currentScreen: result === 'win' ? 'victory' : 'defeat',
+        };
       }
+      // Shop queue: alive blue champs under 6 items
+      const queue = state.turnMatch.blue.champions.filter(c => c.isAlive && c.items.length < 6 && c.gold >= 80);
+      if (queue.length === 0) {
+        aiBuyItems(state.turnMatch.red);
+        return {
+          ...state,
+          turnMatch: { ...state.turnMatch, red: { ...state.turnMatch.red } },
+          playerPlan: defaultPlayerPlan(state.turnMatch),
+          enemyPlanPreview: null,
+          currentScreen: 'planPhase',
+        };
+      }
+      return { ...state, shopQueue: queue, currentScreen: 'shopPhase' };
+    }
+
+    case 'BUY_ITEM': {
+      if (!state.turnMatch) return state;
+      const tm = {
+        ...state.turnMatch,
+        blue: { ...state.turnMatch.blue, champions: state.turnMatch.blue.champions.map(c => ({ ...c, stats: { ...c.stats }, items: [...c.items] })) },
+      };
+      const champ = tm.blue.champions.find(c => c.instanceId === action.instanceId);
+      if (!champ) return state;
+      buyItem(champ, action.itemId);
+      const rest = state.shopQueue.filter(c => c.instanceId !== action.instanceId);
+      if (rest.length === 0) {
+        aiBuyItems(tm.red);
+        return {
+          ...state,
+          turnMatch: tm,
+          shopQueue: [],
+          playerPlan: defaultPlayerPlan(tm),
+          enemyPlanPreview: null,
+          currentScreen: 'planPhase',
+        };
+      }
+      return { ...state, turnMatch: tm, shopQueue: rest };
+    }
+
+    case 'SKIP_SHOP_CHAMP': {
+      if (state.shopQueue.length === 0) return state;
+      const rest = state.shopQueue.slice(1);
+      if (rest.length === 0 && state.turnMatch) {
+        const tm = { ...state.turnMatch };
+        aiBuyItems(tm.red);
+        return {
+          ...state,
+          turnMatch: tm,
+          shopQueue: [],
+          playerPlan: defaultPlayerPlan(tm),
+          enemyPlanPreview: null,
+          currentScreen: 'planPhase',
+        };
+      }
+      return { ...state, shopQueue: rest };
+    }
+
+    case 'FINISH_SHOP': {
+      if (!state.turnMatch) return state;
+      const tm = { ...state.turnMatch };
+      aiBuyItems(tm.red);
       return {
         ...state,
-        tournament,
+        turnMatch: tm,
+        shopQueue: [],
+        playerPlan: defaultPlayerPlan(tm),
+        enemyPlanPreview: null,
+        currentScreen: 'planPhase',
+      };
+    }
+
+    case 'MATCH_END':
+      return {
+        ...state,
         matchResult: action.result,
-        defeatedRival,
         currentScreen: action.result === 'win' ? 'victory' : 'defeat',
       };
-    }
 
     case 'ADVANCE_BRACKET': {
       if (!state.tournament) return state;
@@ -325,48 +381,32 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       if (state.currentMatch) {
         const matchIndex = round.matches.findIndex(m => m.id === state.currentMatch!.id);
-        const winner = state.simulationSnapshot?.winner ?? round.matches[matchIndex]?.winner;
+        const winner = state.turnMatch?.winner ?? round.matches[matchIndex]?.winner;
         if (matchIndex >= 0 && winner) {
           round.matches[matchIndex] = { ...round.matches[matchIndex], winner };
         }
       }
 
-      const allMatchesDone = round.matches.every(m => m.winner !== null);
-      if (allMatchesDone) {
+      if (round.matches.every(m => m.winner !== null)) {
         if (currentRoundIdx >= 3) {
           const finalMatch = round.matches[0];
           const championTeam = finalMatch.winner === 'blue' ? finalMatch.teamA : finalMatch.teamB;
-          const rewards = championTeam.id === 'player'
-            ? buildRewards(state.defeatedRival, 'Final')
-            : { titles: [] as string[], frame: 'none' as const };
+          const rewards = championTeam.id === 'player' ? buildRewards(state.defeatedRival) : { titles: [] as string[], frame: 'none' as const };
           return {
             ...state,
-            tournament: {
-              ...t,
-              isComplete: true,
-              champion: championTeam,
-              titles: rewards.titles,
-              championFrame: rewards.frame,
-            },
+            tournament: { ...t, isComplete: true, champion: championTeam, titles: rewards.titles, championFrame: rewards.frame },
             currentScreen: 'tournamentWin',
             currentMatch: null,
-            simulationEngine: null,
-            simulationSnapshot: null,
+            turnMatch: null,
           };
         }
-
-        const winners: TeamData[] = round.matches.map(m =>
-          m.winner === 'blue' ? m.teamA : m.teamB
-        );
+        const winners: TeamData[] = round.matches.map(m => (m.winner === 'blue' ? m.teamA : m.teamB));
         const nextRound = t.rounds[currentRoundIdx + 1];
         nextRound.matches = [];
         for (let i = 0; i < winners.length / 2; i++) {
           let teamA = winners[i * 2];
           let teamB = winners[i * 2 + 1];
-          if (teamB.id === 'player') {
-            [teamA, teamB] = [teamB, teamA];
-          }
-          const isPlayerMatch = teamA.id === 'player' || teamB.id === 'player';
+          if (teamB.id === 'player') [teamA, teamB] = [teamB, teamA];
           nextRound.matches.push({
             id: `r${currentRoundIdx + 1}_m${i}`,
             round: currentRoundIdx + 1,
@@ -374,8 +414,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             teamA,
             teamB,
             winner: null,
-            events: [],
-            isPlayerMatch,
+            isPlayerMatch: teamA.id === 'player' || teamB.id === 'player',
             isSimulated: false,
           });
         }
@@ -386,11 +425,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         tournament: t,
         currentMatch: null,
-        simulationEngine: null,
-        simulationSnapshot: null,
+        turnMatch: null,
         currentScreen: 'bracket',
         matchResult: null,
         selectedBuffId: null,
+        playerPlan: emptyPlan(),
       };
     }
 
@@ -420,45 +459,17 @@ function gameReducer(state: GameState, action: GameAction): GameState {
   }
 }
 
-// ========== CONTEXT ==========
-
 interface GameContextType {
   state: GameState;
   dispatch: React.Dispatch<GameAction>;
-  startSimulationStep: () => 'continue' | 'items' | 'ended';
 }
 
 const GameContext = createContext<GameContextType | null>(null);
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
-
-  const startSimulationStep = useCallback((): 'continue' | 'items' | 'ended' => {
-    if (!state.simulationEngine) return 'ended';
-    const snapshot = state.simulationEngine.step();
-    dispatch({ type: 'SIMULATION_STEP', snapshot });
-
-    if (snapshot.isComplete) {
-      const result = snapshot.winner === 'blue' ? 'win' : 'lose';
-      dispatch({ type: 'MATCH_END', result });
-      return 'ended';
-    }
-
-    if (snapshot.step > 0 && snapshot.step % 2 === 0) {
-      const blueChamps = snapshot.champions.filter(
-        c => c.team === 'blue' && c.items.length < 6
-      );
-      if (blueChamps.length > 0) {
-        dispatch({ type: 'PAUSE_FOR_ITEM_DRAFT', champions: blueChamps });
-        return 'items';
-      }
-    }
-
-    return 'continue';
-  }, [state.simulationEngine]);
-
   return (
-    <GameContext.Provider value={{ state, dispatch, startSimulationStep }}>
+    <GameContext.Provider value={{ state, dispatch }}>
       {children}
     </GameContext.Provider>
   );

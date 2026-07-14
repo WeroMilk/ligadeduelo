@@ -30,7 +30,7 @@ export default function BuffSelect() {
   };
 
   return (
-    <div className="h-app bg-[#0A0E1A] flex flex-col overflow-hidden">
+    <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
       <div className="shrink-0 px-4 pt-4 pb-2 safe-top max-w-lg mx-auto w-full">
         <p className="text-[#C9A84C] text-xs uppercase tracking-[0.25em] mb-1">Apuesta de ronda</p>
         <h1 className="text-2xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>

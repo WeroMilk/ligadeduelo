@@ -7,15 +7,25 @@ export type GameScreen =
   | 'championSelect'
   | 'bracket'
   | 'buffSelect'
-  | 'simulation'
-  | 'itemSelect'
+  | 'planPhase'
+  | 'resolvePhase'
+  | 'shopPhase'
   | 'victory'
   | 'defeat'
   | 'tournamentWin';
 
 export type BuffId = 'fury' | 'iron' | 'vital' | 'greed';
+export type CombatAction = 'attack' | 'ability' | 'defend';
+export type LaneId = 0 | 1 | 2; // top, mid, bot
+export type ObjectiveType = 'dragon' | 'baron' | null;
 
 export interface ChampionPassive {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface ChampionUltimate {
   id: string;
   name: string;
   description: string;
@@ -51,10 +61,16 @@ export interface ChampionDef {
   initials: string;
   baseStats: Stats;
   passive: ChampionPassive;
+  ultimate?: ChampionUltimate;
 }
 
 export interface Item {
   defId: string;
+}
+
+export interface Position {
+  lane: number;
+  x: number;
 }
 
 export interface Champion {
@@ -67,30 +83,23 @@ export interface Champion {
   respawnTimer: number;
   kills: number;
   position: Position;
-}
-
-export interface Position {
-  lane: number; // 0=top, 1=mid, 2=bot
-  x: number; // 0.0 to 1.0 (distance from blue side)
+  gold: number;
+  tearStacks: number;
+  burnPending: number;
+  ultimateUsed: boolean;
+  siegeStacks: number;
+  revealedAction?: CombatAction | null;
 }
 
 export interface Structure {
   id: string;
   type: 'tower' | 'inhibitor' | 'nexus';
   team: TeamColor;
-  lane: number; // -1 for nexus
+  lane: number;
   hp: number;
   maxHp: number;
   position: Position;
   isDestroyed: boolean;
-}
-
-export interface Minion {
-  id: string;
-  team: TeamColor;
-  lane: number;
-  position: Position;
-  hp: number;
 }
 
 export interface TeamData {
@@ -101,6 +110,117 @@ export interface TeamData {
   nexusHp: number;
   maxNexusHp: number;
   kills: number;
+  score: number;
+  damageBuff: number;
+}
+
+export interface TeamPlan {
+  /** instanceId -> action */
+  actions: Record<string, CombatAction>;
+  /** jungle assist target lane or objective */
+  jungleTarget?: LaneId | 'objective';
+  /** boots: optional lane relocate per champ */
+  bootsLane?: Record<string, LaneId>;
+  /** instanceIds using ultimate this round */
+  ultimates: string[];
+}
+
+export interface CombatLogLine {
+  id: string;
+  text: string;
+  tone: 'neutral' | 'kill' | 'tower' | 'objective' | 'ulti' | 'section';
+}
+
+export interface DuelFighterSummary {
+  instanceId: string;
+  name: string;
+  image: string | null;
+  action: CombatAction;
+  usedUlt: boolean;
+  hpBefore: number;
+  hpAfter: number;
+  maxHp: number;
+  isAlive: boolean;
+  damageDealt: number;
+}
+
+export interface DuelSummary {
+  id: string;
+  lane: LaneId;
+  kind: 'duel' | 'siege';
+  blue?: DuelFighterSummary;
+  red?: DuelFighterSummary;
+  summary: string;
+}
+
+export interface RoundResolution {
+  round: number;
+  log: CombatLogLine[];
+  duels: DuelSummary[];
+  blueScoreDelta: number;
+  redScoreDelta: number;
+  blueKillsDelta: number;
+  redKillsDelta: number;
+  towersTakenBlue: number;
+  towersTakenRed: number;
+  objective?: ObjectiveType;
+  objectiveWinner?: TeamColor | null;
+  matchOver: boolean;
+  winner: TeamColor | null;
+  autoNexus: boolean;
+}
+
+export interface TurnMatchState {
+  blue: TeamData;
+  red: TeamData;
+  round: number;
+  maxRounds: number;
+  objective: ObjectiveType;
+  structures: Structure[];
+  lastResolution: RoundResolution | null;
+  isComplete: boolean;
+  winner: TeamColor | null;
+}
+
+export interface Match {
+  id: string;
+  round: number;
+  roundName: string;
+  teamA: TeamData;
+  teamB: TeamData;
+  winner: TeamColor | null;
+  isPlayerMatch: boolean;
+  isSimulated: boolean;
+}
+
+export interface Round {
+  round: number;
+  roundName: string;
+  matches: Match[];
+}
+
+export interface Tournament {
+  rounds: Round[];
+  playerTeam: TeamData;
+  currentRound: number;
+  isComplete: boolean;
+  champion: TeamData | null;
+  rivalTeamId: string;
+  titles: string[];
+  championFrame: 'none' | 'gold' | 'obsidian';
+}
+
+export interface SelectedChampion {
+  defId: string;
+  role: Role;
+}
+
+export interface Minion {
+  id: string;
+  team: TeamColor;
+  lane: number;
+  position: Position;
+  hp: number;
 }
 
 export type GameEventType =
@@ -128,35 +248,7 @@ export interface GameEvent {
   actorInstanceId?: string;
 }
 
-export interface Match {
-  id: string;
-  round: number;
-  roundName: string;
-  teamA: TeamData;
-  teamB: TeamData;
-  winner: TeamColor | null;
-  events: GameEvent[];
-  isPlayerMatch: boolean;
-  isSimulated: boolean;
-}
-
-export interface Round {
-  round: number;
-  roundName: string;
-  matches: Match[];
-}
-
-export interface Tournament {
-  rounds: Round[];
-  playerTeam: TeamData;
-  currentRound: number;
-  isComplete: boolean;
-  champion: TeamData | null;
-  rivalTeamId: string;
-  titles: string[];
-  championFrame: 'none' | 'gold' | 'obsidian';
-}
-
+/** Compat con motor legacy / snapshots */
 export interface SimulationSnapshot {
   champions: Champion[];
   minions: Minion[];
@@ -167,9 +259,7 @@ export interface SimulationSnapshot {
   winner: TeamColor | null;
   blueKills: number;
   redKills: number;
+  blueScore?: number;
+  redScore?: number;
 }
 
-export interface SelectedChampion {
-  defId: string;
-  role: Role;
-}

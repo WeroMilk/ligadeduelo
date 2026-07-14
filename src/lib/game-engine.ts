@@ -5,6 +5,7 @@ import type {
 import { ITEMS, ITEM_PRIORITY_BY_ROLE, CHAMPIONS, getChampionBaseStats } from './game-data';
 import { enrichEventMessage } from './combat-flavor';
 import { applyBuffToStats, type BuffId } from './buffs';
+import { simulateAITurnMatch } from './turn-engine';
 
 let instanceCounter = 0;
 function nextId() { return `e${++instanceCounter}`; }
@@ -36,6 +37,11 @@ function createChampion(defId: string, team: TeamColor): Champion {
       lane: def.role === 'jungle' ? 1 : laneMap[def.role],
       x: baseX,
     },
+    gold: 100,
+    tearStacks: 0,
+    burnPending: 0,
+    ultimateUsed: false,
+    siegeStacks: 0,
   };
 }
 
@@ -48,6 +54,8 @@ export function createTeam(id: string, name: string, color: TeamColor, championD
     nexusHp: 3000,
     maxNexusHp: 3000,
     kills: 0,
+    score: 0,
+    damageBuff: 0,
   };
 }
 
@@ -770,8 +778,7 @@ export class GameEngine {
 // ========== SIMULATION FOR AI VS AI ==========
 
 export function simulateAIMatch(teamA: TeamData, teamB: TeamData): { winner: TeamColor; blueKills: number; redKills: number } {
-  const engine = new GameEngine(teamA, teamB);
-  const result = engine.autoSimulateFullMatch();
+  const result = simulateAITurnMatch(teamA, teamB);
   return {
     winner: result.winner,
     blueKills: result.blueKills,

@@ -157,65 +157,72 @@ export function getChampionBaseStats(defId: string): Stats {
   return def ? { ...def.baseStats } : { ...BASE_STATS };
 }
 
-// ========== 8 ÍTEMS ==========
+// ========== 8 ÍTEMS (efectos de mesa) ==========
 export const ITEMS: ItemDef[] = [
   {
     id: 'long_sword',
     name: 'Espada Larga',
     image: '/items/long_sword.png',
-    statBonus: { ad: 25 },
-    description: '+25 AD',
+    statBonus: { ad: 15 },
+    description: '+15 AD · Al Atacar: +35 daño físico',
   },
   {
     id: 'blasting_wand',
     name: 'Vara Explosiva',
     image: '/items/blasting_wand.png',
-    statBonus: { ap: 25 },
-    description: '+25 AP',
+    statBonus: { ap: 15 },
+    description: '+15 AP · Al usar Habilidad: +45 daño mágico',
   },
   {
     id: 'dagger',
     name: 'Daga',
     image: '/items/dagger.png',
-    statBonus: { attackSpeed: 0.2 },
-    description: '+0.2 Vel. Ataque',
+    statBonus: { attackSpeed: 0.15 },
+    description: 'Prioridad +1 (actúas primero en empates)',
   },
   {
     id: 'boots',
     name: 'Botas',
     image: '/items/boots.png',
-    statBonus: { moveSpeed: 20 },
-    description: '+20% Vel. Movimiento',
+    statBonus: { moveSpeed: 15 },
+    description: 'Puedes rotar de línea al planificar (emboscada)',
   },
   {
     id: 'cloth_armor',
     name: 'Capa de Fuego',
     image: '/items/cloth_armor.png',
-    statBonus: { armor: 20 },
-    description: '+20 Armadura',
+    statBonus: { armor: 15 },
+    description: '+15 Arm · Tras Atacar: quema 25 al inicio de la siguiente',
   },
   {
     id: 'null_magic',
     name: 'Manto de Anulación',
     image: '/items/null_magic.png',
-    statBonus: { mr: 20 },
-    description: '+20 Resistencia Mágica',
+    statBonus: { mr: 15 },
+    description: '+15 MR · Reduce Habilidad enemiga en −40',
   },
   {
     id: 'ruby_crystal',
     name: 'Cristal de Rubí',
     image: '/items/ruby_crystal.png',
-    statBonus: { maxHp: 150 },
-    description: '+150 Vida',
+    statBonus: { maxHp: 120 },
+    description: '+120 Vida máxima',
   },
   {
     id: 'tear',
     name: 'Lágrima de la Diosa',
     image: '/items/tear.png',
-    statBonus: { maxMana: 150 },
-    description: '+150 Maná',
+    statBonus: { maxMana: 100 },
+    description: 'Cargas de Habilidad: a 5, la siguiente hace ×2',
   },
 ];
+
+export const MAX_MATCH_ROUNDS = 10;
+export const GOLD_PER_ROUND = 80;
+export const GOLD_PER_KILL = 100;
+export const POINTS_KILL = 2;
+export const POINTS_TOWER = 3;
+export const POINTS_OBJECTIVE = 5;
 
 // ========== NOMBRES DE EQUIPOS IA ==========
 export const AI_TEAM_NAMES = [

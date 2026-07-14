@@ -38,7 +38,7 @@ export default function TournamentWin() {
   const skinTint = frame === 'obsidian' ? 'hue-rotate-[-20deg] saturate-125' : 'hue-rotate-[8deg] saturate-125 brightness-110';
 
   return (
-    <div className="min-h-app bg-[#0A0E1A] flex flex-col items-center justify-center relative overflow-y-auto px-4 py-8 safe-top safe-bottom">
+    <div className="screen-center relative bg-[#0A0E1A] px-4 py-8 safe-top safe-bottom">
       <div className="absolute inset-0 pointer-events-none">
         {particles.map(p => (
           <div
