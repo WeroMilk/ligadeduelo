@@ -1,30 +1,30 @@
 import { useGame } from '@/hooks/useGameState';
-import { Crown, RotateCcw, User, Award } from 'lucide-react';
+import { Crown, RotateCcw, User, Award, Flag } from 'lucide-react';
 import { getChampionDef } from '@/lib/game-engine';
 import { useEffect, useState } from 'react';
 import { playVictorySound } from '@/lib/sounds';
 
 export default function TournamentWin() {
   const { state, dispatch } = useGame();
+  const champion = state.tournament?.champion;
+  const playerWon = champion?.id === 'player';
   const [particles, setParticles] = useState<{ id: number; x: number; delay: number; color: string }[]>([]);
   const frame = state.tournament?.championFrame ?? 'gold';
-  const titles = state.tournament?.titles?.length
-    ? state.tournament.titles
-    : ['Campeón de la Grieta'];
+  const titles = state.tournament?.titles ?? [];
 
   useEffect(() => {
+    if (!playerWon) return;
     playVictorySound();
     const colors = frame === 'obsidian'
       ? ['#9B59B6', '#6B1FA6', '#C39BD3', '#F0E6D2', '#C9A84C']
       : ['#C9A84C', '#F1C40F', '#E67E22', '#E74C3C', '#3498DB'];
-    const p = Array.from({ length: 40 }, (_, i) => ({
+    setParticles(Array.from({ length: 40 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       delay: Math.random() * 4,
       color: colors[Math.floor(Math.random() * colors.length)],
-    }));
-    setParticles(p);
-  }, [frame]);
+    })));
+  }, [frame, playerWon]);
 
   const handleRestart = () => {
     dispatch({ type: 'RESET_TOURNAMENT' });
@@ -36,6 +36,35 @@ export default function TournamentWin() {
       ? 'border-[#9B59B6] shadow-[0_0_16px_rgba(155,89,182,0.55)]'
       : 'border-[#C9A84C] shadow-[0_0_16px_rgba(201,168,76,0.45)]';
   const skinTint = frame === 'obsidian' ? 'hue-rotate-[-20deg] saturate-125' : 'hue-rotate-[8deg] saturate-125 brightness-110';
+
+  if (!playerWon) {
+    return (
+      <div className="screen-center relative bg-[#0A0E1A] px-4 py-8 safe-top safe-bottom">
+        <div className="relative z-10 flex flex-col items-center gap-6 max-w-md w-full">
+          <div className="w-24 h-24 rounded-full bg-[#141B2D] border-2 border-[#2A3550] flex items-center justify-center">
+            <Flag className="w-10 h-10 text-[#8B9BB4]" />
+          </div>
+          <div className="text-center">
+            <p className="text-[#8B9BB4] text-sm uppercase tracking-[0.3em] mb-2">Fin del torneo</p>
+            <h1 className="text-3xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+              Campeón: {champion?.name || 'Otro equipo'}
+            </h1>
+            <p className="text-[#8B9BB4] mt-2">
+              Tu equipo fue eliminado. Espectaste hasta el final del bracket.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleRestart}
+            className="w-full bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold text-lg py-4 rounded-xl flex items-center justify-center gap-2"
+          >
+            <RotateCcw className="w-5 h-5" />
+            NUEVO TORNEO
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="screen-center relative bg-[#0A0E1A] px-4 py-8 safe-top safe-bottom">
@@ -83,24 +112,24 @@ export default function TournamentWin() {
           </p>
         </div>
 
-        {/* Títulos */}
-        <div className="w-full flex flex-wrap justify-center gap-2">
-          {titles.map(t => (
-            <span
-              key={t}
-              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border ${
-                frame === 'obsidian'
-                  ? 'border-[#9B59B6]/50 bg-[#9B59B6]/15 text-[#C39BD3]'
-                  : 'border-[#C9A84C]/50 bg-[#C9A84C]/15 text-[#C9A84C]'
-              }`}
-            >
-              <Award className="w-3.5 h-3.5" />
-              {t}
-            </span>
-          ))}
-        </div>
+        {titles.length > 0 && (
+          <div className="w-full flex flex-wrap justify-center gap-2">
+            {titles.map(t => (
+              <span
+                key={t}
+                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border ${
+                  frame === 'obsidian'
+                    ? 'border-[#9B59B6]/50 bg-[#9B59B6]/15 text-[#C39BD3]'
+                    : 'border-[#C9A84C]/50 bg-[#C9A84C]/15 text-[#C9A84C]'
+                }`}
+              >
+                <Award className="w-3.5 h-3.5" />
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
 
-        {/* Marco de avatar + skin de color */}
         <div className={`w-full rounded-xl border p-4 ${
           frame === 'obsidian' ? 'bg-[#12081A] border-[#9B59B6]/35' : 'bg-[#141B2D] border-[#C9A84C]/30'
         }`}>
@@ -140,7 +169,7 @@ export default function TournamentWin() {
         <button
           type="button"
           onClick={handleRestart}
-          className="w-full bg-gradient-to-r from-[#C9A84C] to-[#F1C40F] text-[#0A0E1A] font-bold text-lg py-4 rounded-xl shadow-[0_4px_30px_rgba(201,168,76,0.4)] hover:shadow-[0_4px_40px_rgba(201,168,76,0.6)] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          className="w-full bg-gradient-to-r from-[#C9A84C] to-[#F1C40F] text-[#0A0E1A] font-bold text-lg py-4 rounded-xl shadow-[0_4px_30px_rgba(201,168,76,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
         >
           <RotateCcw className="w-5 h-5" />
           JUGAR OTRO TORNEO

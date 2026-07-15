@@ -54,6 +54,7 @@ export interface ItemDef {
   id: string;
   name: string;
   image: string;
+  cost: number;
   statBonus: Partial<Stats>;
   description: string;
 }

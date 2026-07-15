@@ -929,7 +929,7 @@ export function generateAIPlan(state: TurnMatchState, team: 'blue' | 'red'): Tea
 export function buyItem(champ: Champion, itemId: string): boolean {
   const item = ITEMS.find(i => i.id === itemId);
   if (!item || champ.items.length >= 6) return false;
-  const cost = 80;
+  const cost = item.cost;
   if (champ.gold < cost) return false;
   champ.gold -= cost;
   champ.items.push({ defId: itemId });
@@ -952,11 +952,13 @@ export function buyItem(champ: Champion, itemId: string): boolean {
 
 export function aiBuyItems(team: TeamData) {
   for (const c of living(team)) {
-    if (c.items.length >= 6 || c.gold < 80) continue;
+    if (c.items.length >= 6) continue;
     const def = champDef(c);
     const prio = ITEM_PRIORITY_BY_ROLE[def.role];
     for (const id of prio) {
       if (c.items.some(i => i.defId === id)) continue;
+      const item = ITEMS.find(i => i.id === id);
+      if (!item || c.gold < item.cost) continue;
       if (buyItem(c, id)) break;
     }
   }

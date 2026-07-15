@@ -2,6 +2,39 @@ import { createPortal } from 'react-dom';
 import { useGame } from '@/hooks/useGameState';
 import { ITEMS } from '@/lib/game-data';
 import { champDef } from '@/lib/turn-engine';
+import type { Stats } from '@/types/game';
+
+const STAT_ROWS: { key: keyof Stats; label: string; max: number }[] = [
+  { key: 'ad', label: 'ATQ', max: 20 },
+  { key: 'ap', label: 'MAG', max: 20 },
+  { key: 'maxHp', label: 'VIDA', max: 150 },
+  { key: 'attackSpeed', label: 'VEL.ATQ', max: 0.25 },
+  { key: 'moveSpeed', label: 'VEL', max: 25 },
+  { key: 'armor', label: 'ARM', max: 20 },
+  { key: 'mr', label: 'MR', max: 20 },
+  { key: 'maxMana', label: 'MANÁ', max: 120 },
+];
+
+function ItemStatBars({ bonus }: { bonus: Partial<Stats> }) {
+  const rows = STAT_ROWS.filter(r => (bonus[r.key] ?? 0) > 0);
+  if (rows.length === 0) return null;
+  return (
+    <div className="w-full space-y-0.5 mt-0.5">
+      {rows.map(r => {
+        const val = Number(bonus[r.key] ?? 0);
+        const pct = Math.min(100, (val / r.max) * 100);
+        return (
+          <div key={r.key} className="flex items-center gap-0.5">
+            <span className="text-[7px] text-[#8B9BB4] w-7 shrink-0 leading-none">{r.label}</span>
+            <div className="flex-1 h-1 rounded-full bg-[#0A0E1A] overflow-hidden">
+              <div className="h-full rounded-full bg-[#C9A84C]" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function ShopPhase() {
   const { state, dispatch } = useGame();
@@ -38,14 +71,14 @@ export default function ShopPhase() {
 
         <div className="grid grid-cols-4 gap-1.5 mb-2">
           {ITEMS.map(item => {
-            const afford = live.gold >= 80 && live.items.length < 6;
+            const afford = live.gold >= item.cost && live.items.length < 6;
             return (
               <button
                 key={item.id}
                 type="button"
                 disabled={!afford}
                 onClick={() => dispatch({ type: 'BUY_ITEM', instanceId: live.instanceId, itemId: item.id })}
-                className="bg-[#0A0E1A] rounded-lg border border-[#2A3550] hover:border-[#C9A84C] disabled:opacity-40 p-1.5 flex flex-col items-center gap-1 min-h-0"
+                className="bg-[#0A0E1A] rounded-lg border border-[#2A3550] hover:border-[#C9A84C] disabled:opacity-40 p-1.5 flex flex-col items-center gap-0.5 min-h-0"
               >
                 <div className="w-8 h-8 rounded overflow-hidden bg-[#141B2D] shrink-0">
                   <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
@@ -53,7 +86,8 @@ export default function ShopPhase() {
                 <span className="text-[#F0E6D2] text-[9px] font-bold text-center leading-tight line-clamp-2 w-full">
                   {item.name}
                 </span>
-                <span className="text-[#C9A84C] text-[9px] font-bold">80</span>
+                <span className="text-[#C9A84C] text-[9px] font-bold">{item.cost} oro</span>
+                <ItemStatBars bonus={item.statBonus} />
               </button>
             );
           })}

@@ -1,21 +1,31 @@
 import { useId } from 'react';
-import type { Champion, Structure, TeamPlan, LaneId, ObjectiveType, CombatAction } from '@/types/game';
+import type { Champion, Structure, TeamPlan, LaneId, ObjectiveType, CombatAction, TeamColor } from '@/types/game';
 import { actionLabelEs, champDef } from '@/lib/turn-engine';
 import { objectiveIsBaronSide, objectiveName } from '@/lib/game-data';
 import { Swords, Shield, Sparkles } from 'lucide-react';
+
+export type ObjectiveAnimPhase = 'none' | 'pulse' | 'clash' | 'claim';
+
+export type AttackBeam = { blueId: string; redId: string };
 
 type MinimapProps = {
   blueChampions: Champion[];
   redChampions: Champion[];
   structures: Structure[];
   objective?: ObjectiveType;
-  /** If provided, blue champ positions use plan (jungle/boots). */
   bluePlan?: TeamPlan | null;
-  /** If provided, red champ positions use plan. */
   redPlan?: TeamPlan | null;
   className?: string;
   size?: number;
   showActions?: boolean;
+  /** Dim/highlight cinema: focus one lane (0/1/2) or null for all. */
+  focusLane?: LaneId | null;
+  /** Pull lane fighters closer together. */
+  cinemaApproach?: boolean;
+  highlightObjective?: boolean;
+  objectiveAnim?: ObjectiveAnimPhase;
+  objectiveWinner?: TeamColor | null;
+  attackBeams?: AttackBeam[];
 };
 
 type Pt = { x: number; y: number };
@@ -80,23 +90,36 @@ function getEffectiveLane(c: Champion, plan?: TeamPlan | null): LaneId {
   return (c.position.lane as LaneId) ?? roleHomeLane(def.role);
 }
 
-function champMapPos(c: Champion, plan?: TeamPlan | null, objective?: ObjectiveType): Pt {
+function champMapPos(
+  c: Champion,
+  plan?: TeamPlan | null,
+  objective?: ObjectiveType,
+  cinemaApproach?: boolean,
+  focusLane?: LaneId | null,
+): Pt {
   const def = champDef(c);
   const effectiveLane = getEffectiveLane(c, plan);
-
   if (def.role === 'jungle' && plan?.jungleTarget === 'objective') {
-    if (objectiveIsBaronSide(objective ?? null)) return { x: 0.38, y: 0.36 };
-    return { x: 0.62, y: 0.64 };
+    if (objectiveIsBaronSide(objective ?? null)) {
+      return c.team === 'blue' ? { x: 0.34, y: 0.34 } : { x: 0.42, y: 0.38 };
+    }
+    return c.team === 'blue' ? { x: 0.58, y: 0.62 } : { x: 0.66, y: 0.66 };
   }
 
-  // Assist leaves for objective pit too
   if (plan?.jungleTarget === 'objective' && plan.objectiveAssistId === c.instanceId) {
-    if (objectiveIsBaronSide(objective ?? null)) return { x: 0.4, y: 0.4 };
-    return { x: 0.6, y: 0.6 };
+    if (objectiveIsBaronSide(objective ?? null)) {
+      return c.team === 'blue' ? { x: 0.36, y: 0.4 } : { x: 0.44, y: 0.36 };
+    }
+    return c.team === 'blue' ? { x: 0.56, y: 0.66 } : { x: 0.64, y: 0.6 };
   }
 
   const path = effectiveLane === 0 ? TOP_PATH : effectiveLane === 2 ? BOT_PATH : MID_PATH;
-  const t = Math.max(0.12, Math.min(0.88, c.position.x ?? 0.5));
+  let t = Math.max(0.12, Math.min(0.88, c.position.x ?? 0.5));
+
+  if (cinemaApproach && focusLane !== null && focusLane !== undefined && effectiveLane === focusLane) {
+    t = c.team === 'blue' ? Math.min(0.62, t + 0.18) : Math.max(0.38, t - 0.18);
+  }
+
   const p = pointOnPath(path, t);
 
   if (def.role === 'support') return { x: p.x + 0.02, y: p.y + 0.025 };
@@ -126,6 +149,11 @@ function ActionBadge({ action, size }: { action: CombatAction; size: number }) {
   );
 }
 
+function objectivePitPos(objective: ObjectiveType | null | undefined): Pt {
+  if (objectiveIsBaronSide(objective ?? null)) return { x: 0.38, y: 0.36 };
+  return { x: 0.62, y: 0.64 };
+}
+
 export default function Minimap({
   blueChampions,
   redChampions,
@@ -136,10 +164,26 @@ export default function Minimap({
   className = '',
   size = 168,
   showActions = false,
+  focusLane = null,
+  cinemaApproach = false,
+  highlightObjective = false,
+  objectiveAnim = 'none',
+  objectiveWinner = null,
+  attackBeams = [],
 }: MinimapProps) {
   const livingBlue = blueChampions.filter(c => c.isAlive);
   const livingRed = redChampions.filter(c => c.isAlive);
   const uid = useId().replace(/:/g, '');
+  const pit = objectivePitPos(objective);
+
+  const posById = new Map<string, Pt>();
+  for (const c of [...livingBlue, ...livingRed]) {
+    const plan = c.team === 'blue' ? bluePlan : redPlan;
+    posById.set(c.instanceId, champMapPos(c, plan, objective, cinemaApproach, focusLane));
+  }
+
+  const laneHighlight =
+    focusLane === 0 ? TOP_PATH : focusLane === 1 ? MID_PATH : focusLane === 2 ? BOT_PATH : null;
 
   return (
     <div
@@ -192,9 +236,44 @@ export default function Minimap({
             strokeLinecap="round"
           />
 
-          <path d={pathToSvg(TOP_PATH)} fill="none" stroke="#C4B89A" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
-          <path d={pathToSvg(MID_PATH)} fill="none" stroke="#C4B89A" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
-          <path d={pathToSvg(BOT_PATH)} fill="none" stroke="#C4B89A" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d={pathToSvg(TOP_PATH)}
+            fill="none"
+            stroke="#C4B89A"
+            strokeWidth={focusLane === 0 ? 4.2 : 3.2}
+            strokeOpacity={focusLane !== null && focusLane !== 0 ? 0.35 : 1}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d={pathToSvg(MID_PATH)}
+            fill="none"
+            stroke="#C4B89A"
+            strokeWidth={focusLane === 1 ? 4.2 : 3.2}
+            strokeOpacity={focusLane !== null && focusLane !== 1 ? 0.35 : 1}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d={pathToSvg(BOT_PATH)}
+            fill="none"
+            stroke="#C4B89A"
+            strokeWidth={focusLane === 2 ? 4.2 : 3.2}
+            strokeOpacity={focusLane !== null && focusLane !== 2 ? 0.35 : 1}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+          {laneHighlight && (
+            <path
+              d={pathToSvg(laneHighlight)}
+              fill="none"
+              stroke="#C9A84C"
+              strokeWidth="1.6"
+              strokeOpacity="0.7"
+              strokeDasharray="2 2"
+            />
+          )}
 
           {[
             [22, 32], [30, 48], [28, 68],
@@ -202,17 +281,41 @@ export default function Minimap({
           ].map(([x, y], i) => (
             <circle key={i} cx={x} cy={y} r="1.1" fill="#C9A84C" opacity="0.55" />
           ))}
+
+          {attackBeams.map((beam, i) => {
+            const a = posById.get(beam.blueId);
+            const b = posById.get(beam.redId);
+            if (!a || !b) return null;
+            return (
+              <line
+                key={`beam-${i}`}
+                x1={a.x * 100}
+                y1={a.y * 100}
+                x2={b.x * 100}
+                y2={b.y * 100}
+                stroke="#F1C40F"
+                strokeWidth="1.4"
+                strokeOpacity="0.9"
+                strokeLinecap="round"
+                style={{
+                  filter: 'drop-shadow(0 0 2px #F1C40F)',
+                  animation: 'minimap-beam 0.7s ease-in-out infinite alternate',
+                }}
+              />
+            );
+          })}
         </svg>
 
         {structures.filter(s => !s.isDestroyed).map(s => {
           const p = structurePos(s);
           const isBlue = s.team === 'blue';
           const isNexus = s.type === 'nexus';
+          const dim = focusLane !== null && !isNexus && s.lane !== focusLane;
           return (
             <div
               key={s.id}
-              className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-              style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+              className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity duration-700"
+              style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, opacity: dim ? 0.35 : 1 }}
               title={`${isBlue ? 'Azul' : 'Rojo'} ${isNexus ? 'Nexo' : 'Torre'}`}
             >
               {isNexus ? (
@@ -245,22 +348,62 @@ export default function Minimap({
           <div
             className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
             style={{
-              left: objectiveIsBaronSide(objective) ? '38%' : '62%',
-              top: objectiveIsBaronSide(objective) ? '36%' : '64%',
+              left: `${pit.x * 100}%`,
+              top: `${pit.y * 100}%`,
+              zIndex: highlightObjective || objectiveAnim !== 'none' ? 8 : 3,
             }}
             title={objectiveName(objective)}
           >
+            {(objectiveAnim === 'pulse' || highlightObjective) && (
+              <div
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#F1C40F]"
+                style={{
+                  width: size * 0.16,
+                  height: size * 0.16,
+                  animation: 'minimap-obj-pulse 1s ease-out infinite',
+                  opacity: 0.85,
+                }}
+              />
+            )}
+            {objectiveAnim === 'clash' && (
+              <div
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                style={{
+                  width: size * 0.22,
+                  height: size * 0.22,
+                  background: 'radial-gradient(circle, rgba(241,196,15,0.85) 0%, transparent 70%)',
+                  animation: 'minimap-obj-clash 0.45s ease-out',
+                }}
+              />
+            )}
+            {objectiveAnim === 'claim' && (
+              <div
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px]"
+                style={{
+                  width: size * 0.2,
+                  height: size * 0.2,
+                  borderColor: objectiveWinner === 'blue' ? '#3498DB' : objectiveWinner === 'red' ? '#E74C3C' : '#F1C40F',
+                  boxShadow: `0 0 14px ${
+                    objectiveWinner === 'blue' ? 'rgba(52,152,219,0.85)' :
+                    objectiveWinner === 'red' ? 'rgba(231,76,60,0.85)' :
+                    'rgba(241,196,15,0.7)'
+                  }`,
+                  animation: 'minimap-obj-claim 0.8s ease-out forwards',
+                }}
+              />
+            )}
             <div
-              className="rounded-sm rotate-45 border border-[#F1C40F]"
+              className="rounded-sm rotate-45 border border-[#F1C40F] relative z-[1]"
               style={{
-                width: size * 0.045,
-                height: size * 0.045,
+                width: size * (highlightObjective || objectiveAnim !== 'none' ? 0.055 : 0.045),
+                height: size * (highlightObjective || objectiveAnim !== 'none' ? 0.055 : 0.045),
                 backgroundColor:
                   objective === 'baron' ? '#9B59B6' :
                   objective === 'dragon_ancestral' ? '#F1C40F' :
                   objective === 'dragon_water' ? '#3498DB' :
                   '#E67E22',
                 boxShadow: '0 0 8px rgba(241,196,15,0.7)',
+                transition: 'width 0.6s ease, height 0.6s ease',
               }}
             />
           </div>
@@ -270,15 +413,31 @@ export default function Minimap({
           ...livingBlue.map(c => ({ c, plan: bluePlan, team: 'blue' as const })),
           ...livingRed.map(c => ({ c, plan: redPlan, team: 'red' as const })),
         ].map(({ c, plan, team }) => {
-          const p = champMapPos(c, plan, objective);
+          const p = posById.get(c.instanceId) ?? champMapPos(c, plan, objective, cinemaApproach, focusLane);
           const def = champDef(c);
+          const lane = getEffectiveLane(c, plan);
+          const onObj =
+            (def.role === 'jungle' && plan?.jungleTarget === 'objective') ||
+            plan?.objectiveAssistId === c.instanceId;
+          const dim =
+            focusLane !== null
+              ? lane !== focusLane && !(highlightObjective && onObj)
+              : highlightObjective
+                ? !onObj
+                : false;
           const icon = size * 0.095;
           const action = showActions ? plan?.actions?.[c.instanceId] : undefined;
           return (
             <div
               key={c.instanceId}
               className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-              style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, zIndex: 5 }}
+              style={{
+                left: `${p.x * 100}%`,
+                top: `${p.y * 100}%`,
+                zIndex: dim ? 4 : 6,
+                opacity: dim ? 0.28 : 1,
+                transition: 'left 1s ease, top 1s ease, opacity 0.6s ease',
+              }}
               title={`${def.name}${action ? ` · ${actionLabelEs(action)}` : ''}`}
             >
               <div
@@ -299,11 +458,31 @@ export default function Minimap({
                   </div>
                 )}
               </div>
-              {showActions && action && <ActionBadge action={action} size={icon * 0.42} />}
+              {showActions && action && !dim && <ActionBadge action={action} size={icon * 0.42} />}
             </div>
           );
         })}
       </div>
+
+      <style>{`
+        @keyframes minimap-beam {
+          from { stroke-opacity: 0.45; }
+          to { stroke-opacity: 1; }
+        }
+        @keyframes minimap-obj-pulse {
+          0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0.9; }
+          100% { transform: translate(-50%, -50%) scale(1.35); opacity: 0; }
+        }
+        @keyframes minimap-obj-clash {
+          0% { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
+          100% { transform: translate(-50%, -50%) scale(1.4); opacity: 0; }
+        }
+        @keyframes minimap-obj-claim {
+          0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+          60% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
+          100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }

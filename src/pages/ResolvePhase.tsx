@@ -1,11 +1,50 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '@/hooks/useGameState';
-import { actionLabelEs, champDef, objectiveName } from '@/lib/turn-engine';
-import Minimap from '@/components/Minimap';
-import type { CombatAction, DuelFighterSummary, DuelSummary, LaneId } from '@/types/game';
+import { actionLabelEs, champDef } from '@/lib/turn-engine';
+import { objectiveName } from '@/lib/game-data';
+import Minimap, { type AttackBeam, type ObjectiveAnimPhase } from '@/components/Minimap';
+import type { CombatAction, DuelFighterSummary, DuelSummary, LaneId, RoundResolution } from '@/types/game';
 import { Swords, Sparkles, Shield, Castle, Ghost } from 'lucide-react';
 
 const LANE_NAMES: Record<LaneId, string> = { 0: 'Top', 1: 'Mid', 2: 'Bot' };
+const MAP_SIZE = 260;
+
+type CinemaKind = 'intro' | 'lane' | 'objective' | 'summary';
+
+type CinemaStep = {
+  kind: CinemaKind;
+  lane?: LaneId;
+  label: string;
+  scale: number;
+};
+
+function buildCinemaSteps(res: RoundResolution): CinemaStep[] {
+  const steps: CinemaStep[] = [
+    { kind: 'intro', label: 'La grieta se agita…', scale: 0.88 },
+  ];
+  for (const lane of [0, 1, 2] as LaneId[]) {
+    const has = res.duels.some(d => d.lane === lane);
+    if (has) {
+      steps.push({
+        kind: 'lane',
+        lane,
+        label: `Línea ${LANE_NAMES[lane]}`,
+        scale: 1.08,
+      });
+    }
+  }
+  if (res.objective && (res.objectiveWinner || res.contestedObjective)) {
+    steps.push({
+      kind: 'objective',
+      label: res.contestedObjective
+        ? `Rivalidad · ${objectiveName(res.objective)}`
+        : objectiveName(res.objective),
+      scale: 1.12,
+    });
+  }
+  steps.push({ kind: 'summary', label: 'Resultado de la ronda', scale: 1 });
+  return steps;
+}
 
 function ActionIcon({ action }: { action: CombatAction }) {
   if (action === 'attack') return <Swords className="w-3.5 h-3.5" />;
@@ -75,23 +114,79 @@ export default function ResolvePhase() {
   const { state, dispatch } = useGame();
   const tm = state.turnMatch;
   const res = tm?.lastResolution;
-  const [phase, setPhase] = useState(0); // 0 move, 1 fight, 2 done
-  const [mapSize, setMapSize] = useState(220);
+
+  const steps = useMemo(() => (res ? buildCinemaSteps(res) : []), [res]);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [laneFight, setLaneFight] = useState(false);
+  const [objAnim, setObjAnim] = useState<ObjectiveAnimPhase>('none');
 
   useEffect(() => {
-    setPhase(0);
-    setMapSize(220);
-    const t1 = window.setTimeout(() => { setPhase(1); setMapSize(280); }, 1600);
-    const t2 = window.setTimeout(() => { setPhase(2); setMapSize(240); }, 3800);
-    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
+    setStepIndex(0);
+    setLaneFight(false);
+    setObjAnim('none');
   }, [res?.round]);
+
+  useEffect(() => {
+    if (!res || steps.length === 0) return;
+    const step = steps[stepIndex];
+    if (!step) return;
+
+    const timers: number[] = [];
+
+    if (step.kind === 'lane') {
+      setLaneFight(false);
+      timers.push(window.setTimeout(() => setLaneFight(true), 1200));
+      timers.push(window.setTimeout(() => {
+        setStepIndex(i => Math.min(i + 1, steps.length - 1));
+      }, 2800));
+    } else if (step.kind === 'objective') {
+      setObjAnim('pulse');
+      timers.push(window.setTimeout(() => setObjAnim('clash'), 1100));
+      timers.push(window.setTimeout(() => setObjAnim('claim'), 1700));
+      timers.push(window.setTimeout(() => {
+        setStepIndex(i => Math.min(i + 1, steps.length - 1));
+      }, 3200));
+    } else if (step.kind === 'intro') {
+      timers.push(window.setTimeout(() => {
+        setStepIndex(i => Math.min(i + 1, steps.length - 1));
+      }, 1800));
+    }
+    // summary: stays until user continues
+
+    return () => { timers.forEach(t => window.clearTimeout(t)); };
+  }, [stepIndex, steps, res?.round]);
 
   if (!tm || !res) return null;
 
-  const duels = res.duels ?? [];
+  const step = steps[stepIndex] ?? steps[steps.length - 1];
+  const isSummary = step?.kind === 'summary';
+  const isLane = step?.kind === 'lane';
+  const isObj = step?.kind === 'objective';
+
+  const activeLaneDuels = isLane && step.lane !== undefined
+    ? res.duels.filter(d => d.lane === step.lane)
+    : [];
+
+  const attackBeams: AttackBeam[] =
+    isLane && laneFight
+      ? activeLaneDuels
+          .filter(d => d.kind === 'duel' && d.blue && d.red)
+          .map(d => ({ blueId: d.blue!.instanceId, redId: d.red!.instanceId }))
+      : [];
+
   const objName = res.objective ? objectiveName(res.objective) : null;
-  const objWinnerName = res.objectiveWinner === 'blue' ? tm.blue.name : res.objectiveWinner === 'red' ? tm.red.name : null;
-  const shownDuels = phase >= 1 ? duels.slice(0, 4) : [];
+  const objWinnerName =
+    res.objectiveWinner === 'blue' ? tm.blue.name :
+    res.objectiveWinner === 'red' ? tm.red.name : null;
+
+  const shownDuels = isLane
+    ? activeLaneDuels
+    : isSummary
+      ? res.duels
+      : [];
+
+  const scale = step?.scale ?? 1;
+  const slot = Math.round(MAP_SIZE * 1.14);
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
@@ -100,74 +195,127 @@ export default function ResolvePhase() {
         <h1 className="text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
           Ronda {res.round} en el mapa
         </h1>
-        <div className="flex justify-between mt-2 text-sm font-bold">
-          <span className="text-[#3498DB]">{tm.blue.name}: {tm.blue.score} (+{res.blueScoreDelta})</span>
-          <span className="text-[#E74C3C]">{tm.red.name}: {tm.red.score} (+{res.redScoreDelta})</span>
-        </div>
-        <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[11px]">
-          <div className="rounded-lg border border-[#1E2740] bg-[#141B2D] px-2 py-1.5">
-            <p className="text-[#8B9BB4]">Kills</p>
-            <p className="font-bold text-[#F0E6D2]">{res.blueKillsDelta ?? 0} – {res.redKillsDelta ?? 0}</p>
-          </div>
-          <div className="rounded-lg border border-[#1E2740] bg-[#141B2D] px-2 py-1.5">
-            <p className="text-[#8B9BB4]">Torres</p>
-            <p className="font-bold text-[#F0E6D2]">{res.towersTakenBlue ?? 0} – {res.towersTakenRed ?? 0}</p>
-          </div>
-          <div className="rounded-lg border border-[#1E2740] bg-[#141B2D] px-2 py-1.5">
-            <p className="text-[#8B9BB4]">Objetivo</p>
-            <p className="font-bold text-[#F0E6D2] truncate text-[10px]">
-              {objName && objWinnerName ? `${objWinnerName}` : objName ? 'Sin pelea' : '—'}
-            </p>
-          </div>
-        </div>
+        {isSummary && (
+          <>
+            <div className="flex justify-between mt-2 text-sm font-bold">
+              <span className="text-[#3498DB]">{tm.blue.name}: {tm.blue.score} (+{res.blueScoreDelta})</span>
+              <span className="text-[#E74C3C]">{tm.red.name}: {tm.red.score} (+{res.redScoreDelta})</span>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[11px]">
+              <div className="rounded-lg border border-[#1E2740] bg-[#141B2D] px-2 py-1.5">
+                <p className="text-[#8B9BB4]">Kills</p>
+                <p className="font-bold text-[#F0E6D2]">{res.blueKillsDelta ?? 0} – {res.redKillsDelta ?? 0}</p>
+              </div>
+              <div className="rounded-lg border border-[#1E2740] bg-[#141B2D] px-2 py-1.5">
+                <p className="text-[#8B9BB4]">Torres</p>
+                <p className="font-bold text-[#F0E6D2]">{res.towersTakenBlue ?? 0} – {res.towersTakenRed ?? 0}</p>
+              </div>
+              <div className="rounded-lg border border-[#1E2740] bg-[#141B2D] px-2 py-1.5">
+                <p className="text-[#8B9BB4]">Objetivo</p>
+                <p className="font-bold text-[#F0E6D2] truncate text-[10px]">
+                  {objName && objWinnerName ? `${objWinnerName}` : objName ? 'Sin pelea' : '—'}
+                </p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 max-w-lg mx-auto w-full space-y-3">
         <div className="flex flex-col items-center gap-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">
-            {phase === 0 ? 'Movimientos…' : phase === 1 ? 'Combates…' : 'Resultado'}
-          </p>
-          <div className="transition-all duration-700 ease-out" style={{ width: mapSize, height: mapSize }}>
-            <Minimap
-              size={mapSize}
-              blueChampions={tm.blue.champions}
-              redChampions={tm.red.champions}
-              structures={tm.structures}
-              objective={res.objective ?? tm.objective}
-              bluePlan={state.playerPlan}
-              redPlan={state.enemyPlanPreview}
-              showActions={phase >= 1}
-            />
+          <div className="rounded-full border border-[#C9A84C]/50 bg-[#141B2D] px-3 py-1">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#C9A84C]">
+              {step?.label ?? '…'}
+              {isLane && !laneFight ? ' · Avance' : isLane && laneFight ? ' · Combate' : ''}
+            </p>
           </div>
-          {phase >= 1 && (
+
+          <div
+            className="relative flex items-center justify-center overflow-hidden"
+            style={{ width: slot, height: slot }}
+          >
+            <div
+              className="transition-transform duration-1000 ease-out"
+              style={{ transform: `scale(${scale})`, width: MAP_SIZE, height: MAP_SIZE }}
+            >
+              <Minimap
+                size={MAP_SIZE}
+                blueChampions={tm.blue.champions}
+                redChampions={tm.red.champions}
+                structures={tm.structures}
+                objective={res.objective ?? tm.objective}
+                bluePlan={state.playerPlan}
+                redPlan={state.enemyPlanPreview}
+                showActions={isLane ? laneFight : isSummary || isObj}
+                focusLane={isLane ? step.lane ?? null : null}
+                cinemaApproach={isLane}
+                highlightObjective={isObj || (isSummary && !!res.objectiveWinner)}
+                objectiveAnim={isObj ? objAnim : isSummary && res.objectiveWinner ? 'claim' : 'none'}
+                objectiveWinner={res.objectiveWinner ?? null}
+                attackBeams={attackBeams}
+              />
+            </div>
+          </div>
+
+          {isObj && (
+            <div className="w-full rounded-xl border border-[#E67E22]/40 bg-[#E67E22]/10 px-3 py-2 text-xs text-[#F5B041] flex items-center gap-2">
+              <Ghost className="w-4 h-4 shrink-0" />
+              <span>
+                {objAnim === 'claim' && objWinnerName ? (
+                  <>
+                    <span className="font-bold">{objWinnerName}</span> conquista el {objName}
+                    {res.contestedObjective ? ' en rivalidad' : ''}
+                  </>
+                ) : res.contestedObjective ? (
+                  <>Rivalidad por el {objName}</>
+                ) : (
+                  <>Pelea por el {objName}</>
+                )}
+              </span>
+            </div>
+          )}
+
+          {(isLane && laneFight) && (
             <div className="w-full grid grid-cols-2 gap-1.5">
-              {[...tm.blue.champions, ...tm.red.champions].filter(c => c.revealedAction).slice(0, 10).map(c => {
-                const def = champDef(c);
-                const action = c.revealedAction!;
-                return (
-                  <div
-                    key={c.instanceId}
-                    className={`rounded-md border px-1.5 py-1 text-[10px] flex items-center gap-1.5 ${
-                      c.team === 'blue' ? 'border-[#3498DB]/40 bg-[#3498DB]/10' : 'border-[#E74C3C]/40 bg-[#E74C3C]/10'
-                    }`}
-                  >
-                    <span className="font-bold text-[#F0E6D2] truncate">{def.name}</span>
-                    <span className="ml-auto uppercase text-[#C9A84C] font-bold">{actionLabelEs(action)}</span>
-                  </div>
-                );
-              })}
+              {[...tm.blue.champions, ...tm.red.champions]
+                .filter(c => {
+                  if (!c.revealedAction) return false;
+                  const plan = c.team === 'blue' ? state.playerPlan : state.enemyPlanPreview;
+                  const lane =
+                    plan?.bootsLane?.[c.instanceId] ??
+                    (champDef(c).role === 'top' ? 0 : champDef(c).role === 'adc' || champDef(c).role === 'support' ? 2 : 1);
+                  return lane === step.lane;
+                })
+                .slice(0, 6)
+                .map(c => {
+                  const def = champDef(c);
+                  const action = c.revealedAction!;
+                  return (
+                    <div
+                      key={c.instanceId}
+                      className={`rounded-md border px-1.5 py-1 text-[10px] flex items-center gap-1.5 ${
+                        c.team === 'blue' ? 'border-[#3498DB]/40 bg-[#3498DB]/10' : 'border-[#E74C3C]/40 bg-[#E74C3C]/10'
+                      }`}
+                    >
+                      <span className="font-bold text-[#F0E6D2] truncate">{def.name}</span>
+                      <span className="ml-auto uppercase text-[#C9A84C] font-bold">{actionLabelEs(action)}</span>
+                    </div>
+                  );
+                })}
             </div>
           )}
         </div>
 
-        {shownDuels.length > 0 && (
+        {shownDuels.length > 0 && (isLane ? laneFight : isSummary) && (
           <section className="space-y-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">Duelos</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">
+              {isSummary ? 'Duelos' : `Duelos · ${LANE_NAMES[step.lane!]}`}
+            </p>
             {shownDuels.map(d => <DuelCard key={d.id} duel={d} />)}
           </section>
         )}
 
-        {objName && objWinnerName && phase >= 2 && (
+        {isSummary && objName && objWinnerName && (
           <div className="rounded-xl border border-[#E67E22]/40 bg-[#E67E22]/10 px-3 py-2 text-xs text-[#F5B041] flex items-center gap-2">
             <Ghost className="w-4 h-4 shrink-0" />
             <span>
@@ -180,18 +328,41 @@ export default function ResolvePhase() {
         )}
       </div>
 
-      <div className="shrink-0 px-4 py-3 safe-bottom max-w-lg mx-auto w-full">
+      <div className="shrink-0 px-4 py-3 safe-bottom max-w-lg mx-auto w-full flex gap-2">
+        {!isSummary && (
+          <button
+            type="button"
+            onClick={() => {
+              setLaneFight(true);
+              setObjAnim('claim');
+              setStepIndex(i => Math.min(i + 1, steps.length - 1));
+            }}
+            className="min-h-12 flex-1 rounded-xl font-bold border border-[#2A3550] text-[#8B9BB4]"
+          >
+            SALTAR
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => dispatch({ type: 'CONTINUE_AFTER_RESOLVE' })}
-          className="w-full min-h-12 rounded-xl font-bold"
+          onClick={() => {
+            if (!isSummary) {
+              setStepIndex(steps.length - 1);
+              setLaneFight(true);
+              setObjAnim(res.objectiveWinner ? 'claim' : 'none');
+              return;
+            }
+            dispatch({ type: 'CONTINUE_AFTER_RESOLVE' });
+          }}
+          className="w-full min-h-12 rounded-xl font-bold flex-[2]"
           style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
         >
-          {tm.isComplete
-            ? 'VER RESULTADO'
-            : tm.pendingReward
-              ? 'ELEGIR RECOMPENSA'
-              : 'SIGUIENTE RONDA'}
+          {!isSummary
+            ? 'CONTINUAR'
+            : tm.isComplete
+              ? 'VER RESULTADO'
+              : tm.pendingReward
+                ? 'ELEGIR RECOMPENSA'
+                : 'SIGUIENTE RONDA'}
         </button>
       </div>
     </div>

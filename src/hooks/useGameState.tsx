@@ -7,7 +7,7 @@ import {
   createTurnMatch, createTurnTeam, resolveRound, generateAIPlan, buyItem, aiBuyItems, champDef,
 } from '@/lib/turn-engine';
 import { applyBuffToStats } from '@/lib/buffs';
-import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats, RIVAL_TEAM_ID, RIVAL_TEAM_NAME } from '@/lib/game-data';
+import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats, RIVAL_TEAM_ID, RIVAL_TEAM_NAME, ITEMS } from '@/lib/game-data';
 
 interface GameState {
   currentScreen: GameScreen;
@@ -140,7 +140,8 @@ function defaultPlayerPlan(state: TurnMatchState): TeamPlan {
 }
 
 function beginShopOrResolve(state: GameState, tm: TurnMatchState, redPlan: TeamPlan, playerPlan: TeamPlan): GameState {
-  const queue = tm.blue.champions.filter(c => c.isAlive && c.items.length < 6 && c.gold >= 80);
+  const minItemCost = Math.min(...ITEMS.map(i => i.cost));
+  const queue = tm.blue.champions.filter(c => c.isAlive && c.items.length < 6 && c.gold >= minItemCost);
   if (queue.length === 0) {
     return runResolveAndShow({
       ...state,
@@ -429,13 +430,23 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         if (currentRoundIdx >= 3) {
           const finalMatch = round.matches[0];
           const championTeam = finalMatch.winner === 'blue' ? finalMatch.teamA : finalMatch.teamB;
-          const rewards = championTeam.id === 'player' ? buildRewards(state.defeatedRival) : { titles: [] as string[], frame: 'none' as const };
+          const playerIsChampion = championTeam.id === 'player';
+          const rewards = playerIsChampion
+            ? buildRewards(state.defeatedRival)
+            : { titles: [] as string[], frame: 'none' as const };
           return {
             ...state,
-            tournament: { ...t, isComplete: true, champion: championTeam, titles: rewards.titles, championFrame: rewards.frame },
+            tournament: {
+              ...t,
+              isComplete: true,
+              champion: championTeam,
+              titles: rewards.titles,
+              championFrame: rewards.frame,
+            },
             currentScreen: 'tournamentWin',
             currentMatch: null,
             turnMatch: null,
+            matchResult: playerIsChampion ? 'win' : (state.matchResult === 'lose' ? 'lose' : state.matchResult),
           };
         }
         const winners: TeamData[] = round.matches.map(m => (m.winner === 'blue' ? m.teamA : m.teamB));
