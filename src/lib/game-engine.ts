@@ -778,10 +778,10 @@ export class GameEngine {
 // ========== SIMULATION FOR AI VS AI ==========
 
 export function simulateAIMatch(teamA: TeamData, teamB: TeamData): { winner: TeamColor; blueKills: number; redKills: number } {
-  const result = simulateAITurnMatch(teamA, teamB);
+  const state = simulateAITurnMatch(teamA, teamB);
   return {
-    winner: result.winner,
-    blueKills: result.blueKills,
-    redKills: result.redKills,
+    winner: state.winner || 'blue',
+    blueKills: state.blue.kills,
+    redKills: state.red.kills,
   };
 }

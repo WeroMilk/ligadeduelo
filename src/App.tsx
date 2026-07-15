@@ -3,10 +3,6 @@ import { GameProvider, useGame } from '@/hooks/useGameState';
 import Home from '@/pages/Home';
 import ChampionSelect from '@/pages/ChampionSelect';
 import BracketScreen from '@/pages/BracketScreen';
-import BuffSelect from '@/pages/BuffSelect';
-import PlanPhase from '@/pages/PlanPhase';
-import ResolvePhase from '@/pages/ResolvePhase';
-import ShopPhase from '@/pages/ShopPhase';
 import VictoryScreen from '@/pages/VictoryScreen';
 import DefeatScreen from '@/pages/DefeatScreen';
 import TournamentWin from '@/pages/TournamentWin';
@@ -48,15 +44,6 @@ function GameRouter() {
       return <ChampionSelect />;
     case 'bracket':
       return <BracketScreen />;
-    case 'buffSelect':
-    case 'rewardBuff':
-      return <BuffSelect />;
-    case 'planPhase':
-      return <PlanPhase />;
-    case 'resolvePhase':
-      return <ResolvePhase />;
-    case 'shopPhase':
-      return <ShopPhase />;
     case 'victory':
       return <VictoryScreen />;
     case 'defeat':

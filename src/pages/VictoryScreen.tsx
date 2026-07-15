@@ -33,7 +33,7 @@ export default function VictoryScreen() {
         </div>
         <div className="text-center">
           <h1 className="text-4xl font-bold text-[#C9A84C]" style={{ fontFamily: 'Cinzel, serif' }}>¡VICTORIA!</h1>
-          <p className="text-[#8B9BB4] mt-2">Ganaste por puntos / nexo</p>
+          <p className="text-[#8B9BB4] mt-2">Partido simulado · ganaste por puntos / nexo</p>
         </div>
         <div className="w-full bg-[#141B2D] rounded-xl border border-[#1E2740] p-4 grid grid-cols-3 gap-3 text-center">
           <div>

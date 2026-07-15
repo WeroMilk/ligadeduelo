@@ -216,7 +216,7 @@ export default function BracketScreen() {
                     className="w-full mt-3 min-h-11 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold py-3 rounded-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-40"
                   >
                     <Swords className="w-4 h-4" />
-                    JUGAR PARTIDO
+                    SIMULAR PARTIDO
                   </button>
                 ) : (
                   <p className="text-center text-[#4A5570] text-xs mt-2">

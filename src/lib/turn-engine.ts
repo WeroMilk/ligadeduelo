@@ -222,12 +222,12 @@ function resolveDuel(
   const notes: string[] = [];
 
   // Ult effects pre
-  if (a.ult && a.champ.defId === 'amumu' && b.action === 'defend') b.action = 'attack';
-  if (b.ult && b.champ.defId === 'amumu' && a.action === 'defend') a.action = 'attack';
+  if (a.ult && (a.champ.defId === 'amumu' || a.champ.defId === 'sejuani') && b.action === 'defend') b.action = 'attack';
+  if (b.ult && (b.champ.defId === 'amumu' || b.champ.defId === 'sejuani') && a.action === 'defend') a.action = 'attack';
   if (a.ult && a.champ.defId === 'leona' && b.action === 'attack') b.action = 'defend';
   if (b.ult && b.champ.defId === 'leona' && a.action === 'attack') a.action = 'defend';
-  if (a.ult && a.champ.defId === 'thresh') b.champ.stats.armor = Math.max(5, b.champ.stats.armor - 20);
-  if (b.ult && b.champ.defId === 'thresh') a.champ.stats.armor = Math.max(5, a.champ.stats.armor - 20);
+  if (a.ult && (a.champ.defId === 'thresh' || a.champ.defId === 'nautilus')) b.champ.stats.armor = Math.max(5, b.champ.stats.armor - 20);
+  if (b.ult && (b.champ.defId === 'thresh' || b.champ.defId === 'nautilus')) a.champ.stats.armor = Math.max(5, a.champ.stats.armor - 20);
 
   const order = [a, b].sort((x, y) => priority(y.champ, y.action, y.ult) - priority(x.champ, x.action, x.ult));
 
@@ -249,9 +249,12 @@ function resolveDuel(
     const team = atk.champ.team === 'blue' ? state.blue : state.red;
     let { dmg, magic } = actionDamage(atk.champ, atk.action, team.damageBuff, tearDouble);
 
-    if (atk.ult && atk.champ.defId === 'lux' && atk.action === 'ability') dmg = Math.floor(dmg * 1.5);
-    if (atk.ult && atk.champ.defId === 'vi' && atk.action === 'attack') dmg += 50;
+    if (atk.ult && (atk.champ.defId === 'lux' || atk.champ.defId === 'syndra') && atk.action === 'ability') dmg = Math.floor(dmg * 1.5);
+    if (atk.ult && (atk.champ.defId === 'vi' || atk.champ.defId === 'sett') && atk.action === 'attack') dmg += 50;
+    if (atk.ult && atk.champ.defId === 'aatrox' && atk.action === 'attack') dmg += 55;
+    if (atk.ult && atk.champ.defId === 'graves' && atk.action === 'attack') dmg += 45;
     if (atk.ult && atk.champ.defId === 'ezreal' && atk.action === 'ability') dmg += 35;
+    if (atk.ult && atk.champ.defId === 'orianna' && atk.action === 'ability') dmg += 40;
     if (atk.ult && atk.champ.defId === 'jinx' && atk.action === 'ability') dmg += atk.champ.kills * 15;
     if (atk.ult && atk.champ.defId === 'lee_sin') dmg += 40;
     if (atk.ult && atk.champ.defId === 'garen' && atk.action === 'attack') {
@@ -263,7 +266,7 @@ function resolveDuel(
       dmg = def.champ.stats.hp;
       pushLog(log, `${champDef(atk.champ).name} ejecuta`, 'kill');
     }
-    if (atk.ult && atk.champ.defId === 'kaisa' && atk.action === 'attack' && def.champ.stats.hp / def.champ.stats.maxHp < 0.35) {
+    if (atk.ult && (atk.champ.defId === 'kaisa' || atk.champ.defId === 'jhin') && atk.action === 'attack' && def.champ.stats.hp / def.champ.stats.maxHp < 0.35) {
       dmg = def.champ.stats.hp;
       pushLog(log, `${champDef(atk.champ).name} ejecuta por instinto`, 'ulti');
     }
@@ -275,7 +278,7 @@ function resolveDuel(
     }
 
     let mitigated = dmg;
-    const ignoreDefend = (atk.ult && atk.champ.defId === 'caitlyn' && atk.action === 'attack')
+    const ignoreDefend = (atk.ult && (atk.champ.defId === 'caitlyn' || atk.champ.defId === 'ashe') && atk.action === 'attack')
       || (champDef(atk.champ).passive.id === 'headshot' && Math.random() < 0.15);
     if (def.action === 'defend' && !ignoreDefend) {
       if (def.ult && def.champ.defId === 'malphite') {
@@ -425,13 +428,13 @@ function resolveLaneGroup(
       for (const a of living(team)) a.stats.hp = Math.min(a.stats.maxHp, a.stats.hp + 100);
       pushLog(log, `${champDef(f.champ).name} Wish cura al equipo`, 'ulti');
     }
-    if (f.champ.defId === 'lulu' || f.champ.defId === 'shen') {
+    if (f.champ.defId === 'lulu' || f.champ.defId === 'yuumi' || f.champ.defId === 'shen') {
       const ally = living(team).filter(x => x.instanceId !== f.champ.instanceId)
         .sort((x, y) => (x.stats.hp / x.stats.maxHp) - (y.stats.hp / y.stats.maxHp))[0];
       if (ally) {
-        if (f.champ.defId === 'lulu') {
+        if (f.champ.defId === 'lulu' || f.champ.defId === 'yuumi') {
           ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + 120);
-          pushLog(log, `Wild Growth escuda a ${champDef(ally).name}`, 'ulti');
+          pushLog(log, `${champDef(f.champ).name} escuda a ${champDef(ally).name}`, 'ulti');
         }
         if (f.champ.defId === 'shen') {
           const plan = f.champ.team === 'blue' ? bluePlan : redPlan;
@@ -965,13 +968,9 @@ export function aiBuyItems(team: TeamData) {
 }
 
 /** Simula un partido IA completo (bracket). */
-export function simulateAITurnMatch(teamA: TeamData, teamB: TeamData): { winner: TeamColor; blueScore: number; redScore: number; blueKills: number; redKills: number } {
+/** Simula un partido completo (ambos equipos juegan con IA). Sin input del jugador. */
+export function simulateAITurnMatch(teamA: TeamData, teamB: TeamData): TurnMatchState {
   let state = createTurnMatch(
-    { ...teamA, color: 'blue', champions: teamA.champions.map(c => ({ ...deepCloneChamp(c), team: 'blue' as const })) },
-    { ...teamB, color: 'red', champions: teamB.champions.map(c => ({ ...deepCloneChamp(c), team: 'red' as const })) },
-  );
-  // reset instance for AI matches - recreate from def ids
-  state = createTurnMatch(
     createTurnTeam(teamA.id, teamA.name, 'blue', teamA.champions.map(c => c.defId)),
     createTurnTeam(teamB.id, teamB.name, 'red', teamB.champions.map(c => c.defId)),
   );
@@ -980,19 +979,14 @@ export function simulateAITurnMatch(teamA: TeamData, teamB: TeamData): { winner:
     const bluePlan = generateAIPlan(state, 'blue');
     const redPlan = generateAIPlan(state, 'red');
     state = resolveRound(state, bluePlan, redPlan);
+    state = { ...state, pendingReward: false };
     if (!state.isComplete) {
       aiBuyItems(state.blue);
       aiBuyItems(state.red);
     }
   }
 
-  return {
-    winner: state.winner || 'blue',
-    blueScore: state.blue.score,
-    redScore: state.red.score,
-    blueKills: state.blue.kills,
-    redKills: state.red.kills,
-  };
+  return state;
 }
 
 export function getAhriReveal(_state: TurnMatchState, enemyMidAction: CombatAction | null): CombatAction | null {

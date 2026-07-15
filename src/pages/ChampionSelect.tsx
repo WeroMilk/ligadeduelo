@@ -79,11 +79,14 @@ export default function ChampionSelect() {
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="shrink-0 z-30 bg-[#0A0E1A] border-b border-[#1E2740] px-4 py-3 safe-top">
-        <div className="flex items-center justify-between max-w-lg mx-auto">
-          <h2 className="text-[#F0E6D2] font-bold text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
-            Selecciona tu Equipo
-          </h2>
-          <span className={`text-sm font-bold ${canConfirm ? 'text-[#2ECC71]' : 'text-[#8B9BB4]'}`}>
+        <div className="flex items-center justify-between max-w-lg mx-auto gap-2">
+          <div className="min-w-0">
+            <h2 className="text-[#F0E6D2] font-bold text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
+              5 campeones
+            </h2>
+            <p className="text-xs text-[#C9A84C] truncate">{state.playerTeamName || 'Tu org'}</p>
+          </div>
+          <span className={`text-sm font-bold shrink-0 ${canConfirm ? 'text-[#2ECC71]' : 'text-[#8B9BB4]'}`}>
             {state.selectedChampions.length}/5
           </span>
         </div>

@@ -6,11 +6,6 @@ export type GameScreen =
   | 'home'
   | 'championSelect'
   | 'bracket'
-  | 'buffSelect'
-  | 'planPhase'
-  | 'resolvePhase'
-  | 'shopPhase'
-  | 'rewardBuff'
   | 'victory'
   | 'defeat'
   | 'tournamentWin';

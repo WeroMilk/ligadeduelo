@@ -45,7 +45,7 @@ export const BASE_STATS: Stats = makeStats({
   moveSpeed: 100,
 });
 
-// ========== 20 CAMPEONES ==========
+// ========== 30 CAMPEONES (6 por rol) ==========
 export const CHAMPIONS: ChampionDef[] = [
   {
     id: 'darius', name: 'Darius', role: 'top', image: '/champions/darius.png', color: '#8B0000', initials: 'DA',
@@ -68,6 +68,16 @@ export const CHAMPIONS: ChampionDef[] = [
     passive: { id: 'guard', name: 'Ki Barrier', description: 'Cura al aliado más herido cada turno' },
   },
   {
+    id: 'aatrox', name: 'Aatrox', role: 'top', image: '/champions/aatrox.png', color: '#6B1A1A', initials: 'AA',
+    baseStats: makeStats({ maxHp: 1000, maxMana: 0, ad: 76, ap: 0, attackSpeed: 0.78, armor: 44, mr: 34, moveSpeed: 97 }),
+    passive: { id: 'execute', name: 'Portador de la Espada', description: 'Ejecuta enemigos bajo 20% de vida' },
+  },
+  {
+    id: 'sett', name: 'Sett', role: 'top', image: '/champions/sett.png', color: '#C45C26', initials: 'ST',
+    baseStats: makeStats({ maxHp: 1050, maxMana: 0, ad: 74, ap: 0, attackSpeed: 0.8, armor: 46, mr: 36, moveSpeed: 100 }),
+    passive: { id: 'regen', name: 'Corazón de Fight', description: 'Regenera 3% vida máxima por turno' },
+  },
+  {
     id: 'lee_sin', name: 'Lee Sin', role: 'jungle', image: '/champions/lee_sin.png', color: '#1B7A3D', initials: 'LS',
     baseStats: makeStats({ maxHp: 860, maxMana: 200, ad: 74, ap: 0, attackSpeed: 0.9, armor: 36, mr: 32, moveSpeed: 112 }),
     passive: { id: 'flurry', name: 'Flurry', description: '+15% daño tras saltar de línea' },
@@ -86,6 +96,16 @@ export const CHAMPIONS: ChampionDef[] = [
     id: 'vi', name: 'Vi', role: 'jungle', image: '/champions/vi.png', color: '#C44BC4', initials: 'VI',
     baseStats: makeStats({ maxHp: 900, maxMana: 250, ad: 80, ap: 0, attackSpeed: 0.82, armor: 40, mr: 32, moveSpeed: 105 }),
     passive: { id: 'blast', name: 'Denting Blows', description: '+30% daño a estructuras' },
+  },
+  {
+    id: 'graves', name: 'Graves', role: 'jungle', image: '/champions/graves.png', color: '#8B5A2B', initials: 'GR',
+    baseStats: makeStats({ maxHp: 880, maxMana: 240, ad: 78, ap: 0, attackSpeed: 0.85, armor: 38, mr: 30, moveSpeed: 108 }),
+    passive: { id: 'blast', name: 'Tiro Nuevo', description: '+30% daño a estructuras' },
+  },
+  {
+    id: 'sejuani', name: 'Sejuani', role: 'jungle', image: '/champions/sejuani.png', color: '#4A90A4', initials: 'SJ',
+    baseStats: makeStats({ maxHp: 980, maxMana: 320, ad: 62, ap: 30, attackSpeed: 0.7, armor: 48, mr: 40, moveSpeed: 96 }),
+    passive: { id: 'fortify', name: 'Furia del Norte', description: '+25% daño a torretas' },
   },
   {
     id: 'ahri', name: 'Ahri', role: 'mid', image: '/champions/ahri.png', color: '#9B59B6', initials: 'AH',
@@ -108,6 +128,16 @@ export const CHAMPIONS: ChampionDef[] = [
     passive: { id: 'flow', name: 'Resolución', description: '+0.3 AS por 2 turnos tras un kill' },
   },
   {
+    id: 'syndra', name: 'Syndra', role: 'mid', image: '/champions/syndra.png', color: '#5E2B8A', initials: 'SY',
+    baseStats: makeStats({ maxHp: 730, maxMana: 460, ad: 46, ap: 82, attackSpeed: 0.72, armor: 24, mr: 30, moveSpeed: 102 }),
+    passive: { id: 'illumination', name: 'Fuerza Trascendente', description: 'Habilidades hacen +40% AP extra (25%)' },
+  },
+  {
+    id: 'orianna', name: 'Orianna', role: 'mid', image: '/champions/orianna.png', color: '#4FC3F7', initials: 'OR',
+    baseStats: makeStats({ maxHp: 740, maxMana: 440, ad: 44, ap: 76, attackSpeed: 0.74, armor: 26, mr: 32, moveSpeed: 101 }),
+    passive: { id: 'essence', name: 'Mecanismo de Reloj', description: 'Roba 25 maná al golpear' },
+  },
+  {
     id: 'caitlyn', name: 'Caitlyn', role: 'adc', image: '/champions/caitlyn.png', color: '#2980B9', initials: 'CA',
     baseStats: makeStats({ maxHp: 740, maxMana: 300, ad: 72, ap: 0, attackSpeed: 1.0, armor: 26, mr: 26, moveSpeed: 102 }),
     passive: { id: 'headshot', name: 'Headshot', description: '25% de críticos ×1.6 daño' },
@@ -128,6 +158,16 @@ export const CHAMPIONS: ChampionDef[] = [
     passive: { id: 'evolve', name: 'Segundo Skin', description: 'Tras 2 kills: +10 AD y +15 AP' },
   },
   {
+    id: 'ashe', name: 'Ashe', role: 'adc', image: '/champions/ashe.png', color: '#5DADE2', initials: 'AS',
+    baseStats: makeStats({ maxHp: 735, maxMana: 310, ad: 70, ap: 0, attackSpeed: 1.05, armor: 25, mr: 26, moveSpeed: 101 }),
+    passive: { id: 'headshot', name: 'Tiro de Frost', description: '25% de críticos ×1.6 daño' },
+  },
+  {
+    id: 'jhin', name: 'Jhin', role: 'adc', image: '/champions/jhin.png', color: '#A93226', initials: 'JH',
+    baseStats: makeStats({ maxHp: 720, maxMana: 300, ad: 82, ap: 0, attackSpeed: 0.85, armor: 24, mr: 26, moveSpeed: 99 }),
+    passive: { id: 'execute', name: 'Cuarta Bala', description: 'Ejecuta enemigos bajo 20% de vida' },
+  },
+  {
     id: 'leona', name: 'Leona', role: 'support', image: '/champions/leona.png', color: '#FF9800', initials: 'LE',
     baseStats: makeStats({ maxHp: 1000, maxMana: 300, ad: 58, ap: 15, attackSpeed: 0.68, armor: 52, mr: 42, moveSpeed: 96 }),
     passive: { id: 'sunlight', name: 'Soleares', description: 'Ataques aliados cercanos +12 daño' },
@@ -146,6 +186,16 @@ export const CHAMPIONS: ChampionDef[] = [
     id: 'soraka', name: 'Soraka', role: 'support', image: '/champions/soraka.png', color: '#00E676', initials: 'SO',
     baseStats: makeStats({ maxHp: 720, maxMana: 500, ad: 40, ap: 70, attackSpeed: 0.65, armor: 22, mr: 36, moveSpeed: 98 }),
     passive: { id: 'salvation', name: 'Salvación', description: 'Cura 40 + 20% AP al aliado más herido' },
+  },
+  {
+    id: 'nautilus', name: 'Nautilus', role: 'support', image: '/champions/nautilus.png', color: '#1A5276', initials: 'NA',
+    baseStats: makeStats({ maxHp: 1040, maxMana: 340, ad: 56, ap: 25, attackSpeed: 0.66, armor: 54, mr: 40, moveSpeed: 92 }),
+    passive: { id: 'hook', name: 'Ancla Titánica', description: 'Acerca al enemigo y reduce su armadura' },
+  },
+  {
+    id: 'yuumi', name: 'Yuumi', role: 'support', image: '/champions/yuumi.png', color: '#F48FB1', initials: 'YU',
+    baseStats: makeStats({ maxHp: 680, maxMana: 480, ad: 38, ap: 72, attackSpeed: 0.7, armor: 20, mr: 34, moveSpeed: 104 }),
+    passive: { id: 'pix', name: 'Tú y Yo', description: 'Aliado con menos vida recibe +escudo AP' },
   },
 ];
 
@@ -237,23 +287,75 @@ export const FREE_LANE_SIEGE_BONUS = 1;
 /** AI team flat damage buff at match start (difficulty) */
 export const AI_BASE_DAMAGE_BUFF = 10;
 
-// ========== NOMBRES DE EQUIPOS IA ==========
+/** Orgs que el jugador puede apoyar como fanático (solo elige nombre de equipo). */
+export interface FanOrg {
+  id: string;
+  name: string;
+  era: string;
+  region: string;
+}
+
+export const FAN_ORGS: FanOrg[] = [
+  { id: 'fnatic_19', name: 'Fnatic', era: '2019–2020', region: 'LEC' },
+  { id: 'fnatic_23', name: 'Fnatic', era: '2023–2024', region: 'LEC' },
+  { id: 'g2_19', name: 'G2 Esports', era: '2019–2020', region: 'LEC' },
+  { id: 'g2_24', name: 'G2 Esports', era: '2024–2026', region: 'LEC' },
+  { id: 'mad_21', name: 'MAD Lions', era: '2021', region: 'LEC' },
+  { id: 'kc_22', name: 'Karmine Corp', era: '2022–2023', region: 'LEC' },
+  { id: 'heretics_24', name: 'Team Heretics', era: '2024–2025', region: 'LEC' },
+  { id: 'skt_15', name: 'SK Telecom T1', era: '2015–2016', region: 'LCK' },
+  { id: 't1_22', name: 'T1', era: '2022–2024', region: 'LCK' },
+  { id: 't1_25', name: 'T1', era: '2025–2026', region: 'LCK' },
+  { id: 'ssw_14', name: 'Samsung White', era: '2014', region: 'LCK' },
+  { id: 'ssg_17', name: 'Samsung Galaxy', era: '2017', region: 'LCK' },
+  { id: 'gen_22', name: 'Gen.G', era: '2022–2024', region: 'LCK' },
+  { id: 'drx_22', name: 'DRX', era: '2022', region: 'LCK' },
+  { id: 'dwg_20', name: 'DAMWON Gaming', era: '2020', region: 'LCK' },
+  { id: 'dk_21', name: 'DWG KIA', era: '2021', region: 'LCK' },
+  { id: 'kt_18', name: 'KT Rolster', era: '2018', region: 'LCK' },
+  { id: 'hle_24', name: 'Hanwha Life Esports', era: '2024–2025', region: 'LCK' },
+  { id: 'edg_21', name: 'EDward Gaming', era: '2021', region: 'LPL' },
+  { id: 'rng_18', name: 'Royal Never Give Up', era: '2018', region: 'LPL' },
+  { id: 'ig_18', name: 'Invictus Gaming', era: '2018', region: 'LPL' },
+  { id: 'jdg_23', name: 'JD Gaming', era: '2023', region: 'LPL' },
+  { id: 'blg_24', name: 'Bilibili Gaming', era: '2024–2025', region: 'LPL' },
+  { id: 'lng_23', name: 'LNG Esports', era: '2023', region: 'LPL' },
+  { id: 'tes_20', name: 'Top Esports', era: '2020', region: 'LPL' },
+  { id: 'c9_18', name: 'Cloud9', era: '2018', region: 'LCS' },
+  { id: 'tl_19', name: 'Team Liquid', era: '2019', region: 'LCS' },
+  { id: '100t_21', name: '100 Thieves', era: '2021', region: 'LCS' },
+  { id: 'fly_24', name: 'FlyQuest', era: '2024–2025', region: 'LCS' },
+  { id: 'dfm_21', name: 'DetonatioN FocusMe', era: '2021', region: 'PCS/LJL' },
+];
+
+export function fanOrgDisplayName(org: FanOrg): string {
+  return `${org.name} (${org.era})`;
+}
+
+/** Pool de rivales IA (orgs eSports). */
 export const AI_TEAM_NAMES = [
-  'Shadow Legion',
-  'Storm Bringers',
-  'Void Walkers',
-  'Iron Wolves',
-  'Phoenix Rising',
-  'Dark Knights',
-  'Crimson Tide',
-  'Eternal Flames',
-  'Frost Guardians',
-  'Thunder Strikers',
-  'Night Raiders',
-  'Soul Reapers',
-  'Blaze Squad',
-  'Mystic Force',
-  'Venom Squad',
+  'T1',
+  'Gen.G',
+  'G2 Esports',
+  'Fnatic',
+  'JD Gaming',
+  'Bilibili Gaming',
+  'EDward Gaming',
+  'DRX',
+  'Hanwha Life',
+  'KT Rolster',
+  'Team Liquid',
+  'Cloud9',
+  'FlyQuest',
+  'Movistar KOI',
+  'Natus Vincere',
+  'Weibo Gaming',
+  'Karmine Corp',
+  'Team Heretics',
+  'LNG Esports',
+  'Top Esports',
+  'PSG Talon',
+  'DetonatioN FocusMe',
 ];
 
 // ========== PRIORIDAD DE ÍTEMS POR ROL (IA) ==========
