@@ -1,6 +1,6 @@
 import type {
   Champion, TeamData, TeamPlan, CombatAction, LaneId, TeamColor,
-  TurnMatchState, RoundResolution, CombatLogLine, Structure, ObjectiveType,
+  TurnMatchState, RoundResolution, CombatLogLine, Structure,
   DuelSummary, DuelFighterSummary,
 } from '@/types/game';
 import { CHAMPIONS, getChampionBaseStats, ITEMS, ITEM_PRIORITY_BY_ROLE, MAX_MATCH_ROUNDS, GOLD_PER_ROUND, GOLD_PER_KILL, POINTS_KILL, POINTS_TOWER, POINTS_OBJECTIVE, POINTS_NEXUS, FREE_LANE_SIEGE_BONUS, AI_BASE_DAMAGE_BUFF, objectiveForRound, objectiveName } from './game-data';
