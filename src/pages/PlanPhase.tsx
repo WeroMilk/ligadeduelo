@@ -1,6 +1,6 @@
 import { useGame } from '@/hooks/useGameState';
 import { getUltimate } from '@/lib/ultimates';
-import { champDef } from '@/lib/turn-engine';
+import { champDef, objectiveName } from '@/lib/turn-engine';
 import Minimap from '@/components/Minimap';
 import type { CombatAction, LaneId } from '@/types/game';
 import { Swords, Sparkles, Shield, Crosshair, Ghost } from 'lucide-react';
@@ -26,7 +26,10 @@ export default function PlanPhase() {
   const readyCount = living.filter(c => state.playerPlan.actions[c.instanceId]).length;
   const allAssigned = readyCount === living.length && living.length > 0;
   const jungle = living.find(c => champDef(c).role === 'jungle');
-  const objLabel = tm.objective === 'baron' ? 'Barón' : tm.objective === 'dragon' ? 'Dragón' : null;
+  const objLabel = tm.objective ? objectiveName(tm.objective) : null;
+  const goingObj = state.playerPlan.jungleTarget === 'objective';
+  const assistOk = !goingObj || !!state.playerPlan.objectiveAssistId;
+  const canConfirm = allAssigned && assistOk;
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
@@ -53,16 +56,8 @@ export default function PlanPhase() {
             </p>
             {objLabel && (
               <div className="mt-2 flex items-center gap-2 rounded-lg border border-[#E67E22]/40 bg-[#E67E22]/10 px-3 py-2 text-xs text-[#E67E22]">
-                <Ghost className="w-3.5 h-3.5" />
-                Objetivo: <span className="font-bold">{objLabel}</span> — manda a la jungla a contestarlo
-              </div>
-            )}
-            {state.ahriPeekAction && (
-              <div className="mt-2 rounded-lg border border-[#9B59B6]/40 bg-[#9B59B6]/10 px-3 py-2 text-xs text-[#C39BD3]">
-                Encanto de Ahri: el mid enemigo jugó{' '}
-                <span className="font-bold uppercase">
-                  {state.ahriPeekAction === 'attack' ? 'Atacar' : state.ahriPeekAction === 'defend' ? 'Defender' : 'Habilidad'}
-                </span>
+                <Ghost className="w-3.5 h-3.5 shrink-0" />
+                Objetivo: <span className="font-bold">{objLabel}</span>
               </div>
             )}
           </div>
@@ -80,7 +75,6 @@ export default function PlanPhase() {
         </div>
       </div>
 
-      {/* Mobile floating minimap */}
       <div className="sm:hidden fixed right-3 bottom-20 z-40 pointer-events-none safe-bottom">
         <Minimap
           size={112}
@@ -96,7 +90,7 @@ export default function PlanPhase() {
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 max-w-lg mx-auto w-full space-y-3">
         {jungle && (
           <div className="rounded-xl border border-[#27AE60]/40 bg-[#141B2D] p-3">
-            <p className="text-[#27AE60] text-xs font-bold uppercase mb-2">Jungla — ¿a dónde rotas?</p>
+            <p className="text-[#27AE60] text-xs font-bold uppercase mb-2">Jungla — gank o objetivo</p>
             <div className="flex flex-wrap gap-2">
               {LANES.map(l => (
                 <button
@@ -109,7 +103,7 @@ export default function PlanPhase() {
                       : 'border-[#2A3550] text-[#8B9BB4]'
                   }`}
                 >
-                  Ayudar {l.label}
+                  Gank {l.label}
                 </button>
               ))}
               {objLabel && (
@@ -117,7 +111,7 @@ export default function PlanPhase() {
                   type="button"
                   onClick={() => dispatch({ type: 'SET_JUNGLE_TARGET', target: 'objective' })}
                   className={`px-3 py-2 rounded-lg text-xs font-bold border ${
-                    state.playerPlan.jungleTarget === 'objective'
+                    goingObj
                       ? 'border-[#E67E22] bg-[#E67E22]/20 text-[#E67E22]'
                       : 'border-[#2A3550] text-[#8B9BB4]'
                   }`}
@@ -126,6 +120,32 @@ export default function PlanPhase() {
                 </button>
               )}
             </div>
+
+            {goingObj && (
+              <div className="mt-3">
+                <p className="text-[#E67E22] text-[11px] font-bold mb-1.5">
+                  ¿Quién ayuda? (deja su línea libre al enemigo)
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {living.filter(c => champDef(c).role !== 'jungle').map(c => {
+                    const def = champDef(c);
+                    const on = state.playerPlan.objectiveAssistId === c.instanceId;
+                    return (
+                      <button
+                        key={c.instanceId}
+                        type="button"
+                        onClick={() => dispatch({ type: 'SET_OBJECTIVE_ASSIST', instanceId: c.instanceId })}
+                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border ${
+                          on ? 'border-[#E67E22] bg-[#E67E22]/20 text-[#E67E22]' : 'border-[#2A3550] text-[#8B9BB4]'
+                        }`}
+                      >
+                        {def.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -158,7 +178,6 @@ export default function PlanPhase() {
                   </div>
                   <p className="text-[11px] text-[#8B9BB4]">
                     HP {Math.floor(c.stats.hp)}/{c.stats.maxHp} · Oro {c.gold}
-                    {c.tearStacks > 0 ? ` · Lágrima ${c.tearStacks}/5` : ''}
                   </p>
                 </div>
               </div>
@@ -169,7 +188,7 @@ export default function PlanPhase() {
                     key={a.id}
                     type="button"
                     onClick={() => dispatch({ type: 'SET_PLAN_ACTION', instanceId: c.instanceId, action: a.id })}
-                    className={`rounded-lg border px-2 py-2.5 text-center min-h-[72px] ${
+                    className={`rounded-lg border px-2 py-2 text-center ${
                       selected === a.id
                         ? 'border-[#C9A84C] bg-[#C9A84C]/15 text-[#C9A84C]'
                         : 'border-[#2A3550] text-[#8B9BB4]'
@@ -227,12 +246,16 @@ export default function PlanPhase() {
       <div className="shrink-0 px-4 py-3 safe-bottom max-w-lg mx-auto w-full">
         <button
           type="button"
-          disabled={!allAssigned}
+          disabled={!canConfirm}
           onClick={() => dispatch({ type: 'CONFIRM_PLAN' })}
           className="w-full min-h-12 rounded-xl font-bold disabled:opacity-40"
           style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
         >
-          {allAssigned ? 'REVELAR Y RESOLVER' : `ELIGE ACCIONES (${readyCount}/${living.length})`}
+          {!allAssigned
+            ? `ELIGE ACCIONES (${readyCount}/${living.length})`
+            : !assistOk
+              ? 'ELIGE QUIÉN AYUDA AL OBJETIVO'
+              : 'IR A LA TIENDA'}
         </button>
       </div>
     </div>

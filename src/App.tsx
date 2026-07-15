@@ -49,6 +49,7 @@ function GameRouter() {
     case 'bracket':
       return <BracketScreen />;
     case 'buffSelect':
+    case 'rewardBuff':
       return <BuffSelect />;
     case 'planPhase':
       return <PlanPhase />;

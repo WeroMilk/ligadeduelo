@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import type { Champion, Structure, TeamPlan, LaneId, ObjectiveType, CombatAction } from '@/types/game';
 import { actionLabelEs, champDef } from '@/lib/turn-engine';
+import { objectiveIsBaronSide, objectiveName } from '@/lib/game-data';
 import { Swords, Shield, Sparkles } from 'lucide-react';
 
 type MinimapProps = {
@@ -84,8 +85,14 @@ function champMapPos(c: Champion, plan?: TeamPlan | null, objective?: ObjectiveT
   const effectiveLane = getEffectiveLane(c, plan);
 
   if (def.role === 'jungle' && plan?.jungleTarget === 'objective') {
-    if (objective === 'baron') return { x: 0.38, y: 0.36 };
+    if (objectiveIsBaronSide(objective ?? null)) return { x: 0.38, y: 0.36 };
     return { x: 0.62, y: 0.64 };
+  }
+
+  // Assist leaves for objective pit too
+  if (plan?.jungleTarget === 'objective' && plan.objectiveAssistId === c.instanceId) {
+    if (objectiveIsBaronSide(objective ?? null)) return { x: 0.4, y: 0.4 };
+    return { x: 0.6, y: 0.6 };
   }
 
   const path = effectiveLane === 0 ? TOP_PATH : effectiveLane === 2 ? BOT_PATH : MID_PATH;
@@ -238,17 +245,21 @@ export default function Minimap({
           <div
             className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
             style={{
-              left: objective === 'baron' ? '38%' : '62%',
-              top: objective === 'baron' ? '36%' : '64%',
+              left: objectiveIsBaronSide(objective) ? '38%' : '62%',
+              top: objectiveIsBaronSide(objective) ? '36%' : '64%',
             }}
-            title={objective === 'baron' ? 'Barón' : 'Dragón'}
+            title={objectiveName(objective)}
           >
             <div
               className="rounded-sm rotate-45 border border-[#F1C40F]"
               style={{
                 width: size * 0.045,
                 height: size * 0.045,
-                backgroundColor: objective === 'baron' ? '#9B59B6' : '#E67E22',
+                backgroundColor:
+                  objective === 'baron' ? '#9B59B6' :
+                  objective === 'dragon_ancestral' ? '#F1C40F' :
+                  objective === 'dragon_water' ? '#3498DB' :
+                  '#E67E22',
                 boxShadow: '0 0 8px rgba(241,196,15,0.7)',
               }}
             />

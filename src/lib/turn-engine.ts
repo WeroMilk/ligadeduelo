@@ -3,7 +3,7 @@ import type {
   TurnMatchState, RoundResolution, CombatLogLine, Structure, ObjectiveType,
   DuelSummary, DuelFighterSummary,
 } from '@/types/game';
-import { CHAMPIONS, getChampionBaseStats, ITEMS, ITEM_PRIORITY_BY_ROLE, MAX_MATCH_ROUNDS, GOLD_PER_ROUND, GOLD_PER_KILL, POINTS_KILL, POINTS_TOWER, POINTS_OBJECTIVE } from './game-data';
+import { CHAMPIONS, getChampionBaseStats, ITEMS, ITEM_PRIORITY_BY_ROLE, MAX_MATCH_ROUNDS, GOLD_PER_ROUND, GOLD_PER_KILL, POINTS_KILL, POINTS_TOWER, POINTS_OBJECTIVE, POINTS_NEXUS, FREE_LANE_SIEGE_BONUS, AI_BASE_DAMAGE_BUFF, objectiveForRound, objectiveName } from './game-data';
 import { applyBuffToStats, type BuffId } from './buffs';
 import type { Role } from '@/types/game';
 
@@ -99,6 +99,14 @@ export function createTurnMatch(blue: TeamData, red: TeamData, buffId?: BuffId |
   if (buffId) {
     for (const c of b.champions) c.stats = applyBuffToStats(c.stats, buffId);
   }
+  // Difficulty: red starts slightly stronger
+  r.damageBuff = AI_BASE_DAMAGE_BUFF;
+  for (const c of r.champions) {
+    c.stats.ad = Math.floor(c.stats.ad * 1.06);
+    c.stats.ap = Math.floor(c.stats.ap * 1.06);
+    c.stats.maxHp = Math.floor(c.stats.maxHp * 1.05);
+    c.stats.hp = c.stats.maxHp;
+  }
   return {
     blue: b,
     red: r,
@@ -109,14 +117,11 @@ export function createTurnMatch(blue: TeamData, red: TeamData, buffId?: BuffId |
     lastResolution: null,
     isComplete: false,
     winner: null,
+    pendingReward: false,
   };
 }
 
-export function objectiveForRound(round: number): ObjectiveType {
-  if (round === 6 || round === 9) return 'baron';
-  if (round % 3 === 0) return 'dragon';
-  return null;
-}
+export { objectiveForRound, objectiveName };
 
 function hasItem(c: Champion, id: string) {
   return c.items.some(i => i.defId === id);
@@ -377,6 +382,8 @@ function fightersInLane(
     const out: Fighter[] = [];
     for (const c of living(team)) {
       const def = champDef(c);
+      // Ally helping jungle on objective leaves their lane
+      if (plan.jungleTarget === 'objective' && plan.objectiveAssistId === c.instanceId) continue;
       let laneNow = c.position.lane as number;
       if (plan.bootsLane?.[c.instanceId] !== undefined && hasItem(c, 'boots')) {
         laneNow = plan.bootsLane[c.instanceId];
@@ -531,17 +538,20 @@ function resolveObjective(
   redPlan: TeamPlan,
   log: CombatLogLine[],
   duels: DuelSummary[],
-): TeamColor | null {
-  if (!state.objective) return null;
+): { winner: TeamColor | null; contested: boolean; freeItem: boolean; ancestral: boolean } {
+  if (!state.objective) return { winner: null, contested: false, freeItem: false, ancestral: false };
   const obj = state.objective;
-  const name = obj === 'baron' ? 'Barón Nashor' : 'Dragón';
+  const name = objectiveName(obj);
 
-  const participants = (team: TeamData, plan: TeamPlan) =>
-    living(team).filter(c => {
+  const participants = (team: TeamData, plan: TeamPlan) => {
+    const list: Champion[] = [];
+    for (const c of living(team)) {
       const def = champDef(c);
-      if (def.role === 'jungle' && plan.jungleTarget === 'objective') return true;
-      return false;
-    });
+      if (def.role === 'jungle' && plan.jungleTarget === 'objective') list.push(c);
+      else if (plan.jungleTarget === 'objective' && plan.objectiveAssistId === c.instanceId) list.push(c);
+    }
+    return list;
+  };
 
   const blueP = participants(state.blue, bluePlan);
   const redP = participants(state.red, redPlan);
@@ -550,15 +560,36 @@ function resolveObjective(
 
   if (blueP.length === 0 && redP.length === 0) {
     pushLog(log, `${name}: nadie lo contestó esta ronda`);
-    return null;
+    return { winner: null, contested: false, freeItem: false, ancestral: false };
   }
 
-  pushLog(log, `¡Pelea por el ${name}!`, 'objective');
+  const contested = blueP.length > 0 && redP.length > 0;
+  if (contested) {
+    pushLog(log, `¡Rivalidad! Ambos equipos pelean por el ${name}`, 'objective');
+  } else {
+    pushLog(log, `¡Asalto al ${name}!`, 'objective');
+  }
 
-  const power = (arr: Champion[]) => arr.reduce((s, c) => s + c.stats.ad + c.stats.ap + c.stats.hp * 0.05, 0);
-  const bp = power(blueP);
-  const rp = power(redP);
+  const power = (arr: Champion[]) => arr.reduce((s, c) => s + c.stats.ad + c.stats.ap + c.stats.hp * 0.08, 0);
+  let bp = power(blueP);
+  let rp = power(redP);
 
+  // Fight the objective itself (HP check based on team power)
+  const objHp = contested ? 420 : 280;
+  if (blueP.length > 0 && redP.length === 0) {
+    if (bp < objHp * 0.35) {
+      pushLog(log, `El equipo azul falla el ${name} (poco daño)`);
+      return { winner: null, contested: false, freeItem: false, ancestral: false };
+    }
+  }
+  if (redP.length > 0 && blueP.length === 0) {
+    if (rp < objHp * 0.35) {
+      pushLog(log, `El equipo rojo falla el ${name} (poco daño)`);
+      return { winner: null, contested: false, freeItem: false, ancestral: false };
+    }
+  }
+
+  // Pair skirmish when contested
   if (blueP[0] && redP[0]) {
     resolveDuel(
       { champ: blueP[0], action: bluePlan.actions[blueP[0].instanceId] || 'attack', ult: bluePlan.ultimates.includes(blueP[0].instanceId), lane: 1 },
@@ -568,14 +599,138 @@ function resolveObjective(
       duels,
       1,
     );
+    bp = power(blueP.filter(c => c.isAlive));
+    rp = power(redP.filter(c => c.isAlive));
+  }
+  if (blueP[1] && redP[1] && blueP[1].isAlive && redP[1].isAlive) {
+    resolveDuel(
+      { champ: blueP[1], action: bluePlan.actions[blueP[1].instanceId] || 'attack', ult: bluePlan.ultimates.includes(blueP[1].instanceId), lane: 1 },
+      { champ: redP[1], action: redPlan.actions[redP[1].instanceId] || 'attack', ult: redPlan.ultimates.includes(redP[1].instanceId), lane: 1 },
+      state,
+      log,
+      duels,
+      1,
+    );
+    bp = power(blueP.filter(c => c.isAlive));
+    rp = power(redP.filter(c => c.isAlive));
   }
 
-  const winner: TeamColor | null = bp === rp ? (Math.random() < 0.5 ? 'blue' : 'red') : bp > rp ? 'blue' : 'red';
+  const winner: TeamColor | null =
+    blueP.filter(c => c.isAlive).length === 0 && redP.filter(c => c.isAlive).length > 0 ? 'red' :
+    redP.filter(c => c.isAlive).length === 0 && blueP.filter(c => c.isAlive).length > 0 ? 'blue' :
+    bp === rp ? (Math.random() < 0.45 ? 'blue' : 'red') : // slight red edge
+    bp > rp ? 'blue' : 'red';
+
   const wTeam = winner === 'blue' ? state.blue : state.red;
   wTeam.score += POINTS_OBJECTIVE;
-  wTeam.damageBuff += 5;
-  pushLog(log, `${wTeam.name} conquista el ${name}! +${POINTS_OBJECTIVE} pts y +5 daño de equipo`, 'objective');
-  return winner;
+  wTeam.damageBuff += obj === 'dragon_fire' ? 8 : obj === 'dragon_water' ? 6 : obj === 'baron' ? 10 : 12;
+  pushLog(log, `${wTeam.name} conquista el ${name}! +${POINTS_OBJECTIVE} pts`, 'objective');
+
+  // Free item for winners
+  grantFreeItemToTeam(wTeam, log);
+  let ancestral = false;
+  if (obj === 'dragon_ancestral') {
+    applyAncestralBonus(wTeam, log);
+    ancestral = true;
+  }
+  // AI auto-picks a mid-match buff when they win (player chooses in UI)
+  if (winner === 'red') {
+    applyRandomTeamBuff(wTeam, log);
+  }
+
+  return { winner, contested, freeItem: true, ancestral };
+}
+
+function applyRandomTeamBuff(team: TeamData, log: CombatLogLine[]) {
+  const ids: Array<'fury' | 'iron' | 'vital' | 'greed'> = ['fury', 'iron', 'vital', 'greed'];
+  const id = ids[Math.floor(Math.random() * ids.length)];
+  for (const c of living(team)) {
+    c.stats = applyBuffToStats(c.stats, id);
+  }
+  pushLog(log, `${team.name} obtiene una ventaja de objetivo`, 'objective');
+}
+
+function grantFreeItemToTeam(team: TeamData, log: CombatLogLine[]) {
+  const alive = living(team).filter(c => c.items.length < 6);
+  if (alive.length === 0) return;
+  // Prefer jungler, else lowest item count
+  alive.sort((a, b) => {
+    const ja = champDef(a).role === 'jungle' ? 0 : 1;
+    const jb = champDef(b).role === 'jungle' ? 0 : 1;
+    if (ja !== jb) return ja - jb;
+    return a.items.length - b.items.length;
+  });
+  const champ = alive[0];
+  const def = champDef(champ);
+  const prio = ITEM_PRIORITY_BY_ROLE[def.role];
+  for (const id of prio) {
+    if (champ.items.some(i => i.defId === id)) continue;
+    if (grantFreeItem(champ, id)) {
+      pushLog(log, `${def.name} recibe ítem gratis: ${ITEMS.find(i => i.id === id)?.name}`, 'objective');
+      return;
+    }
+  }
+}
+
+export function grantFreeItem(champ: Champion, itemId: string): boolean {
+  const item = ITEMS.find(i => i.id === itemId);
+  if (!item || champ.items.length >= 6) return false;
+  champ.items.push({ defId: itemId });
+  if (item.statBonus.maxHp) {
+    champ.stats.maxHp += item.statBonus.maxHp;
+    champ.stats.hp += item.statBonus.maxHp;
+  }
+  if (item.statBonus.maxMana) {
+    champ.stats.maxMana += (item.statBonus.maxMana || 0);
+    champ.stats.mana += (item.statBonus.maxMana || 0);
+  }
+  if (item.statBonus.ad) champ.stats.ad += item.statBonus.ad;
+  if (item.statBonus.ap) champ.stats.ap += item.statBonus.ap;
+  if (item.statBonus.attackSpeed) champ.stats.attackSpeed += item.statBonus.attackSpeed;
+  if (item.statBonus.armor) champ.stats.armor += item.statBonus.armor;
+  if (item.statBonus.mr) champ.stats.mr += item.statBonus.mr;
+  if (item.statBonus.moveSpeed) champ.stats.moveSpeed += item.statBonus.moveSpeed;
+  return true;
+}
+
+function applyAncestralBonus(team: TeamData, log: CombatLogLine[]) {
+  team.damageBuff += 15;
+  for (const c of living(team)) {
+    c.stats.maxHp += 80;
+    c.stats.hp += 80;
+    c.stats.ad += 8;
+    c.stats.ap += 8;
+  }
+  pushLog(log, `${team.name} recibe la bendición del Dragón Ancestral`, 'ulti');
+}
+
+/** Enemy gets free siege when ally left their home lane for objective. */
+function applyFreeLaneAdvantage(
+  state: TurnMatchState,
+  bluePlan: TeamPlan,
+  redPlan: TeamPlan,
+  log: CombatLogLine[],
+  towerStats: { blue: number; red: number },
+) {
+  const check = (plan: TeamPlan, allyTeam: TeamColor) => {
+    if (plan.jungleTarget !== 'objective' || !plan.objectiveAssistId) return;
+    const ally = (allyTeam === 'blue' ? state.blue : state.red).champions.find(c => c.instanceId === plan.objectiveAssistId);
+    if (!ally) return;
+    const homeLane = roleLane(champDef(ally).role) as LaneId;
+    // Enemy unopposed in that lane → instant siege push
+    const enemyTeam = allyTeam === 'blue' ? 'red' : 'blue';
+    const enemies = fightersInLane(state, homeLane, bluePlan, redPlan)[enemyTeam === 'blue' ? 'blue' : 'red'];
+    const alliesLeft = fightersInLane(state, homeLane, bluePlan, redPlan)[allyTeam === 'blue' ? 'blue' : 'red'];
+    if (enemies.length > 0 && alliesLeft.length === 0) {
+      const sieger = enemies[0].champ;
+      pushLog(log, `${champDef(sieger).name} aprovecha la línea libre (${laneLabel(homeLane)})`, 'tower');
+      for (let i = 0; i < FREE_LANE_SIEGE_BONUS + 1; i++) {
+        siegeTower(state, allyTeam, homeLane, sieger, log, [], towerStats);
+      }
+    }
+  };
+  check(bluePlan, 'blue');
+  check(redPlan, 'red');
 }
 
 function markUltimatesUsed(state: TurnMatchState, bluePlan: TeamPlan, redPlan: TeamPlan) {
@@ -667,7 +822,9 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
   resolveLaneGroup(next, 1, bluePlan, redPlan, log, duels, towerStats);
   resolveLaneGroup(next, 2, bluePlan, redPlan, log, duels, towerStats);
 
-  const objWinner = resolveObjective(next, bluePlan, redPlan, log, duels);
+  applyFreeLaneAdvantage(next, bluePlan, redPlan, log, towerStats);
+
+  const objResult = resolveObjective(next, bluePlan, redPlan, log, duels);
 
   onDeathSetRespawn(next);
   income(next);
@@ -679,8 +836,8 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
 
   const nexusBlue = next.structures.find(s => s.id === 'nexus_blue');
   const nexusRed = next.structures.find(s => s.id === 'nexus_red');
-  if (nexusRed?.isDestroyed) { matchOver = true; winner = 'blue'; autoNexus = true; next.blue.score += 10; }
-  if (nexusBlue?.isDestroyed) { matchOver = true; winner = 'red'; autoNexus = true; next.red.score += 10; }
+  if (nexusRed?.isDestroyed) { matchOver = true; winner = 'blue'; autoNexus = true; next.blue.score += POINTS_NEXUS; }
+  if (nexusBlue?.isDestroyed) { matchOver = true; winner = 'red'; autoNexus = true; next.red.score += POINTS_NEXUS; }
 
   if (!matchOver && next.round >= next.maxRounds) {
     matchOver = true;
@@ -702,16 +859,21 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
     towersTakenBlue: towerStats.blue,
     towersTakenRed: towerStats.red,
     objective: next.objective,
-    objectiveWinner: objWinner,
+    objectiveWinner: objResult.winner,
+    contestedObjective: objResult.contested,
+    awardedFreeItem: objResult.freeItem,
+    ancestralGranted: objResult.ancestral,
     matchOver,
     winner,
     autoNexus,
   };
 
   next.lastResolution = resolution;
+  next.pendingReward = objResult.winner === 'blue' && !matchOver;
   if (matchOver) {
     next.isComplete = true;
     next.winner = winner;
+    next.pendingReward = false;
   } else {
     next.round += 1;
     next.objective = objectiveForRound(next.round);
@@ -720,7 +882,7 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
   return next;
 }
 
-/** Plan IA simple. */
+/** Plan IA agresivo. */
 export function generateAIPlan(state: TurnMatchState, team: 'blue' | 'red'): TeamPlan {
   const t = team === 'blue' ? state.blue : state.red;
   const enemy = team === 'blue' ? state.red : state.blue;
@@ -728,34 +890,40 @@ export function generateAIPlan(state: TurnMatchState, team: 'blue' | 'red'): Tea
   const ultimates: string[] = [];
   const bootsLane: Record<string, LaneId> = {};
   let jungleTarget: TeamPlan['jungleTarget'] = 1;
+  let objectiveAssistId: string | undefined;
 
   for (const c of living(t)) {
     const def = champDef(c);
     const hpPct = c.stats.hp / c.stats.maxHp;
     let action: CombatAction = 'attack';
-    if (hpPct < 0.35) action = 'defend';
-    else if (def.baseStats.ap >= def.baseStats.ad) action = Math.random() < 0.55 ? 'ability' : 'attack';
-    else action = Math.random() < 0.7 ? 'attack' : (Math.random() < 0.5 ? 'ability' : 'defend');
+    if (hpPct < 0.28) action = 'defend';
+    else if (def.baseStats.ap >= def.baseStats.ad) action = Math.random() < 0.6 ? 'ability' : 'attack';
+    else action = Math.random() < 0.78 ? 'attack' : (Math.random() < 0.4 ? 'ability' : 'defend');
     actions[c.instanceId] = action;
 
-    if (!c.ultimateUsed && Math.random() < 0.22) {
+    if (!c.ultimateUsed && Math.random() < 0.32) {
       ultimates.push(c.instanceId);
     }
 
-    if (hasItem(c, 'boots') && Math.random() < 0.35) {
+    if (hasItem(c, 'boots') && Math.random() < 0.4) {
       bootsLane[c.instanceId] = ([0, 1, 2] as LaneId[])[Math.floor(Math.random() * 3)];
     }
 
     if (def.role === 'jungle') {
-      if (state.objective && Math.random() < 0.45) jungleTarget = 'objective';
-      else {
+      if (state.objective && Math.random() < 0.72) {
+        jungleTarget = 'objective';
+        const candidates = living(t).filter(x => champDef(x).role !== 'jungle');
+        if (candidates.length) {
+          objectiveAssistId = candidates[Math.floor(Math.random() * candidates.length)].instanceId;
+        }
+      } else {
         const weak = living(enemy).sort((a, b) => a.stats.hp - b.stats.hp)[0];
         jungleTarget = weak ? (weak.position.lane as LaneId) : 1;
       }
     }
   }
 
-  return { actions, ultimates, bootsLane, jungleTarget };
+  return { actions, ultimates, bootsLane, jungleTarget, objectiveAssistId };
 }
 
 export function buyItem(champ: Champion, itemId: string): boolean {

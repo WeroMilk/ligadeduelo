@@ -6,6 +6,7 @@ import { createTeam, simulateAIMatch } from '@/lib/game-engine';
 import {
   createTurnMatch, createTurnTeam, resolveRound, generateAIPlan, buyItem, aiBuyItems, champDef,
 } from '@/lib/turn-engine';
+import { applyBuffToStats } from '@/lib/buffs';
 import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats, RIVAL_TEAM_ID, RIVAL_TEAM_NAME } from '@/lib/game-data';
 
 interface GameState {
@@ -50,10 +51,11 @@ type GameAction =
   | { type: 'CONFIRM_TEAM' }
   | { type: 'PREPARE_MATCH'; matchId: string }
   | { type: 'SELECT_BUFF'; buffId: BuffId }
-  | { type: 'START_MATCH_WITH_BUFF' }
+  | { type: 'CONFIRM_REWARD_BUFF' }
   | { type: 'SET_PLAN_ACTION'; instanceId: string; action: CombatAction }
   | { type: 'TOGGLE_ULTIMATE'; instanceId: string }
   | { type: 'SET_JUNGLE_TARGET'; target: LaneId | 'objective' }
+  | { type: 'SET_OBJECTIVE_ASSIST'; instanceId: string | undefined }
   | { type: 'SET_BOOTS_LANE'; instanceId: string; lane: LaneId }
   | { type: 'CONFIRM_PLAN' }
   | { type: 'CONTINUE_AFTER_RESOLVE' }
@@ -132,9 +134,86 @@ function defaultPlayerPlan(state: TurnMatchState): TeamPlan {
   const plan = emptyPlan();
   for (const c of state.blue.champions.filter(x => x.isAlive)) {
     const def = champDef(c);
-    if (def.role === 'jungle') plan.jungleTarget = 1;
+    if (def.role === 'jungle') plan.jungleTarget = state.objective ? 'objective' : 1;
   }
   return plan;
+}
+
+function beginShopOrResolve(state: GameState, tm: TurnMatchState, redPlan: TeamPlan, playerPlan: TeamPlan): GameState {
+  const queue = tm.blue.champions.filter(c => c.isAlive && c.items.length < 6 && c.gold >= 80);
+  if (queue.length === 0) {
+    return runResolveAndShow({
+      ...state,
+      turnMatch: tm,
+      playerPlan,
+      enemyPlanPreview: redPlan,
+    });
+  }
+  return {
+    ...state,
+    turnMatch: tm,
+    playerPlan,
+    enemyPlanPreview: redPlan,
+    shopQueue: queue,
+    currentScreen: 'shopPhase',
+    ahriPeekAction: null,
+  };
+}
+
+function runResolveAndShow(state: GameState): GameState {
+  if (!state.turnMatch || !state.enemyPlanPreview) return state;
+  const tm = { ...state.turnMatch };
+  aiBuyItems(tm.red);
+  const resolved = resolveRound(tm, state.playerPlan, state.enemyPlanPreview);
+  return {
+    ...state,
+    turnMatch: resolved,
+    shopQueue: [],
+    currentScreen: 'resolvePhase',
+    ahriPeekAction: null,
+  };
+}
+
+function goNextRoundOrEnd(state: GameState): GameState {
+  if (!state.turnMatch) return state;
+  if (state.turnMatch.isComplete) {
+    const result = state.turnMatch.winner === 'blue' ? 'win' : 'lose';
+    let defeatedRival = state.defeatedRival;
+    let tournament = state.tournament;
+    if (tournament && state.currentMatch) {
+      const winner = state.turnMatch.winner;
+      const rounds = tournament.rounds.map((round, idx) => {
+        if (idx !== tournament!.currentRound) return round;
+        return {
+          ...round,
+          matches: round.matches.map(m =>
+            m.id === state.currentMatch!.id ? { ...m, winner } : m
+          ),
+        };
+      });
+      tournament = { ...tournament, rounds };
+      if (result === 'win' && matchInvolvesRival(state.currentMatch, tournament.rivalTeamId)) {
+        defeatedRival = true;
+      }
+    }
+    return {
+      ...state,
+      tournament,
+      defeatedRival,
+      matchResult: result,
+      currentScreen: result === 'win' ? 'victory' : 'defeat',
+    };
+  }
+
+  const tm = { ...state.turnMatch, pendingReward: false };
+  return {
+    ...state,
+    turnMatch: tm,
+    playerPlan: defaultPlayerPlan(tm),
+    enemyPlanPreview: null,
+    currentScreen: 'planPhase',
+    selectedBuffId: null,
+  };
 }
 
 function gameReducer(state: GameState, action: GameAction): GameState {
@@ -183,26 +262,40 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const round = state.tournament.rounds[state.tournament.currentRound];
       const match = round.matches.find(m => m.id === action.matchId);
       if (!match) return state;
-      return { ...state, currentMatch: match, selectedBuffId: null, currentScreen: 'buffSelect', matchResult: null };
+      const blue = createTurnTeam(match.teamA.id, match.teamA.name, 'blue', match.teamA.champions.map(c => c.defId));
+      const red = createTurnTeam(match.teamB.id, match.teamB.name, 'red', match.teamB.champions.map(c => c.defId));
+      const turnMatch = createTurnMatch(blue, red, null);
+      return {
+        ...state,
+        currentMatch: match,
+        selectedBuffId: null,
+        matchResult: null,
+        turnMatch,
+        playerPlan: defaultPlayerPlan(turnMatch),
+        enemyPlanPreview: null,
+        ahriPeekAction: null,
+        shopQueue: [],
+        currentScreen: 'planPhase',
+      };
     }
 
     case 'SELECT_BUFF':
       return { ...state, selectedBuffId: action.buffId };
 
-    case 'START_MATCH_WITH_BUFF': {
-      if (!state.currentMatch || !state.selectedBuffId) return state;
-      const m = state.currentMatch;
-      const blue = createTurnTeam(m.teamA.id, m.teamA.name, 'blue', m.teamA.champions.map(c => c.defId));
-      const red = createTurnTeam(m.teamB.id, m.teamB.name, 'red', m.teamB.champions.map(c => c.defId));
-      const turnMatch = createTurnMatch(blue, red, state.selectedBuffId);
-      return {
-        ...state,
-        turnMatch,
-        playerPlan: defaultPlayerPlan(turnMatch),
-        enemyPlanPreview: null,
-        ahriPeekAction: null,
-        currentScreen: 'planPhase',
+    case 'CONFIRM_REWARD_BUFF': {
+      if (!state.turnMatch || !state.selectedBuffId) return state;
+      const tm = {
+        ...state.turnMatch,
+        blue: {
+          ...state.turnMatch.blue,
+          champions: state.turnMatch.blue.champions.map(c => ({
+            ...c,
+            stats: applyBuffToStats({ ...c.stats }, state.selectedBuffId!),
+          })),
+        },
+        pendingReward: false,
       };
+      return goNextRoundOrEnd({ ...state, turnMatch: tm, selectedBuffId: null });
     }
 
     case 'SET_PLAN_ACTION':
@@ -224,7 +317,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       let ahriPeekAction = state.ahriPeekAction;
       let enemyPlanPreview = state.enemyPlanPreview;
-      // Ahri charm peek
       if (!has && c.defId === 'ahri' && state.turnMatch) {
         enemyPlanPreview = generateAIPlan(state.turnMatch, 'red');
         const mid = state.turnMatch.red.champions.find(x => champDef(x).role === 'mid' && x.isAlive);
@@ -237,8 +329,19 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, playerPlan: { ...state.playerPlan, ultimates }, ahriPeekAction, enemyPlanPreview };
     }
 
-    case 'SET_JUNGLE_TARGET':
-      return { ...state, playerPlan: { ...state.playerPlan, jungleTarget: action.target } };
+    case 'SET_JUNGLE_TARGET': {
+      const nextPlan = { ...state.playerPlan, jungleTarget: action.target };
+      if (action.target !== 'objective') {
+        nextPlan.objectiveAssistId = undefined;
+      }
+      return { ...state, playerPlan: nextPlan };
+    }
+
+    case 'SET_OBJECTIVE_ASSIST':
+      return {
+        ...state,
+        playerPlan: { ...state.playerPlan, objectiveAssistId: action.instanceId },
+      };
 
     case 'SET_BOOTS_LANE':
       return {
@@ -252,81 +355,36 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'CONFIRM_PLAN': {
       if (!state.turnMatch) return state;
       const redPlan = state.enemyPlanPreview || generateAIPlan(state.turnMatch, 'red');
-      const resolved = resolveRound(state.turnMatch, state.playerPlan, redPlan);
-      return {
-        ...state,
-        turnMatch: resolved,
-        enemyPlanPreview: redPlan,
-        currentScreen: 'resolvePhase',
-        ahriPeekAction: null,
-      };
+      return beginShopOrResolve(state, state.turnMatch, redPlan, state.playerPlan);
     }
 
     case 'CONTINUE_AFTER_RESOLVE': {
       if (!state.turnMatch) return state;
-      if (state.turnMatch.isComplete) {
-        const result = state.turnMatch.winner === 'blue' ? 'win' : 'lose';
-        let defeatedRival = state.defeatedRival;
-        let tournament = state.tournament;
-        if (tournament && state.currentMatch) {
-          const winner = state.turnMatch.winner;
-          const rounds = tournament.rounds.map((round, idx) => {
-            if (idx !== tournament!.currentRound) return round;
-            return {
-              ...round,
-              matches: round.matches.map(m =>
-                m.id === state.currentMatch!.id ? { ...m, winner } : m
-              ),
-            };
-          });
-          tournament = { ...tournament, rounds };
-          if (result === 'win' && matchInvolvesRival(state.currentMatch, tournament.rivalTeamId)) {
-            defeatedRival = true;
-          }
-        }
-        return {
-          ...state,
-          tournament,
-          defeatedRival,
-          matchResult: result,
-          currentScreen: result === 'win' ? 'victory' : 'defeat',
-        };
+      if (state.turnMatch.pendingReward) {
+        return { ...state, selectedBuffId: null, currentScreen: 'rewardBuff' };
       }
-      // Shop queue: alive blue champs under 6 items
-      const queue = state.turnMatch.blue.champions.filter(c => c.isAlive && c.items.length < 6 && c.gold >= 80);
-      if (queue.length === 0) {
-        aiBuyItems(state.turnMatch.red);
-        return {
-          ...state,
-          turnMatch: { ...state.turnMatch, red: { ...state.turnMatch.red } },
-          playerPlan: defaultPlayerPlan(state.turnMatch),
-          enemyPlanPreview: null,
-          currentScreen: 'planPhase',
-        };
-      }
-      return { ...state, shopQueue: queue, currentScreen: 'shopPhase' };
+      return goNextRoundOrEnd(state);
     }
 
     case 'BUY_ITEM': {
       if (!state.turnMatch) return state;
       const tm = {
         ...state.turnMatch,
-        blue: { ...state.turnMatch.blue, champions: state.turnMatch.blue.champions.map(c => ({ ...c, stats: { ...c.stats }, items: [...c.items] })) },
+        blue: {
+          ...state.turnMatch.blue,
+          champions: state.turnMatch.blue.champions.map(c => ({
+            ...c,
+            stats: { ...c.stats },
+            items: [...c.items],
+          })),
+        },
       };
       const champ = tm.blue.champions.find(c => c.instanceId === action.instanceId);
       if (!champ) return state;
       buyItem(champ, action.itemId);
       const rest = state.shopQueue.filter(c => c.instanceId !== action.instanceId);
       if (rest.length === 0) {
-        aiBuyItems(tm.red);
-        return {
-          ...state,
-          turnMatch: tm,
-          shopQueue: [],
-          playerPlan: defaultPlayerPlan(tm),
-          enemyPlanPreview: null,
-          currentScreen: 'planPhase',
-        };
+        return runResolveAndShow({ ...state, turnMatch: tm, shopQueue: [] });
       }
       return { ...state, turnMatch: tm, shopQueue: rest };
     }
@@ -334,34 +392,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SKIP_SHOP_CHAMP': {
       if (state.shopQueue.length === 0) return state;
       const rest = state.shopQueue.slice(1);
-      if (rest.length === 0 && state.turnMatch) {
-        const tm = { ...state.turnMatch };
-        aiBuyItems(tm.red);
-        return {
-          ...state,
-          turnMatch: tm,
-          shopQueue: [],
-          playerPlan: defaultPlayerPlan(tm),
-          enemyPlanPreview: null,
-          currentScreen: 'planPhase',
-        };
+      if (rest.length === 0) {
+        return runResolveAndShow({ ...state, shopQueue: [] });
       }
       return { ...state, shopQueue: rest };
     }
 
-    case 'FINISH_SHOP': {
-      if (!state.turnMatch) return state;
-      const tm = { ...state.turnMatch };
-      aiBuyItems(tm.red);
-      return {
-        ...state,
-        turnMatch: tm,
-        shopQueue: [],
-        playerPlan: defaultPlayerPlan(tm),
-        enemyPlanPreview: null,
-        currentScreen: 'planPhase',
-      };
-    }
+    case 'FINISH_SHOP':
+      return runResolveAndShow({ ...state, shopQueue: [] });
 
     case 'MATCH_END':
       return {
@@ -468,11 +506,7 @@ const GameContext = createContext<GameContextType | null>(null);
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
-  return (
-    <GameContext.Provider value={{ state, dispatch }}>
-      {children}
-    </GameContext.Provider>
-  );
+  return <GameContext.Provider value={{ state, dispatch }}>{children}</GameContext.Provider>;
 }
 
 export function useGame() {

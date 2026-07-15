@@ -10,6 +10,7 @@ export type GameScreen =
   | 'planPhase'
   | 'resolvePhase'
   | 'shopPhase'
+  | 'rewardBuff'
   | 'victory'
   | 'defeat'
   | 'tournamentWin';
@@ -17,7 +18,12 @@ export type GameScreen =
 export type BuffId = 'fury' | 'iron' | 'vital' | 'greed';
 export type CombatAction = 'attack' | 'ability' | 'defend';
 export type LaneId = 0 | 1 | 2; // top, mid, bot
-export type ObjectiveType = 'dragon' | 'baron' | null;
+export type ObjectiveType =
+  | 'dragon_fire'
+  | 'dragon_water'
+  | 'baron'
+  | 'dragon_ancestral'
+  | null;
 
 export interface ChampionPassive {
   id: string;
@@ -119,6 +125,8 @@ export interface TeamPlan {
   actions: Record<string, CombatAction>;
   /** jungle assist target lane or objective */
   jungleTarget?: LaneId | 'objective';
+  /** ally instanceId that leaves lane to help jungle on objective */
+  objectiveAssistId?: string;
   /** boots: optional lane relocate per champ */
   bootsLane?: Record<string, LaneId>;
   /** instanceIds using ultimate this round */
@@ -165,6 +173,9 @@ export interface RoundResolution {
   towersTakenRed: number;
   objective?: ObjectiveType;
   objectiveWinner?: TeamColor | null;
+  contestedObjective?: boolean;
+  awardedFreeItem?: boolean;
+  ancestralGranted?: boolean;
   matchOver: boolean;
   winner: TeamColor | null;
   autoNexus: boolean;
@@ -180,6 +191,7 @@ export interface TurnMatchState {
   lastResolution: RoundResolution | null;
   isComplete: boolean;
   winner: TeamColor | null;
+  pendingReward: boolean;
 }
 
 export interface Match {

@@ -1,9 +1,9 @@
 import { useGame } from '@/hooks/useGameState';
 import { ROUND_BUFFS } from '@/lib/buffs';
 import type { BuffId } from '@/types/game';
-import { RIVAL_TEAM_ID } from '@/lib/game-data';
 import { playClickSound } from '@/lib/sounds';
-import { Flame, Shield, HeartPulse, Zap, Swords } from 'lucide-react';
+import { Flame, Shield, HeartPulse, Zap, Ghost } from 'lucide-react';
+import { objectiveName } from '@/lib/turn-engine';
 
 const ICONS: Record<BuffId, typeof Flame> = {
   fury: Flame,
@@ -12,11 +12,12 @@ const ICONS: Record<BuffId, typeof Flame> = {
   greed: Zap,
 };
 
+/** Mid-match reward after winning an objective (replaces starting buff). */
 export default function BuffSelect() {
   const { state, dispatch } = useGame();
-  const match = state.currentMatch;
   const selected = state.selectedBuffId;
-  const vsRival = match && (match.teamA.id === RIVAL_TEAM_ID || match.teamB.id === RIVAL_TEAM_ID);
+  const isReward = state.currentScreen === 'rewardBuff';
+  const obj = state.turnMatch?.lastResolution?.objective;
 
   const handlePick = (id: BuffId) => {
     playClickSound();
@@ -26,29 +27,26 @@ export default function BuffSelect() {
   const handleConfirm = () => {
     if (!selected) return;
     playClickSound();
-    dispatch({ type: 'START_MATCH_WITH_BUFF' });
+    dispatch({ type: 'CONFIRM_REWARD_BUFF' });
   };
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
       <div className="shrink-0 px-4 pt-4 pb-2 safe-top max-w-lg mx-auto w-full">
-        <p className="text-[#C9A84C] text-xs uppercase tracking-[0.25em] mb-1">Apuesta de ronda</p>
-        <h1 className="text-2xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-          Elige tu riesgo
-        </h1>
-        <p className="text-[#8B9BB4] text-sm mt-1">
-          Un buff para todo el equipo… a cambio de un coste.
+        <p className="text-[#C9A84C] text-xs uppercase tracking-[0.25em] mb-1">
+          {isReward ? 'Recompensa de objetivo' : 'Ventaja'}
         </p>
-        {vsRival && (
-          <div className="mt-3 flex items-center gap-2 rounded-xl border border-[#6B1FA6]/50 bg-[#6B1FA6]/15 px-3 py-2">
-            <Swords className="w-4 h-4 text-[#C39BD3] shrink-0" />
-            <p className="text-[#C39BD3] text-xs leading-snug">
-              <span className="font-bold">La Sombra Eterna</span> te espera. Esta rivalidad no olvida.
-            </p>
+        <h1 className="text-2xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+          Elige ventaja y riesgo
+        </h1>
+        {obj && (
+          <div className="mt-2 flex items-center gap-2 rounded-lg border border-[#E67E22]/40 bg-[#E67E22]/10 px-3 py-2 text-xs text-[#E67E22]">
+            <Ghost className="w-3.5 h-3.5" />
+            Ganaste el <span className="font-bold">{objectiveName(obj)}</span> — elige tu recompensa
           </div>
         )}
-        <p className="text-[#5A6A84] text-xs mt-2">
-          vs {match?.teamB.name || 'Rival'}
+        <p className="text-[#8B9BB4] text-sm mt-2">
+          Un buff para todo el equipo… a cambio de un coste.
         </p>
       </div>
 
@@ -61,20 +59,20 @@ export default function BuffSelect() {
               key={buff.id}
               type="button"
               onClick={() => handlePick(buff.id)}
-              className={`w-full text-left rounded-xl border p-3.5 transition-all active:scale-[0.99] ${
+              className={`w-full text-left rounded-xl border p-3 transition-all active:scale-[0.99] ${
                 active
-                  ? 'border-[#C9A84C] bg-[#C9A84C]/10 shadow-[0_0_20px_rgba(201,168,76,0.15)]'
-                  : 'border-[#1E2740] bg-[#141B2D] hover:border-[#2A3550]'
+                  ? 'border-[#C9A84C] bg-[#C9A84C]/10'
+                  : 'border-[#1E2740] bg-[#141B2D]'
               }`}
             >
               <div className="flex items-start gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${active ? 'bg-[#C9A84C]/20 text-[#C9A84C]' : 'bg-[#0A0E1A] text-[#8B9BB4]'}`}>
-                  <Icon className="w-5 h-5" />
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${active ? 'bg-[#C9A84C]/20 text-[#C9A84C]' : 'bg-[#0A0E1A] text-[#8B9BB4]'}`}>
+                  <Icon className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className={`font-bold ${active ? 'text-[#C9A84C]' : 'text-[#F0E6D2]'}`}>{buff.name}</p>
-                  <p className="text-[#8B9BB4] text-sm mt-0.5">{buff.description}</p>
-                  <p className="text-[#E74C3C] text-xs mt-1.5 font-medium">Riesgo: {buff.risk}</p>
+                  <p className={`font-bold text-sm ${active ? 'text-[#C9A84C]' : 'text-[#F0E6D2]'}`}>{buff.name}</p>
+                  <p className="text-[#8B9BB4] text-xs mt-0.5">{buff.description}</p>
+                  <p className="text-[#E74C3C] text-[11px] mt-1 font-medium">Riesgo: {buff.risk}</p>
                 </div>
               </div>
             </button>
@@ -87,9 +85,9 @@ export default function BuffSelect() {
           type="button"
           disabled={!selected}
           onClick={handleConfirm}
-          className="w-full min-h-12 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold rounded-xl disabled:opacity-40 active:scale-[0.98] transition-all"
+          className="w-full min-h-12 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold rounded-xl disabled:opacity-40"
         >
-          ENTRAR AL DUELLO
+          APLICAR Y CONTINUAR
         </button>
       </div>
     </div>

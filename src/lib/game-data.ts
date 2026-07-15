@@ -1,4 +1,4 @@
-import type { ChampionDef, ItemDef, Role, Stats } from '@/types/game';
+import type { ChampionDef, ItemDef, ObjectiveType, Role, Stats } from '@/types/game';
 
 // ========== COLORES POR ROL ==========
 export const ROLE_COLORS: Record<Role, string> = {
@@ -217,12 +217,17 @@ export const ITEMS: ItemDef[] = [
   },
 ];
 
-export const MAX_MATCH_ROUNDS = 10;
-export const GOLD_PER_ROUND = 80;
+export const MAX_MATCH_ROUNDS = 6;
+export const GOLD_PER_ROUND = 70;
 export const GOLD_PER_KILL = 100;
 export const POINTS_KILL = 2;
 export const POINTS_TOWER = 3;
 export const POINTS_OBJECTIVE = 5;
+export const POINTS_NEXUS = 10;
+/** Extra siege stacks when a lane is left empty for objective help */
+export const FREE_LANE_SIEGE_BONUS = 1;
+/** AI team flat damage buff at match start (difficulty) */
+export const AI_BASE_DAMAGE_BUFF = 10;
 
 // ========== NOMBRES DE EQUIPOS IA ==========
 export const AI_TEAM_NAMES = [
@@ -251,3 +256,27 @@ export const ITEM_PRIORITY_BY_ROLE: Record<Role, string[]> = {
   adc: ['long_sword', 'dagger', 'boots', 'ruby_crystal', 'cloth_armor', 'tear', 'null_magic', 'blasting_wand'],
   support: ['tear', 'null_magic', 'ruby_crystal', 'boots', 'cloth_armor', 'blasting_wand', 'long_sword', 'dagger'],
 };
+
+/** R1–2 none, R3 fire, R4 water, R5 baron, R6 ancestral */
+export function objectiveForRound(round: number): ObjectiveType {
+  if (round <= 2) return null;
+  if (round === 3) return 'dragon_fire';
+  if (round === 4) return 'dragon_water';
+  if (round === 5) return 'baron';
+  if (round === 6) return 'dragon_ancestral';
+  return null;
+}
+
+export function objectiveName(obj: ObjectiveType): string {
+  switch (obj) {
+    case 'dragon_fire': return 'Dragón de Fuego';
+    case 'dragon_water': return 'Dragón de Agua';
+    case 'baron': return 'Barón Nashor';
+    case 'dragon_ancestral': return 'Dragón Ancestral';
+    default: return 'Objetivo';
+  }
+}
+
+export function objectiveIsBaronSide(obj: ObjectiveType): boolean {
+  return obj === 'baron' || obj === 'dragon_ancestral';
+}
