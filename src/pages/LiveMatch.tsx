@@ -161,15 +161,11 @@ export default function LiveMatch() {
   phaseRef.current = phase;
   tmRef.current = tm;
 
-  // Banner: visible al esperar; oculto en decisiones, QTE y popups
+  // Banner oculto durante toda la partida en vivo (evita solapar estructuras/marcador)
   useEffect(() => {
-    const hide =
-      phase?.t === 'prompt' ||
-      phase?.t === 'qte' ||
-      announceBusy;
-    setAdHidden(hide);
+    setAdHidden(true);
     return () => setAdHidden(false);
-  }, [phase, announceBusy]);
+  }, []);
 
   const enqueueAnnounces = (items: AnnounceItem[], key: string) => {
     if (items.length === 0) return 0;
