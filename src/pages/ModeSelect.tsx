@@ -191,31 +191,31 @@ export default function ModeSelect() {
       {/* Hero / banner superior */}
       <div className="relative z-10 shrink-0 safe-top safe-chrome-x">
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-44 md:h-52 bg-gradient-to-b from-[#0A0E1A]/98 via-[#0A0E1A]/72 to-transparent"
+          className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-[#0A0E1A]/98 via-[#0A0E1A]/72 to-transparent md:h-52"
           aria-hidden
         />
-        <div className="relative mx-auto max-w-4xl px-4 pb-4 pt-1 text-center md:pb-6 md:pt-2">
-          <div className="relative mx-auto mb-3 w-fit md:mb-4">
+        <div className="relative mx-auto max-w-4xl px-4 pb-2 pt-0 text-center md:pb-6 md:pt-2">
+          <div className="relative mx-auto mb-2 w-fit md:mb-4">
             <div
-              className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#C9A84C]/25 blur-2xl md:h-24 md:w-24"
+              className="absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#C9A84C]/25 blur-2xl md:h-24 md:w-24"
               aria-hidden
             />
-            <div className="relative flex h-14 w-14 items-center justify-center rounded-full border border-[#C9A84C]/30 bg-gradient-to-br from-[#C9A84C] to-[#8B6914] shadow-[0_0_32px_rgba(201,168,76,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] md:h-[4.5rem] md:w-[4.5rem]">
-              <Swords className="h-7 w-7 text-[#0A0E1A] md:h-8 md:w-8" />
+            <div className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[#C9A84C]/30 bg-gradient-to-br from-[#C9A84C] to-[#8B6914] shadow-[0_0_32px_rgba(201,168,76,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] md:h-[4.5rem] md:w-[4.5rem]">
+              <Swords className="h-6 w-6 text-[#0A0E1A] md:h-8 md:w-8" />
             </div>
           </div>
 
           <h1
-            className="text-2xl font-bold leading-tight text-[#C9A84C] drop-shadow-[0_2px_16px_rgba(0,0,0,0.9)] md:text-[2rem] md:tracking-[0.06em]"
+            className="text-xl font-bold leading-tight text-[#C9A84C] drop-shadow-[0_2px_16px_rgba(0,0,0,0.9)] md:text-[2rem] md:tracking-[0.06em]"
             style={{ fontFamily: 'Cinzel, serif' }}
           >
             LIGA DE DUELO
           </h1>
-          <p className="mt-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-[#B8C4D8] drop-shadow-[0_1px_8px_rgba(0,0,0,0.9)] md:mt-2 md:text-xs md:tracking-[0.28em]">
+          <p className="mt-1 text-[9px] font-medium uppercase tracking-[0.18em] text-[#B8C4D8] drop-shadow-[0_1px_8px_rgba(0,0,0,0.9)] md:mt-2 md:text-xs md:tracking-[0.28em]">
             Elige cómo quieres jugar
           </p>
 
-          <div className="mx-auto mt-3 flex items-center justify-center gap-2.5 md:mt-4" aria-hidden>
+          <div className="mx-auto mt-2 hidden items-center justify-center gap-2.5 sm:flex md:mt-4" aria-hidden>
             <span className="h-px w-10 bg-gradient-to-r from-transparent to-[#C9A84C]/45 md:w-14" />
             <span className="h-1 w-1 rounded-full bg-[#C9A84C]/55" />
             <span className="h-px w-10 bg-gradient-to-l from-transparent to-[#C9A84C]/45 md:w-14" />
@@ -227,16 +227,16 @@ export default function ModeSelect() {
               playClickSound();
               setShowRules(true);
             }}
-            className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#C9A84C]/35 bg-[#0A0E1A]/65 px-3.5 py-1.5 text-xs text-[#C9A84C] backdrop-blur-sm transition-colors hover:border-[#C9A84C]/70 hover:bg-[#0A0E1A]/85 md:mt-4 md:px-4 md:py-2 md:text-sm"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-[#C9A84C]/35 bg-[#0A0E1A]/65 px-3 py-1 text-[11px] text-[#C9A84C] backdrop-blur-sm transition-colors hover:border-[#C9A84C]/70 hover:bg-[#0A0E1A]/85 md:mt-4 md:gap-2 md:px-4 md:py-2 md:text-sm"
           >
-            <BookOpen className="h-4 w-4 shrink-0" />
+            <BookOpen className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
             Reglas
           </button>
         </div>
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-hidden px-4 py-2 md:overflow-y-auto md:scrollbar-hide md:px-6 md:py-4 lg:max-w-6xl">
-        <div className="grid min-h-0 w-full flex-1 grid-cols-1 gap-2.5 md:auto-rows-min md:grid-cols-3 md:gap-5 md:flex-none">
+      <div className="relative z-10 mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-y-auto px-4 py-1 scrollbar-hide md:overflow-y-auto md:px-6 md:py-4 lg:max-w-6xl">
+        <div className="grid w-full grid-cols-1 gap-2 md:auto-rows-min md:grid-cols-3 md:gap-5 md:flex-none">
           {MODES.map(m => (
             <button
               key={m.id}
@@ -247,7 +247,7 @@ export default function ModeSelect() {
                 playClickSound();
                 dispatch({ type: 'SET_GAME_MODE', mode: m.id });
               }}
-              className={`relative flex w-full min-h-0 gap-3 rounded-2xl border-2 p-3 text-left backdrop-blur-md transition-all md:min-h-[228px] md:flex-col md:gap-4 md:p-6 ${
+              className={`relative flex w-full gap-2.5 rounded-2xl border-2 p-2.5 text-left backdrop-blur-md transition-all md:min-h-[228px] md:flex-col md:gap-4 md:p-6 ${
                 m.enabled
                   ? 'border-[#C9A84C]/40 bg-[#0D1220]/82 hover:border-[#C9A84C] hover:bg-[#0D1220]/90 active:scale-[0.99] shadow-[0_12px_40px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.04)]'
                   : 'border-[#2A3550]/55 bg-[#0A0E1A]/58 opacity-55 cursor-not-allowed'
@@ -259,19 +259,19 @@ export default function ModeSelect() {
                   Próximamente
                 </span>
               )}
-              <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl bg-[#0A0E1A]/80 border border-[#2A3550] flex items-center justify-center shrink-0 ${m.enabled ? 'text-[#C9A84C]' : 'text-[#4A5570]'}`}>
+              <div className={`w-9 h-9 md:w-14 md:h-14 rounded-xl bg-[#0A0E1A]/80 border border-[#2A3550] flex items-center justify-center shrink-0 ${m.enabled ? 'text-[#C9A84C]' : 'text-[#4A5570]'}`}>
                 {m.icon}
               </div>
               <div className="min-w-0 flex-1">
-                <p className={`font-bold text-base md:text-lg ${m.enabled ? 'text-[#F0E6D2]' : 'text-[#8B9BB4]'}`}>{m.title}</p>
-                <p className="text-[11px] md:text-xs text-[#C5D0E0]/90 mt-0.5 md:mt-1 leading-snug line-clamp-2 md:line-clamp-none">{m.desc}</p>
+                <p className={`font-bold text-sm md:text-lg ${m.enabled ? 'text-[#F0E6D2]' : 'text-[#8B9BB4]'}`}>{m.title}</p>
+                <p className="text-[10px] md:text-xs text-[#C5D0E0]/90 mt-0.5 md:mt-1 leading-snug line-clamp-2 md:line-clamp-none">{m.desc}</p>
               </div>
             </button>
           ))}
         </div>
       </div>
 
-      <p className="relative z-10 shrink-0 px-4 pb-2 pt-1 text-center text-[10px] text-[#8B9BB4]/75 drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)] md:pb-3 md:text-[11px]">
+      <p className="relative z-10 shrink-0 px-4 pb-1 pt-2 text-center text-[9px] text-[#8B9BB4]/70 md:pb-3 md:pt-1 md:text-[11px]">
         Todos los derechos reservados · HOMEBOYS PROD ® 2026
       </p>
 
