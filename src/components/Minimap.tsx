@@ -88,7 +88,7 @@ function getEffectiveLane(c: Champion, plan?: TeamPlan | null): LaneId {
   if (plan?.bootsLane?.[c.instanceId] !== undefined && c.items.some(i => i.defId === 'boots')) {
     return plan.bootsLane[c.instanceId];
   }
-  if (def.role === 'jungle' && plan) {
+  if (def.role === 'jungle' && plan && c.isAlive && c.stats.hp > 0 && (c.skipTurns || 0) <= 0) {
     const jt = plan.jungleTarget;
     if (jt === 'objective') return 1;
     if (jt === 0 || jt === 1 || jt === 2) return jt;
@@ -105,14 +105,19 @@ function champMapPos(
 ): Pt {
   const def = champDef(c);
   const effectiveLane = getEffectiveLane(c, plan);
-  if (def.role === 'jungle' && plan?.jungleTarget === 'objective') {
+  if (def.role === 'jungle' && plan?.jungleTarget === 'objective' && c.isAlive && c.stats.hp > 0 && (c.skipTurns || 0) <= 0) {
     if (objectiveIsBaronSide(objective ?? null)) {
       return c.team === 'blue' ? { x: 0.34, y: 0.34 } : { x: 0.42, y: 0.38 };
     }
     return c.team === 'blue' ? { x: 0.58, y: 0.62 } : { x: 0.66, y: 0.66 };
   }
 
-  if (plan?.jungleTarget === 'objective' && plan.objectiveAssistId === c.instanceId) {
+  if (
+    plan?.jungleTarget === 'objective'
+    && plan.objectiveAssistId === c.instanceId
+    && c.isAlive
+    && c.stats.hp > 0
+  ) {
     if (objectiveIsBaronSide(objective ?? null)) {
       return c.team === 'blue' ? { x: 0.36, y: 0.4 } : { x: 0.44, y: 0.36 };
     }

@@ -9,7 +9,7 @@ import {
 } from '@/lib/turn-engine';
 import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats } from '@/lib/game-data';
 
-const emptyPlan = (): TeamPlan => ({ actions: {}, ultimates: [], bootsLane: {}, jungleTarget: 1 });
+const emptyPlan = (): TeamPlan => ({ actions: {}, ultimates: [], bootsLane: {} });
 
 function makeRoomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

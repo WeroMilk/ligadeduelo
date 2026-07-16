@@ -219,6 +219,25 @@ function livingIncludingSkipped(team: TeamData) {
   return team.champions.filter(c => c.isAlive && c.stats.hp > 0);
 }
 
+/** Jungla listo para actuar este turno (vivo, con HP y sin skip). */
+export function livingJungler(team: TeamData): Champion | null {
+  return living(team).find(c => champDef(c).role === 'jungle') || null;
+}
+
+/**
+ * Si la jungla no puede actuar, anula gank/objetivo.
+ * Evita planes “fantasma” que mueven pelea o abren QTE sin jungla.
+ */
+function sanitizeJunglePlan(plan: TeamPlan, team: TeamData): TeamPlan {
+  if (livingJungler(team)) return plan;
+  if (plan.jungleTarget === undefined && !plan.objectiveAssistId) return plan;
+  return {
+    ...plan,
+    jungleTarget: undefined,
+    objectiveAssistId: undefined,
+  };
+}
+
 function applyBurn(champs: Champion[], log: CombatLogLine[]) {
   for (const c of champs) {
     if (!c.isAlive || c.burnPending <= 0) continue;
@@ -518,10 +537,12 @@ function fightersInLane(
       }
       if (def.role === 'jungle') {
         const jt = plan.jungleTarget;
+        // Sin plan de jungla (muerto / skip): no entra a pelear en línea este turno
+        if (jt === undefined || jt === null) continue;
         if (jt === 'objective') continue; // handled separately
         if (skipJungles) continue; // pelean en QTE de gank contested
         if (typeof jt === 'number') laneNow = jt;
-        else laneNow = 1;
+        else continue;
       }
       if (laneNow !== lane) continue;
       const action = plan.actions[c.instanceId] || 'attack';
@@ -1062,7 +1083,18 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
   applyBootsLanes(next, bluePlan, redPlan);
   markUltimatesUsed(next, bluePlan, redPlan);
 
+  // Jungla muerto/skip: no gankea ni va a objetivo, aunque el plan lo diga
+  bluePlan = sanitizeJunglePlan(bluePlan, next.blue);
+  redPlan = sanitizeJunglePlan(redPlan, next.red);
+
   pushLog(log, `— Ronda ${next.round} —`, 'section');
+
+  if (!livingJungler(next.blue)) {
+    pushLog(log, `${next.blue.name}: jungla fuera de combate · sin gank este turno`);
+  }
+  if (!livingJungler(next.red)) {
+    pushLog(log, `${next.red.name}: jungla fuera de combate · sin gank este turno`);
+  }
 
   for (const c of living(next.blue)) {
     const a = bluePlan.actions[c.instanceId];
@@ -1073,8 +1105,13 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
     if (a) c.revealedAction = a;
   }
 
-  const blueGank = typeof bluePlan.jungleTarget === 'number' ? bluePlan.jungleTarget : null;
-  const redGank = typeof redPlan.jungleTarget === 'number' ? redPlan.jungleTarget : null;
+  // Solo cuenta gank si esa jungla está viva y eligió línea
+  const blueGank = livingJungler(next.blue) && typeof bluePlan.jungleTarget === 'number'
+    ? bluePlan.jungleTarget
+    : null;
+  const redGank = livingJungler(next.red) && typeof redPlan.jungleTarget === 'number'
+    ? redPlan.jungleTarget
+    : null;
   const contestedGankLane: LaneId | null =
     blueGank !== null && redGank !== null && blueGank === redGank ? blueGank : null;
 
@@ -1138,8 +1175,8 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
     }
   }
 
-  const blueWants = bluePlan.jungleTarget === 'objective' && !!next.objective;
-  const redWants = redPlan.jungleTarget === 'objective' && !!next.objective;
+  const blueWants = !!livingJungler(next.blue) && bluePlan.jungleTarget === 'objective' && !!next.objective;
+  const redWants = !!livingJungler(next.red) && redPlan.jungleTarget === 'objective' && !!next.objective;
 
   // Si el jugador va al objetivo (solo o contested), diferir a QTE.
   // Si un nexo ya cayó, la partida terminó: no abrir QTE.
@@ -1516,7 +1553,7 @@ export function generateAIPlan(
   const actions: Record<string, CombatAction> = {};
   const ultimates: string[] = [];
   const bootsLane: Record<string, LaneId> = {};
-  let jungleTarget: TeamPlan['jungleTarget'] = 1;
+  let jungleTarget: TeamPlan['jungleTarget'] = undefined;
   let objectiveAssistId: string | undefined;
 
   // Torre propia más dañada → priorizar defensa
@@ -1524,6 +1561,8 @@ export function generateAIPlan(
   const weakTower = [...ownTowers].sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
   const defendLane: LaneId | null =
     weakTower && weakTower.hp / weakTower.maxHp < 0.55 ? (weakTower.lane as LaneId) : null;
+
+  const jg = livingJungler(t);
 
   for (const c of living(t)) {
     const def = champDef(c);
@@ -1542,30 +1581,32 @@ export function generateAIPlan(
     if (hasItem(c, 'boots') && Math.random() < 0.5) {
       bootsLane[c.instanceId] = defendLane ?? ([0, 1, 2] as LaneId[])[Math.floor(Math.random() * 3)];
     }
+  }
 
-    if (def.role === 'jungle') {
-      const enemyJt = enemyPlan?.jungleTarget;
-      // Counter: si el rival gankea una línea, a menudo contestamos
-      if (typeof enemyJt === 'number' && Math.random() < 0.72) {
-        jungleTarget = enemyJt;
-      } else if (enemyJt === 'objective' && state.objective && Math.random() < 0.72) {
-        jungleTarget = 'objective';
-        const candidates = living(t).filter(x => champDef(x).role !== 'jungle');
-        if (candidates.length) {
-          objectiveAssistId = candidates[Math.floor(Math.random() * candidates.length)].instanceId;
-        }
-      } else if (defendLane !== null && Math.random() < 0.55) {
-        jungleTarget = defendLane;
-      } else if (state.objective && Math.random() < 0.58) {
-        jungleTarget = 'objective';
-        const candidates = living(t).filter(x => champDef(x).role !== 'jungle');
-        if (candidates.length) {
-          objectiveAssistId = candidates[Math.floor(Math.random() * candidates.length)].instanceId;
-        }
-      } else {
-        const weak = living(enemy).sort((a, b) => a.stats.hp - b.stats.hp)[0];
-        jungleTarget = weak ? (weak.position.lane as LaneId) : 1;
+  // Solo planifica gank/objetivo si la jungla puede actuar
+  if (jg) {
+    const enemyJt = enemyPlan?.jungleTarget;
+    const enemyCanContest = !!livingJungler(enemy) && enemyJt !== undefined;
+    // Counter: si el rival gankea una línea, a menudo contestamos
+    if (enemyCanContest && typeof enemyJt === 'number' && Math.random() < 0.72) {
+      jungleTarget = enemyJt;
+    } else if (enemyCanContest && enemyJt === 'objective' && state.objective && Math.random() < 0.72) {
+      jungleTarget = 'objective';
+      const candidates = living(t).filter(x => champDef(x).role !== 'jungle');
+      if (candidates.length) {
+        objectiveAssistId = candidates[Math.floor(Math.random() * candidates.length)].instanceId;
       }
+    } else if (defendLane !== null && Math.random() < 0.55) {
+      jungleTarget = defendLane;
+    } else if (state.objective && Math.random() < 0.58) {
+      jungleTarget = 'objective';
+      const candidates = living(t).filter(x => champDef(x).role !== 'jungle');
+      if (candidates.length) {
+        objectiveAssistId = candidates[Math.floor(Math.random() * candidates.length)].instanceId;
+      }
+    } else {
+      const weak = living(enemy).sort((a, b) => a.stats.hp - b.stats.hp)[0];
+      jungleTarget = weak ? (weak.position.lane as LaneId) : 1;
     }
   }
 

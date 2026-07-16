@@ -5,7 +5,7 @@ import DecisionOverlay, { type DecisionKind, type DecisionPayload } from '@/comp
 import CombatScreenFX, { type ScreenFxKind } from '@/components/CombatScreenFX';
 import CombatAnnounceOverlay, { type AnnounceItem } from '@/components/CombatAnnounceOverlay';
 import ObjectiveMinigame, { type ObjectiveQtePayload } from '@/components/ObjectiveMinigame';
-import { generateAIPlan, champDef } from '@/lib/turn-engine';
+import { generateAIPlan, champDef, livingJungler } from '@/lib/turn-engine';
 import { setAdHidden } from '@/lib/ad-visibility';
 import { objectiveName } from '@/lib/game-data';
 import type { CombatFloat, LaneId, RoundResolution, Structure, TeamPlan } from '@/types/game';
@@ -64,14 +64,17 @@ type FxSignal = { kind: ScreenFxKind; label?: string; team?: 'blue' | 'red' | 'n
 function mergeDecisions(
   base: TeamPlan,
   picks: DecisionPayload[],
+  junglerReady: boolean,
 ): TeamPlan {
   const plan: TeamPlan = {
     actions: { ...base.actions },
     ultimates: [...(base.ultimates || [])],
     bootsLane: { ...(base.bootsLane || {}) },
-    jungleTarget: base.jungleTarget,
-    objectiveAssistId: base.objectiveAssistId,
+    jungleTarget: junglerReady ? base.jungleTarget : undefined,
+    objectiveAssistId: junglerReady ? base.objectiveAssistId : undefined,
   };
+
+  if (!junglerReady) return plan;
 
   for (const p of picks) {
     if (p.kind === 'jungle') {
@@ -394,8 +397,9 @@ export default function LiveMatch() {
 
   const resolveWithPicks = (finalPicks: DecisionPayload[]) => {
     if (!tm) return;
+    const junglerReady = !!livingJungler(tm.blue);
     const base = generateAIPlan(tm, 'blue');
-    const plan = mergeDecisions(base, finalPicks);
+    const plan = mergeDecisions(base, finalPicks, junglerReady);
     awaitingCinema.current = true;
     markPhaseStart();
     setPhase({ t: 'idle' });
@@ -407,13 +411,21 @@ export default function LiveMatch() {
     if (!current || current.isComplete) return;
     resetCinemaGuards();
     promptsForRound.current = round;
-    const queue: DecisionKind[] = ['jungle'];
-    pickQueue.current = queue;
     picksRef.current = [];
     setScale(0.92);
     setCinemaRes(null);
     setActiveFloats([]);
     markPhaseStart();
+
+    // Jungla muerto o en skip: no hay decisión de gank este turno
+    if (!livingJungler(current.blue)) {
+      pickQueue.current = [];
+      resolveWithPicks([]);
+      return;
+    }
+
+    const queue: DecisionKind[] = ['jungle'];
+    pickQueue.current = queue;
     const first = queue.shift();
     if (first) setPhase({ t: 'prompt', kind: first });
     else resolveWithPicks([]);
@@ -559,11 +571,12 @@ export default function LiveMatch() {
     const next = [...picksRef.current.filter(p => p.kind !== payload.kind), payload];
     picksRef.current = next;
 
-    // Tras ir al objetivo: elegir qué campeón ayuda
+    // Tras ir al objetivo: elegir qué campeón ayuda (solo si la jungla puede actuar)
     if (
       payload.kind === 'jungle'
       && payload.target === 'objective'
       && tmRef.current?.objective
+      && livingJungler(tmRef.current.blue)
       && assistCandidates.length > 0
     ) {
       pickQueue.current = ['assist', ...pickQueue.current.filter(k => k !== 'assist')];
