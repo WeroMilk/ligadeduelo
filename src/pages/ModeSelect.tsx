@@ -90,10 +90,11 @@ function RulesModal({ onClose }: { onClose: () => void }) {
           </section>
 
           <section className="space-y-1.5">
-            <h3 className="font-bold text-[#F0E6D2]">3. Cada partida tiene 8 turnos</h3>
+            <h3 className="font-bold text-[#F0E6D2]">3. Cada partida tiene 10 turnos</h3>
             <ul className="list-disc space-y-1 pl-5 text-[#8B9BB4]">
-              <li>Turnos impares (1, 3, 5, 7): pelean en las líneas, sin monstruo.</li>
-              <li>Turnos pares (2, 4, 6, 8): aparece un objetivo grande.</li>
+              <li>Turnos 2, 4, 6 y 8: aparece un objetivo grande.</li>
+              <li>Turnos 9 y 10: sin objetivos; solo pelean en las líneas.</li>
+              <li>El resto de turnos impares (1, 3, 5, 7): también sin monstruo.</li>
             </ul>
           </section>
 
@@ -104,6 +105,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
               <li>Turno 4: Dragón de Fuego · +15% vida a aliados vivos</li>
               <li>Turno 6: Barón Nashor · +10% daño físico y mágico</li>
               <li>Turno 8: Dragón Ancestral · +15% robo de vida</li>
+              <li>Turnos 9–10: no hay objetivos</li>
             </ul>
             <p>Si mandas a la jungla al objetivo, juegas un minijuego: toca las zonas amarillas a tiempo.</p>
           </section>
@@ -111,7 +113,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
           <section className="space-y-1.5">
             <h3 className="font-bold text-[#F0E6D2]">5. Tus decisiones</h3>
             <ul className="list-disc space-y-1 pl-5 text-[#8B9BB4]">
-              <li><span className="text-[#F0E6D2]">Jungla:</span> gankear una línea o ir al objetivo.</li>
+              <li><span className="text-[#F0E6D2]">Jungla:</span> gankear una línea o ir al objetivo (si hay).</li>
               <li><span className="text-[#F0E6D2]">Asedio:</span> en turnos pares puedes empujar torres/nexo.</li>
             </ul>
           </section>
@@ -120,7 +122,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
             <h3 className="font-bold text-[#F0E6D2]">6. Cómo ganar una partida</h3>
             <p>
               Destruye el <span className="text-[#F0E6D2]">Nexo</span> rival (la base) o termina con más
-              <span className="text-[#F0E6D2]"> kills</span> al llegar al turno 8. El marcador son las kills.
+              <span className="text-[#F0E6D2]"> kills</span> al llegar al turno 10. El marcador son las kills.
             </p>
           </section>
 
