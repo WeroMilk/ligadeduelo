@@ -112,6 +112,8 @@ export interface Champion {
   siegeStacks: number;
   /** Robo de vida acumulado (0–1), p.ej. Dragón Ancestral. */
   lifeSteal: number;
+  /** Turnos que este campeón no peleará (p.ej. escapó del QTE). */
+  skipTurns: number;
   revealedAction?: CombatAction | null;
 }
 
@@ -209,6 +211,11 @@ export interface ObjectiveQteResult {
   attackingTeam: TeamColor;
   /** true si el monstruo cae. */
   monsterTaken: boolean;
+  /**
+   * Destino del perdedor de la escaramuza contested (2v2 / 2v1).
+   * killed = mueren los participantes; escaped = vivos pero pierden el próximo turno.
+   */
+  loserFate?: 'killed' | 'escaped';
 }
 
 export interface KillAnnounce {

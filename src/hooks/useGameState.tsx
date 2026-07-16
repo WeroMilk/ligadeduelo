@@ -78,7 +78,12 @@ type GameAction =
   | { type: 'RESOLVE_LIVE_ROUND'; plan: TeamPlan }
   | {
       type: 'RESOLVE_OBJECTIVE_QTE';
-      qte: { skirmishWinner: TeamColor | null; attackingTeam: TeamColor; monsterTaken: boolean };
+      qte: {
+        skirmishWinner: TeamColor | null;
+        attackingTeam: TeamColor;
+        monsterTaken: boolean;
+        loserFate?: 'killed' | 'escaped';
+      };
     }
   | { type: 'FINISH_LIVE_MATCH' }
   | { type: 'ADVANCE_BRACKET' }
@@ -366,6 +371,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ultimateUsed: false,
         siegeStacks: 0,
         lifeSteal: 0,
+        skipTurns: 0,
       };
       const champToRoster = { ...state.champToRoster };
       Object.keys(champToRoster).forEach(k => {

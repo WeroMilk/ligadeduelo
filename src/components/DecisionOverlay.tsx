@@ -1,18 +1,21 @@
 import { createPortal } from 'react-dom';
-import { Ghost, TreePine, Castle } from 'lucide-react';
-import type { LaneId } from '@/types/game';
+import { Ghost, TreePine } from 'lucide-react';
+import type { Champion, LaneId } from '@/types/game';
+import { CHAMPIONS, ROLE_NAMES } from '@/lib/game-data';
 import { playDecideSound } from '@/lib/sounds';
 
-export type DecisionKind = 'jungle' | 'siege';
+export type DecisionKind = 'jungle' | 'assist';
 
 export type DecisionPayload =
   | { kind: 'jungle'; target: LaneId | 'objective' }
-  | { kind: 'siege'; lane: LaneId };
+  | { kind: 'assist'; champId: string };
 
 type Props = {
   kind: DecisionKind;
   objectiveLabel?: string | null;
   allowObjective?: boolean;
+  /** Campeones vivos (no jungla) para ayudar en el objetivo. */
+  assistOptions?: Champion[];
   secondsLeft: number;
   onPick: (payload: DecisionPayload) => void;
 };
@@ -21,6 +24,7 @@ export default function DecisionOverlay({
   kind,
   objectiveLabel,
   allowObjective = false,
+  assistOptions = [],
   secondsLeft,
   onPick,
 }: Props) {
@@ -40,16 +44,16 @@ export default function DecisionOverlay({
         {kind === 'jungle' && (
           <>
             <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-              Jungla: ¿gank o objetivo?
+              Jungla: ¿emboscada u objetivo?
             </h2>
             <p className="text-xs text-[#8B9BB4]">
-              Solo una opción: gankear una línea o ir al objetivo.
+              Solo una opción: emboscar una línea o ir al objetivo.
             </p>
             <div className="grid grid-cols-2 gap-2">
               {([
-                { id: 0 as LaneId, label: 'Gank Top' },
-                { id: 1 as LaneId, label: 'Gank Mid' },
-                { id: 2 as LaneId, label: 'Gank Bot' },
+                { id: 0 as LaneId, label: 'Emboscada Superior' },
+                { id: 1 as LaneId, label: 'Emboscada Central' },
+                { id: 2 as LaneId, label: 'Emboscada Inferior' },
               ]).map(l => (
                 <button
                   key={l.id}
@@ -75,25 +79,50 @@ export default function DecisionOverlay({
           </>
         )}
 
-        {kind === 'siege' && (
+        {kind === 'assist' && (
           <>
             <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-              ¿Priorizar qué torre?
+              ¿Quién ayuda al {objectiveLabel || 'objetivo'}?
             </h2>
-            <p className="text-xs text-[#8B9BB4]">No cambia el gank de la jungla.</p>
-            <div className="grid grid-cols-3 gap-2">
-              {([0, 1, 2] as LaneId[]).map(lane => (
-                <button
-                  key={lane}
-                  type="button"
-                  onClick={() => pick({ kind: 'siege', lane })}
-                  className="min-h-11 rounded-xl border border-[#2A3550] bg-[#0A0E1A] font-bold text-[#F0E6D2] flex flex-col items-center justify-center gap-1 text-xs"
-                >
-                  <Castle className="w-4 h-4 text-[#3498DB]" />
-                  {lane === 0 ? 'Top' : lane === 1 ? 'Mid' : 'Bot'}
-                </button>
-              ))}
+            <p className="text-xs text-[#8B9BB4]">
+              Elige un campeón para ir con la jungla. Su línea queda más expuesta.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {assistOptions.map(c => {
+                const def = CHAMPIONS.find(d => d.id === c.defId);
+                if (!def) return null;
+                return (
+                  <button
+                    key={c.instanceId}
+                    type="button"
+                    onClick={() => pick({ kind: 'assist', champId: c.instanceId })}
+                    className="min-h-[4.5rem] rounded-xl border border-[#2A3550] bg-[#0A0E1A] px-2 py-2 flex items-center gap-2 text-left active:scale-[0.98]"
+                  >
+                    {def.image ? (
+                      <img
+                        src={def.image}
+                        alt={def.name}
+                        className="h-10 w-10 shrink-0 rounded-full object-cover border-2 border-[#C9A84C]/50"
+                      />
+                    ) : (
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-[#C9A84C]/50 text-xs font-bold text-white"
+                        style={{ backgroundColor: def.color }}
+                      >
+                        {def.initials}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-[#F0E6D2] truncate">{def.name}</p>
+                      <p className="text-[10px] text-[#8B9BB4]">{ROLE_NAMES[def.role]}</p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
+            {assistOptions.length === 0 && (
+              <p className="text-center text-xs text-[#E74C3C]">No hay aliados vivos para ayudar.</p>
+            )}
           </>
         )}
       </div>

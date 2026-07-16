@@ -64,7 +64,6 @@ type FxSignal = { kind: ScreenFxKind; label?: string; team?: 'blue' | 'red' | 'n
 function mergeDecisions(
   base: TeamPlan,
   picks: DecisionPayload[],
-  assistId?: string,
 ): TeamPlan {
   const plan: TeamPlan = {
     actions: { ...base.actions },
@@ -77,12 +76,11 @@ function mergeDecisions(
   for (const p of picks) {
     if (p.kind === 'jungle') {
       plan.jungleTarget = p.target;
-      plan.objectiveAssistId = p.target === 'objective' ? assistId : undefined;
+      if (p.target !== 'objective') plan.objectiveAssistId = undefined;
     }
-    if (p.kind === 'siege') {
-      Object.keys(plan.actions).forEach(id => {
-        if (plan.actions[id] === 'defend') plan.actions[id] = 'attack';
-      });
+    if (p.kind === 'assist') {
+      plan.objectiveAssistId = p.champId;
+      plan.jungleTarget = 'objective';
     }
   }
   return plan;
@@ -94,7 +92,7 @@ function StructureHpRow({ structures, team }: { structures: Structure[]; team: '
   );
   const nexus = structures.find(s => s.type === 'nexus' && s.team === team);
   const color = team === 'blue' ? '#3498DB' : '#E74C3C';
-  const labels = ['T', 'M', 'B'];
+  const labels = ['Sup', 'Cen', 'Inf'];
 
   const bar = (s: Structure | undefined, label: string) => {
     const destroyed = !s || s.isDestroyed || s.hp <= 0;
@@ -204,9 +202,13 @@ export default function LiveMatch() {
     }
   };
 
-  const assistId = useMemo(() => {
-    if (!tm) return undefined;
-    return tm.blue.champions.find(c => champDef(c).role === 'mid' && c.isAlive)?.instanceId;
+  const assistCandidates = useMemo(() => {
+    if (!tm) return [];
+    return tm.blue.champions.filter(c => {
+      if (!c.isAlive || c.stats.hp <= 0) return false;
+      const def = champDef(c);
+      return def.role !== 'jungle';
+    });
   }, [tm]);
 
   const clearCinema = () => {
@@ -324,7 +326,7 @@ export default function LiveMatch() {
       const totalKills = (res.blueKillsDelta ?? 0) + (res.redKillsDelta ?? 0);
       if (totalKills > 0) {
         const killerSide = (res.blueKillsDelta ?? 0) >= (res.redKillsDelta ?? 0) ? 'blue' : 'red';
-        fireFx('kill', totalKills > 1 ? `¡${totalKills} KILLS!` : '¡KILL!', killerSide);
+        fireFx('kill', totalKills > 1 ? `¡${totalKills} BAJAS!` : '¡BAJA!', killerSide);
       }
       const towers = (res.towersTakenBlue ?? 0) + (res.towersTakenRed ?? 0);
       if (towers > 0) {
@@ -393,7 +395,7 @@ export default function LiveMatch() {
   const resolveWithPicks = (finalPicks: DecisionPayload[]) => {
     if (!tm) return;
     const base = generateAIPlan(tm, 'blue');
-    const plan = mergeDecisions(base, finalPicks, assistId);
+    const plan = mergeDecisions(base, finalPicks);
     awaitingCinema.current = true;
     markPhaseStart();
     setPhase({ t: 'idle' });
@@ -406,7 +408,6 @@ export default function LiveMatch() {
     resetCinemaGuards();
     promptsForRound.current = round;
     const queue: DecisionKind[] = ['jungle'];
-    if (round % 2 === 0) queue.push('siege');
     pickQueue.current = queue;
     picksRef.current = [];
     setScale(0.92);
@@ -536,10 +537,15 @@ export default function LiveMatch() {
     const iv = window.setInterval(() => setPromptLeft(s => Math.max(0, s - 1)), 1000);
     const to = window.setTimeout(() => {
       const kind = phase.kind;
-      const def: DecisionPayload =
-        kind === 'jungle'
-          ? { kind: 'jungle', target: tm?.objective ? 'objective' : 1 }
-          : { kind: 'siege', lane: 1 };
+      let def: DecisionPayload;
+      if (kind === 'jungle') {
+        def = { kind: 'jungle', target: tm?.objective ? 'objective' : 1 };
+      } else {
+        const fallback = assistCandidates[0]?.instanceId
+          || tm?.blue.champions.find(c => c.isAlive)?.instanceId
+          || '';
+        def = { kind: 'assist', champId: fallback };
+      }
       acceptPick(def);
     }, PROMPT_SEC * 1000);
     return () => {
@@ -552,6 +558,17 @@ export default function LiveMatch() {
   function acceptPick(payload: DecisionPayload) {
     const next = [...picksRef.current.filter(p => p.kind !== payload.kind), payload];
     picksRef.current = next;
+
+    // Tras ir al objetivo: elegir qué campeón ayuda
+    if (
+      payload.kind === 'jungle'
+      && payload.target === 'objective'
+      && tmRef.current?.objective
+      && assistCandidates.length > 0
+    ) {
+      pickQueue.current = ['assist', ...pickQueue.current.filter(k => k !== 'assist')];
+    }
+
     const nextKind = pickQueue.current.shift();
     if (nextKind) {
       setPhase({ t: 'prompt', kind: nextKind });
@@ -587,7 +604,7 @@ export default function LiveMatch() {
   const capsule =
     !phase || phase.t === 'idle' ? `Ronda ${tm.round}` :
     phase.t === 'prompt' ? 'Tu decisión…' :
-    phase.t === 'lane' ? `Línea ${['Top', 'Mid', 'Bot'][phase.lane]}${phase.fight ? ' · Combate' : ''}` :
+    phase.t === 'lane' ? `Línea ${['Superior', 'Central', 'Inferior'][phase.lane]}${phase.fight ? ' · Combate' : ''}` :
     phase.t === 'qte' ? '¡Pelea el objetivo!' :
     phase.t === 'objective' ? `Objetivo · ${objLabel || '…'}` :
     '…';
@@ -610,7 +627,7 @@ export default function LiveMatch() {
             <span className="text-[#3498DB]">{tm.blue.kills}</span>
             <span className="text-[#8B9BB4]"> – </span>
             <span className="text-[#E74C3C]">{tm.red.kills}</span>
-            <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">kills</span>
+            <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">bajas</span>
           </p>
         </div>
       </div>
@@ -661,13 +678,13 @@ export default function LiveMatch() {
             <p className="text-[#8B9BB4]">Azul</p>
             <p className="font-bold text-[#F0E6D2] truncate md:text-sm">{tm.blue.name}</p>
             <p className="text-base md:text-2xl font-bold text-[#3498DB] mt-0.5 md:mt-1">{tm.blue.kills}</p>
-            <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Kills</p>
+            <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
           </div>
           <div className="rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1 text-right md:text-left md:py-4 md:px-3">
             <p className="text-[#8B9BB4]">Rojo</p>
             <p className="font-bold text-[#F0E6D2] truncate md:text-sm">{tm.red.name}</p>
             <p className="text-base md:text-2xl font-bold text-[#E74C3C] mt-0.5 md:mt-1">{tm.red.kills}</p>
-            <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Kills</p>
+            <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
           </div>
         </div>
       </div>
@@ -677,6 +694,7 @@ export default function LiveMatch() {
           kind={phase.kind}
           objectiveLabel={objLabel}
           allowObjective={!!tm.objective}
+          assistOptions={assistCandidates}
           secondsLeft={promptLeft}
           onPick={acceptPick}
         />

@@ -4,9 +4,9 @@ const KILL_LINES = [
   (a: string, v: string) => `${a} mandó a ${v} de vacaciones… permanentes.`,
   (a: string, v: string) => `${v} olvidó que ${a} existía. Ya no.`,
   (a: string, v: string) => `${a} firmó el autógrafo en la cara de ${v}.`,
-  (a: string, v: string) => `Respawn timer running… preguntó ${v} a ${a}.`,
+  (a: string, v: string) => `${v} preguntó cuánto falta para revivir… ${a} no contestó.`,
   (a: string, v: string) => `${a} cocinó a ${v}. Estaba en su punto.`,
-  (a: string, v: string) => `${v} probó “all in”. ${a} prefería “all out”.`,
+  (a: string, v: string) => `${v} lo apostó todo. ${a} se lo llevó completo.`,
 ];
 
 const TOWER_LINES = [
@@ -16,10 +16,10 @@ const TOWER_LINES = [
 ];
 
 const MULTI: Record<number, string> = {
-  2: '¡DOUBLE KILL!',
-  3: '¡TRIPLE KILL!',
-  4: '¡QUADRA KILL!',
-  5: '¡PENTAKILL!',
+  2: '¡DOBLE BAJA!',
+  3: '¡TRIPLE BAJA!',
+  4: '¡CUÁDRUPLE BAJA!',
+  5: '¡PENTABAJA!',
 };
 
 export function comicKillLine(actor: string, victim: string): string {
@@ -43,10 +43,10 @@ export function enrichEventMessage(e: GameEvent): string {
     && e.actorName && e.targetName
   ) {
     const prefix =
-      e.type === 'first_blood' ? '¡FIRST BLOOD!' :
-      e.type === 'double_kill' ? '¡DOUBLE KILL!' :
-      e.type === 'triple_kill' ? '¡TRIPLE KILL!' :
-      e.type === 'quadra_kill' ? '¡ACABO CON TODO!' : '';
+      e.type === 'first_blood' ? '¡PRIMERA SANGRE!' :
+      e.type === 'double_kill' ? '¡DOBLE BAJA!' :
+      e.type === 'triple_kill' ? '¡TRIPLE BAJA!' :
+      e.type === 'quadra_kill' ? '¡CUÁDRUPLE BAJA!' : '';
     const comic = comicKillLine(e.actorName, e.targetName);
     return prefix ? `${prefix} ${comic}` : comic;
   }

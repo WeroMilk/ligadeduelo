@@ -41,7 +41,7 @@ export default function TournamentWin() {
   if (!playerWon) {
     return (
       <div className="screen-center relative bg-[#0A0E1A] px-4 py-3 md:py-6 safe-top safe-chrome-x safe-bottom">
-        <div className="relative z-10 flex flex-col items-center gap-3 md:gap-4 max-w-md w-full min-h-0">
+        <div className="relative z-10 flex w-full max-w-md flex-col items-center gap-3 md:gap-4 pb-4">
           <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-[#141B2D] border-2 border-[#2A3550] flex items-center justify-center shrink-0">
             <Flag className="w-7 h-7 md:w-9 md:h-9 text-[#8B9BB4]" />
           </div>
@@ -55,9 +55,7 @@ export default function TournamentWin() {
             </p>
           </div>
 
-          <div className="w-full min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-            <TournamentRecap playerWon={false} />
-          </div>
+          <TournamentRecap playerWon={false} />
 
           <button
             type="button"
@@ -91,12 +89,12 @@ export default function TournamentWin() {
       </div>
 
       <div
-        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] opacity-15 blur-[180px] rounded-full ${
+        className={`pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] opacity-15 blur-[180px] rounded-full ${
           frame === 'obsidian' ? 'bg-[#9B59B6]' : 'bg-[#C9A84C]'
         }`}
       />
 
-      <div className="relative z-10 flex flex-col items-center gap-3 md:gap-4 max-w-md w-full min-h-0">
+      <div className="relative z-10 flex w-full max-w-md flex-col items-center gap-3 md:gap-4 pb-4">
         <div className={`w-16 h-16 md:w-24 md:h-24 rounded-full flex items-center justify-center animate-pulse-slow shrink-0 ${
           frame === 'obsidian'
             ? 'bg-gradient-to-br from-[#9B59B6] via-[#6B1FA6] to-[#2C1638] shadow-[0_0_80px_rgba(155,89,182,0.5)]'
@@ -136,17 +134,13 @@ export default function TournamentWin() {
           </div>
         )}
 
-        <div className="w-full min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-          <TournamentRecap playerWon />
-        </div>
-
         <div className={`w-full rounded-xl border p-2.5 md:p-3 shrink-0 ${
           frame === 'obsidian' ? 'bg-[#12081A] border-[#9B59B6]/35' : 'bg-[#141B2D] border-[#C9A84C]/30'
         }`}>
           <p className={`text-xs uppercase tracking-wider text-center mb-2 ${
             frame === 'obsidian' ? 'text-[#C39BD3]' : 'text-[#C9A84C]'
           }`}>
-            Marco {frame === 'obsidian' ? 'Obsidiana' : 'Dorado'}
+            Marco {frame === 'obsidian' ? 'Obsidiana' : 'Dorado'} · Tu equipo
           </p>
           <div className="flex justify-center flex-wrap gap-2">
             {champions.map(c => {
@@ -175,6 +169,8 @@ export default function TournamentWin() {
             })}
           </div>
         </div>
+
+        <TournamentRecap playerWon />
 
         <button
           type="button"

@@ -67,7 +67,9 @@ const SIEGE_NEXUS_DMG = 400;
 
 /** Ritmo de combate: menos intercambios y daño → partidas con pocas kills. */
 const DUEL_MAX_EXCHANGES = 3;
-const COMBAT_DAMAGE_MULT = 0.82;
+const COMBAT_DAMAGE_MULT = 0.88;
+/** Multiplicador extra de daño para el equipo rojo (IA). */
+const AI_DAMAGE_MULT = 1.12;
 const DEFEND_DAMAGE_MULT = 0.52;
 const BURN_ARMOR_DMG = 12;
 
@@ -85,7 +87,7 @@ export function actionLabelEs(action: CombatAction): string {
 }
 
 function laneLabel(lane: LaneId): string {
-  return lane === 0 ? 'Top' : lane === 1 ? 'Mid' : 'Bot';
+  return lane === 0 ? 'Superior' : lane === 1 ? 'Central' : 'Inferior';
 }
 
 function deepCloneChamp(c: Champion): Champion {
@@ -129,6 +131,7 @@ export function createTurnChampion(defId: string, team: TeamColor): Champion {
     ultimateUsed: false,
     siegeStacks: 0,
     lifeSteal: 0,
+    skipTurns: 0,
   };
 }
 
@@ -209,6 +212,10 @@ function pushLog(log: CombatLogLine[], text: string, tone: CombatLogLine['tone']
 }
 
 function living(team: TeamData) {
+  return team.champions.filter(c => c.isAlive && c.stats.hp > 0 && (c.skipTurns || 0) <= 0);
+}
+
+function livingIncludingSkipped(team: TeamData) {
   return team.champions.filter(c => c.isAlive && c.stats.hp > 0);
 }
 
@@ -244,14 +251,15 @@ function dealDamage(attacker: Champion, defender: Champion, raw: number, magic: 
 
 function actionDamage(c: Champion, action: CombatAction, teamBuff: number, tearDouble: boolean): { dmg: number; magic: boolean } {
   if (action === 'defend') return { dmg: 0, magic: false };
+  const sideMul = c.team === 'red' ? AI_DAMAGE_MULT : 1;
   if (action === 'attack') {
-    let dmg = Math.floor(c.stats.ad * 1.15 * COMBAT_DAMAGE_MULT) + Math.floor(40 * COMBAT_DAMAGE_MULT) + teamBuff;
-    if (hasItem(c, 'long_sword')) dmg += Math.floor(45 * COMBAT_DAMAGE_MULT);
+    let dmg = Math.floor((c.stats.ad * 1.15 * COMBAT_DAMAGE_MULT + 40 * COMBAT_DAMAGE_MULT) * sideMul) + teamBuff;
+    if (hasItem(c, 'long_sword')) dmg += Math.floor(45 * COMBAT_DAMAGE_MULT * sideMul);
     return { dmg, magic: false };
   }
   // ability
-  let dmg = Math.floor(c.stats.ap * 1.35 * COMBAT_DAMAGE_MULT) + Math.floor(50 * COMBAT_DAMAGE_MULT) + teamBuff;
-  if (hasItem(c, 'blasting_wand')) dmg += Math.floor(55 * COMBAT_DAMAGE_MULT);
+  let dmg = Math.floor((c.stats.ap * 1.35 * COMBAT_DAMAGE_MULT + 50 * COMBAT_DAMAGE_MULT) * sideMul) + teamBuff;
+  if (hasItem(c, 'blasting_wand')) dmg += Math.floor(55 * COMBAT_DAMAGE_MULT * sideMul);
   if (tearDouble) dmg *= 2;
   return { dmg, magic: true };
 }
@@ -429,7 +437,7 @@ function resolveDuel(
         state.red.score += POINTS_KILL;
         redKill = true;
       }
-      pushLog(log, `¡${champDef(atk.champ).name} elimina a ${champDef(def.champ).name}! (+1 kill)`, 'kill');
+      pushLog(log, `¡${champDef(atk.champ).name} elimina a ${champDef(def.champ).name}! (+1 baja)`, 'kill');
       notes.push(`${champDef(def.champ).name} KO`);
       pushKill(killEvents, atk.champ, def.champ);
 
@@ -557,7 +565,7 @@ function resolveLaneGroup(
           lane,
         });
       }
-      pushLog(log, `${champDef(f.champ).name} Wish cura al equipo`, 'ulti');
+      pushLog(log, `${champDef(f.champ).name} usa Deseo y cura al equipo`, 'ulti');
     }
     if (f.champ.defId === 'lulu' || f.champ.defId === 'yuumi' || f.champ.defId === 'shen') {
       const ally = living(team).filter(x => x.instanceId !== f.champ.instanceId)
@@ -578,7 +586,7 @@ function resolveLaneGroup(
         if (f.champ.defId === 'shen') {
           const plan = f.champ.team === 'blue' ? bluePlan : redPlan;
           plan.actions[ally.instanceId] = 'defend';
-          pushLog(log, `Stand United protege a ${champDef(ally).name}`, 'ulti');
+          pushLog(log, `Unidos Permaneceremos protege a ${champDef(ally).name}`, 'ulti');
         }
       }
     }
@@ -930,6 +938,7 @@ function finalizeRoundBookkeeping(
   },
   pendingQte: boolean,
   killEvents: RawKill[] = [],
+  consumeSkipTurns = true,
 ): TurnMatchState {
   if (!pendingQte) {
     onDeathSetRespawn(next);
@@ -966,7 +975,7 @@ function finalizeRoundBookkeeping(
         : next.blue.score >= next.red.score ? 'blue' : 'red';
       if (winner === 'blue') next.blue.score += POINTS_NEXUS;
       else next.red.score += POINTS_NEXUS;
-      pushLog(log, `Ambos nexos caen · gana ${winner === 'blue' ? next.blue.name : next.red.name} por kills`);
+      pushLog(log, `Ambos nexos caen · gana ${winner === 'blue' ? next.blue.name : next.red.name} por bajas`);
     }
 
     if (!matchOver && next.round >= next.maxRounds) {
@@ -974,7 +983,7 @@ function finalizeRoundBookkeeping(
       winner = next.blue.kills > next.red.kills ? 'blue'
         : next.red.kills > next.blue.kills ? 'red'
         : next.blue.score >= next.red.score ? 'blue' : 'red';
-      pushLog(log, `Fin de las ${next.maxRounds} rondas. Kills ${next.blue.kills}–${next.red.kills}`);
+      pushLog(log, `Fin de las ${next.maxRounds} rondas. Bajas ${next.blue.kills}–${next.red.kills}`);
     }
   }
 
@@ -1006,6 +1015,14 @@ function finalizeRoundBookkeeping(
   next.pendingReward = objResult.winner === 'blue' && !matchOver && !pendingQte;
   if (pendingQte) {
     return next;
+  }
+  if (consumeSkipTurns) {
+    for (const c of [...next.blue.champions, ...next.red.champions]) {
+      if ((c.skipTurns || 0) > 0) {
+        pushLog(log, `${champDef(c).name} pierde el turno (escapó de la pelea)`);
+        c.skipTurns -= 1;
+      }
+    }
   }
   if (matchOver) {
     next.isComplete = true;
@@ -1164,10 +1181,77 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
   );
 }
 
+/** Aplica muerte forzada o escape del perdedor en escaramuza contested. */
+function applySkirmishLoserFate(
+  state: TurnMatchState,
+  pending: NonNullable<TurnMatchState['pendingObjective']>,
+  winner: TeamColor,
+  fate: 'killed' | 'escaped',
+  log: CombatLogLine[],
+  floats: CombatFloat[],
+  killEvents: RawKill[],
+  lane: LaneId,
+) {
+  const loser: TeamColor = winner === 'blue' ? 'red' : 'blue';
+  const wTeam = winner === 'blue' ? state.blue : state.red;
+  const lTeam = loser === 'blue' ? state.blue : state.red;
+  const loserIds = loser === 'blue' ? pending.blueIds : pending.redIds;
+  const winnerIds = winner === 'blue' ? pending.blueIds : pending.redIds;
+
+  const killer =
+    livingIncludingSkipped(wTeam).find(c => winnerIds.includes(c.instanceId))
+    || livingIncludingSkipped(wTeam).find(c => champDef(c).role === 'jungle')
+    || livingIncludingSkipped(wTeam)[0];
+
+  for (const id of loserIds) {
+    const victim = lTeam.champions.find(c => c.instanceId === id);
+    if (!victim || !victim.isAlive || victim.stats.hp <= 0) continue;
+
+    if (fate === 'escaped') {
+      victim.skipTurns = Math.max(victim.skipTurns || 0, 1);
+      pushLog(
+        log,
+        `${champDef(victim).name} escapa justo a tiempo · pierde el próximo turno`,
+        'neutral',
+      );
+      continue;
+    }
+
+    const overkill = Math.max(victim.stats.hp, 1);
+    victim.stats.hp = 0;
+    victim.isAlive = false;
+    wTeam.kills += 1;
+    wTeam.score += POINTS_KILL;
+    if (killer) {
+      killer.kills = (killer.kills || 0) + 1;
+      killer.gold += GOLD_PER_KILL;
+      pushKill(killEvents, killer, victim);
+    }
+    pushFloat(floats, {
+      kind: 'damage',
+      amount: overkill,
+      targetType: 'champ',
+      targetId: victim.instanceId,
+      sourceName: killer ? champDef(killer).name : wTeam.name,
+      lane,
+    });
+    pushLog(
+      log,
+      `¡${killer ? champDef(killer).name : wTeam.name} elimina a ${champDef(victim).name} en la escaramuza!`,
+      'kill',
+    );
+  }
+}
+
 /** Completa una ronda con pendingObjective tras el QTE. */
 export function finishPendingObjective(
   state: TurnMatchState,
-  qte: { skirmishWinner: TeamColor | null; attackingTeam: TeamColor; monsterTaken: boolean },
+  qte: {
+    skirmishWinner: TeamColor | null;
+    attackingTeam: TeamColor;
+    monsterTaken: boolean;
+    loserFate?: 'killed' | 'escaped';
+  },
 ): TurnMatchState {
   if (!state.pendingObjective) return state;
   // Sin planes diferidos: finalizar ronda igual para no dejar el partido a medias
@@ -1195,6 +1279,7 @@ export function finishPendingObjective(
       { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null },
       false,
       [],
+      false,
     );
   }
   const next = {
@@ -1218,57 +1303,28 @@ export function finishPendingObjective(
   };
 
   const pending = state.pendingObjective;
+  const fate: 'killed' | 'escaped' = qte.loserFate || 'killed';
+
   if (pending.kind === 'gank') {
     const lane = (pending.lane ?? 1) as LaneId;
     const winner = qte.skirmishWinner || qte.attackingTeam;
-    const loser: TeamColor = winner === 'blue' ? 'red' : 'blue';
     const wTeam = winner === 'blue' ? next.blue : next.red;
-    const lTeam = loser === 'blue' ? next.blue : next.red;
-    const wJg = living(wTeam).find(c => champDef(c).role === 'jungle')
-      || next[winner].champions.find(c => pending.blueIds.includes(c.instanceId) || pending.redIds.includes(c.instanceId));
-    const lJg = living(lTeam).find(c => champDef(c).role === 'jungle')
-      || next[loser].champions.find(c => pending.blueIds.includes(c.instanceId) || pending.redIds.includes(c.instanceId));
 
     pushLog(log, `Choque de junglas en ${laneLabel(lane)} · gana ${wTeam.name}`, 'kill');
-
-    if (lJg && lJg.isAlive) {
-      const wound = Math.floor(lJg.stats.maxHp * 0.62);
-      lJg.stats.hp = Math.max(0, lJg.stats.hp - wound);
-      pushFloat(floats, {
-        kind: 'damage',
-        amount: wound,
-        targetType: 'champ',
-        targetId: lJg.instanceId,
-        sourceName: wJg ? champDef(wJg).name : wTeam.name,
-        lane,
-      });
-
-      if (lJg.stats.hp <= 0) {
-        lJg.isAlive = false;
-        wTeam.kills += 1;
-        wTeam.score += POINTS_KILL;
-        if (wJg) wJg.kills = (wJg.kills || 0) + 1;
-        pushLog(log, `${wJg ? champDef(wJg).name : wTeam.name} elimina a ${champDef(lJg).name} en el gank`, 'kill');
-        if (wJg) {
-          wJg.gold += GOLD_PER_KILL;
-          pushKill(killEvents, wJg, lJg);
-        }
-      } else {
-        pushLog(
-          log,
-          `${wJg ? champDef(wJg).name : wTeam.name} hiere a ${champDef(lJg).name} en el gank (${lJg.stats.hp}/${lJg.stats.maxHp})`,
-        );
-      }
-      duels.push({
-        id: duelId(),
-        lane,
-        kind: 'duel',
-        summary: `Gank contested · ${wTeam.name} gana`,
-      });
+    if (fate === 'escaped') {
+      pushLog(
+        log,
+        winner === 'blue' ? 'El enemigo escapó' : 'Tu equipo escapa de la pelea',
+        'neutral',
+      );
     }
+    applySkirmishLoserFate(next, pending, winner, fate, log, floats, killEvents, lane);
+
+    const wJg = livingIncludingSkipped(wTeam).find(c => champDef(c).role === 'jungle')
+      || next[winner].champions.find(c => pending.blueIds.includes(c.instanceId) || pending.redIds.includes(c.instanceId));
 
     // El ganador asedia la torre enemiga una vez (recompensa del gank)
-    if (wJg && wJg.isAlive) {
+    if (wJg && wJg.isAlive && wJg.stats.hp > 0) {
       const towerTeam: TeamColor = winner === 'blue' ? 'red' : 'blue';
       siegeTower(next, towerTeam, lane, wJg, log, duels, floats, towerStats);
     }
@@ -1283,6 +1339,21 @@ export function finishPendingObjective(
       { winner: null, contested: true, freeItem: false, ancestral: false, bonus: null },
       false,
       killEvents,
+      false,
+    );
+  }
+
+  // Objetivo contested: aplicar destino del perdedor de la escaramuza
+  if (pending.contested && qte.skirmishWinner) {
+    if (fate === 'escaped') {
+      pushLog(
+        log,
+        qte.skirmishWinner === 'blue' ? 'El enemigo escapó' : 'Tu equipo escapa de la pelea',
+        'neutral',
+      );
+    }
+    applySkirmishLoserFate(
+      next, pending, qte.skirmishWinner, fate, log, floats, killEvents, 1,
     );
   }
 
@@ -1302,6 +1373,7 @@ export function finishPendingObjective(
     { winner: r.winner, contested: r.contested, freeItem: r.freeItem, ancestral: r.ancestral, bonus: r.bonus },
     false,
     killEvents,
+    false,
   );
 }
 
@@ -1463,28 +1535,28 @@ export function generateAIPlan(
     else action = Math.random() < 0.65 ? 'attack' : (Math.random() < 0.45 ? 'ability' : 'defend');
     actions[c.instanceId] = action;
 
-    if (!c.ultimateUsed && Math.random() < 0.38) {
+    if (!c.ultimateUsed && Math.random() < 0.48) {
       ultimates.push(c.instanceId);
     }
 
-    if (hasItem(c, 'boots') && Math.random() < 0.45) {
+    if (hasItem(c, 'boots') && Math.random() < 0.5) {
       bootsLane[c.instanceId] = defendLane ?? ([0, 1, 2] as LaneId[])[Math.floor(Math.random() * 3)];
     }
 
     if (def.role === 'jungle') {
       const enemyJt = enemyPlan?.jungleTarget;
       // Counter: si el rival gankea una línea, a menudo contestamos
-      if (typeof enemyJt === 'number' && Math.random() < 0.62) {
+      if (typeof enemyJt === 'number' && Math.random() < 0.72) {
         jungleTarget = enemyJt;
-      } else if (enemyJt === 'objective' && state.objective && Math.random() < 0.55) {
+      } else if (enemyJt === 'objective' && state.objective && Math.random() < 0.72) {
         jungleTarget = 'objective';
         const candidates = living(t).filter(x => champDef(x).role !== 'jungle');
         if (candidates.length) {
           objectiveAssistId = candidates[Math.floor(Math.random() * candidates.length)].instanceId;
         }
-      } else if (defendLane !== null && Math.random() < 0.5) {
+      } else if (defendLane !== null && Math.random() < 0.55) {
         jungleTarget = defendLane;
-      } else if (state.objective && Math.random() < 0.45) {
+      } else if (state.objective && Math.random() < 0.58) {
         jungleTarget = 'objective';
         const candidates = living(t).filter(x => champDef(x).role !== 'jungle');
         if (candidates.length) {

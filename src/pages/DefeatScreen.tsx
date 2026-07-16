@@ -24,7 +24,7 @@ export default function DefeatScreen() {
   };
 
   return (
-    <div className="screen-center relative bg-[#0A0E1A] px-4 py-4 md:py-8 safe-top safe-chrome-x safe-bottom overflow-hidden">
+    <div className="screen-center relative bg-[#0A0E1A] px-4 py-4 md:py-8 safe-top safe-chrome-x safe-bottom">
       {/* Red vignette */}
       <div className="absolute inset-0 bg-gradient-radial from-[#E74C3C]/10 via-transparent to-transparent" />
 
@@ -45,7 +45,7 @@ export default function DefeatScreen() {
 
         {/* Stats */}
         <div className="w-full bg-[#141B2D] rounded-xl border border-[#E74C3C]/30 p-4 text-center">
-          <p className="text-[#8B9BB4] text-sm">Kills finales</p>
+          <p className="text-[#8B9BB4] text-sm">Bajas finales</p>
           <p className="text-2xl font-bold text-[#E74C3C] mt-1">
             {state.turnMatch?.blue.kills ?? 0} – {state.turnMatch?.red.kills ?? 0}
           </p>

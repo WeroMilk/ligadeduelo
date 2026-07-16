@@ -215,26 +215,26 @@ export default function ChampionSelect() {
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-[#1E2740] bg-[#0A0E1A] px-4 py-1.5 md:pt-2.5 md:pb-2">
+      <div className="shrink-0 border-t border-[#1E2740] bg-[#0A0E1A] px-3 py-1.5 md:px-4 md:pt-2.5 md:pb-2">
         <div className="mx-auto flex max-w-6xl items-center gap-2 md:gap-4">
-          <div className="flex min-w-0 flex-1 justify-start gap-1.5 md:gap-2">
+          <div className="flex min-w-0 flex-1 items-center justify-start gap-1 overflow-x-auto scrollbar-hide md:gap-2">
             {state.selectedChampions.map(c => {
               const def = CHAMPIONS.find(ch => ch.id === c.defId);
               if (!def) return null;
               return (
                 <div key={c.defId} className="relative shrink-0">
                   {def.image ? (
-                    <img src={def.image} alt={def.name} className="h-9 w-9 rounded-full border-2 border-[#C9A84C] object-cover md:h-10 md:w-10" />
+                    <img src={def.image} alt={def.name} className="h-8 w-8 rounded-full border-2 border-[#C9A84C] object-cover md:h-10 md:w-10" />
                   ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-[#C9A84C] text-xs font-bold text-white md:h-10 md:w-10" style={{ backgroundColor: def.color }}>
-                      <User className="h-4 w-4" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#C9A84C] text-xs font-bold text-white md:h-10 md:w-10" style={{ backgroundColor: def.color }}>
+                      <User className="h-3.5 w-3.5 md:h-4 md:w-4" />
                     </div>
                   )}
                 </div>
               );
             })}
             {Array.from({ length: 5 - state.selectedChampions.length }).map((_, i) => (
-              <div key={`empty-${i}`} className="h-9 w-9 shrink-0 rounded-full border-2 border-dashed border-[#2A3550] bg-[#141B2D] md:h-10 md:w-10" />
+              <div key={`empty-${i}`} className="h-8 w-8 shrink-0 rounded-full border-2 border-dashed border-[#2A3550] bg-[#141B2D] md:h-10 md:w-10" />
             ))}
           </div>
 
@@ -242,15 +242,14 @@ export default function ChampionSelect() {
             type="button"
             onClick={handleConfirm}
             disabled={!canConfirm}
-            className={`min-h-11 shrink-0 rounded-xl px-4 py-2.5 text-sm font-bold transition-all md:min-h-12 md:min-w-[240px] md:px-6 md:py-3.5 md:text-base flex items-center justify-center gap-2 ${
+            className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-all md:min-h-11 md:min-w-[140px] md:rounded-xl md:px-5 md:py-2.5 md:text-sm flex items-center justify-center gap-1 md:gap-1.5 ${
               canConfirm
-                ? 'bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] shadow-[0_4px_20px_rgba(201,168,76,0.3)] active:scale-[0.98]'
+                ? 'bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] shadow-[0_4px_16px_rgba(201,168,76,0.28)] active:scale-[0.98]'
                 : 'bg-[#1E2740] text-[#4A5570] cursor-not-allowed'
             }`}
           >
-            <span className="hidden sm:inline">CONFIRMAR EQUIPO</span>
-            <span className="sm:hidden">CONFIRMAR</span>
-            <ChevronRight className="h-5 w-5" />
+            ENTRAR
+            <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
           </button>
         </div>
       </div>

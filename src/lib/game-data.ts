@@ -10,11 +10,11 @@ export const ROLE_COLORS: Record<Role, string> = {
 };
 
 export const ROLE_NAMES: Record<Role, string> = {
-  top: 'Top',
+  top: 'Superior',
   jungle: 'Jungla',
-  mid: 'Mid',
-  adc: 'ADC',
-  support: 'Support',
+  mid: 'Central',
+  adc: 'Tirador',
+  support: 'Soporte',
 };
 
 /** Crea stats con vida/maná llenos a partir de los valores base. */
@@ -65,7 +65,7 @@ export const CHAMPIONS: ChampionDef[] = [
   {
     id: 'shen', name: 'Shen', role: 'top', image: '/champions/shen.png', color: '#2A4D7A', initials: 'SH',
     baseStats: makeStats({ maxHp: 940, maxMana: 340, ad: 64, ap: 10, attackSpeed: 0.7, armor: 50, mr: 45, moveSpeed: 96 }),
-    passive: { id: 'guard', name: 'Ki Barrier', description: 'Cura al aliado más herido cada turno' },
+    passive: { id: 'guard', name: 'Barrera de ki', description: 'Cura al aliado más herido cada turno' },
   },
   {
     id: 'aatrox', name: 'Aatrox', role: 'top', image: '/champions/aatrox.png', color: '#6B1A1A', initials: 'AA',
@@ -75,12 +75,12 @@ export const CHAMPIONS: ChampionDef[] = [
   {
     id: 'sett', name: 'Sett', role: 'top', image: '/champions/sett.png', color: '#C45C26', initials: 'ST',
     baseStats: makeStats({ maxHp: 1050, maxMana: 0, ad: 74, ap: 0, attackSpeed: 0.8, armor: 46, mr: 36, moveSpeed: 100 }),
-    passive: { id: 'regen', name: 'Corazón de Fight', description: 'Regenera 3% vida máxima por turno' },
+    passive: { id: 'regen', name: 'Corazón de pelea', description: 'Regenera 3% vida máxima por turno' },
   },
   {
     id: 'lee_sin', name: 'Lee Sin', role: 'jungle', image: '/champions/lee_sin.png', color: '#1B7A3D', initials: 'LS',
     baseStats: makeStats({ maxHp: 860, maxMana: 200, ad: 74, ap: 0, attackSpeed: 0.9, armor: 36, mr: 32, moveSpeed: 112 }),
-    passive: { id: 'flurry', name: 'Flurry', description: '+15% daño tras saltar de línea' },
+    passive: { id: 'flurry', name: 'Ráfaga', description: '+15% daño tras saltar de línea' },
   },
   {
     id: 'amumu', name: 'Amumu', role: 'jungle', image: '/champions/amumu.png', color: '#4A6741', initials: 'AM',
@@ -95,7 +95,7 @@ export const CHAMPIONS: ChampionDef[] = [
   {
     id: 'vi', name: 'Vi', role: 'jungle', image: '/champions/vi.png', color: '#C44BC4', initials: 'VI',
     baseStats: makeStats({ maxHp: 900, maxMana: 250, ad: 80, ap: 0, attackSpeed: 0.82, armor: 40, mr: 32, moveSpeed: 105 }),
-    passive: { id: 'blast', name: 'Denting Blows', description: '+30% daño a estructuras' },
+    passive: { id: 'blast', name: 'Golpes demoledores', description: '+30% daño a estructuras' },
   },
   {
     id: 'graves', name: 'Graves', role: 'jungle', image: '/champions/graves.png', color: '#8B5A2B', initials: 'GR',
@@ -120,12 +120,12 @@ export const CHAMPIONS: ChampionDef[] = [
   {
     id: 'zed', name: 'Zed', role: 'mid', image: '/champions/zed.png', color: '#2C3E50', initials: 'ZE',
     baseStats: makeStats({ maxHp: 780, maxMana: 180, ad: 82, ap: 0, attackSpeed: 0.95, armor: 30, mr: 28, moveSpeed: 115 }),
-    passive: { id: 'contempt', name: 'Desprecio', description: '+12 AD permanente tras cada kill' },
+    passive: { id: 'contempt', name: 'Desprecio', description: '+12 AD permanente tras cada baja' },
   },
   {
     id: 'yasuo', name: 'Yasuo', role: 'mid', image: '/champions/yasuo.png', color: '#7F8C8D', initials: 'YA',
     baseStats: makeStats({ maxHp: 800, maxMana: 100, ad: 70, ap: 0, attackSpeed: 1.05, armor: 32, mr: 30, moveSpeed: 108 }),
-    passive: { id: 'flow', name: 'Resolución', description: '+0.3 AS por 2 turnos tras un kill' },
+    passive: { id: 'flow', name: 'Resolución', description: '+0.3 AS por 2 turnos tras una baja' },
   },
   {
     id: 'syndra', name: 'Syndra', role: 'mid', image: '/champions/syndra.png', color: '#5E2B8A', initials: 'SY',
@@ -140,27 +140,27 @@ export const CHAMPIONS: ChampionDef[] = [
   {
     id: 'caitlyn', name: 'Caitlyn', role: 'adc', image: '/champions/caitlyn.png', color: '#2980B9', initials: 'CA',
     baseStats: makeStats({ maxHp: 740, maxMana: 300, ad: 72, ap: 0, attackSpeed: 1.0, armor: 26, mr: 26, moveSpeed: 102 }),
-    passive: { id: 'headshot', name: 'Headshot', description: '25% de críticos ×1.6 daño' },
+    passive: { id: 'headshot', name: 'Tiro a la cabeza', description: '25% de críticos ×1.6 daño' },
   },
   {
     id: 'jinx', name: 'Jinx', role: 'adc', image: '/champions/jinx.png', color: '#E91E63', initials: 'JI',
     baseStats: makeStats({ maxHp: 730, maxMana: 280, ad: 68, ap: 0, attackSpeed: 1.12, armor: 24, mr: 26, moveSpeed: 100 }),
-    passive: { id: 'getexcited', name: 'Get Excited!', description: '+0.15 AS por cada kill' },
+    passive: { id: 'getexcited', name: '¡Emociónate!', description: '+0.15 AS por cada baja' },
   },
   {
     id: 'ezreal', name: 'Ezreal', role: 'adc', image: '/champions/ezreal.png', color: '#00BCD4', initials: 'EZ',
     baseStats: makeStats({ maxHp: 750, maxMana: 380, ad: 66, ap: 25, attackSpeed: 0.95, armor: 26, mr: 28, moveSpeed: 106 }),
-    passive: { id: 'rising', name: 'Spellblade', description: 'Ataques gastan 20 maná y hacen +AP' },
+    passive: { id: 'rising', name: 'Hoja mágica', description: 'Ataques gastan 20 maná y hacen +AP' },
   },
   {
     id: 'kaisa', name: "Kai'Sa", role: 'adc', image: '/champions/kaisa.png', color: '#673AB7', initials: 'KS',
     baseStats: makeStats({ maxHp: 760, maxMana: 340, ad: 70, ap: 30, attackSpeed: 1.08, armor: 28, mr: 28, moveSpeed: 108 }),
-    passive: { id: 'evolve', name: 'Segundo Skin', description: 'Tras 2 kills: +10 AD y +15 AP' },
+    passive: { id: 'evolve', name: 'Segunda piel', description: 'Tras 2 bajas: +10 AD y +15 AP' },
   },
   {
     id: 'ashe', name: 'Ashe', role: 'adc', image: '/champions/ashe.png', color: '#5DADE2', initials: 'AS',
     baseStats: makeStats({ maxHp: 735, maxMana: 310, ad: 70, ap: 0, attackSpeed: 1.05, armor: 25, mr: 26, moveSpeed: 101 }),
-    passive: { id: 'headshot', name: 'Tiro de Frost', description: '25% de críticos ×1.6 daño' },
+    passive: { id: 'headshot', name: 'Tiro de escarcha', description: '25% de críticos ×1.6 daño' },
   },
   {
     id: 'jhin', name: 'Jhin', role: 'adc', image: '/champions/jhin.png', color: '#A93226', initials: 'JH',

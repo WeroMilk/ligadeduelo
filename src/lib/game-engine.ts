@@ -43,6 +43,7 @@ function createChampion(defId: string, team: TeamColor): Champion {
     ultimateUsed: false,
     siegeStacks: 0,
     lifeSteal: 0,
+    skipTurns: 0,
   };
 }
 

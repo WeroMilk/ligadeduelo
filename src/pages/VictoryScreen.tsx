@@ -1,7 +1,11 @@
 import { useGame } from '@/hooks/useGameState';
-import { Trophy, ChevronRight } from 'lucide-react';
+import { Trophy, ChevronRight, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { playVictorySound, playClickSound } from '@/lib/sounds';
+import { CHAMPIONS, ROLE_NAMES } from '@/lib/game-data';
+import type { Role } from '@/types/game';
+
+const ROLE_ORDER: Role[] = ['top', 'jungle', 'mid', 'adc', 'support'];
 
 export default function VictoryScreen() {
   const { state, dispatch } = useGame();
@@ -35,38 +39,81 @@ export default function VictoryScreen() {
     return <div className="screen-center bg-[#0A0E1A]" aria-hidden />;
   }
 
+  const teamLines = ROLE_ORDER.map(role => {
+    const member = state.selectedRoster.find(r => r.role === role);
+    const champ = (tm?.blue.champions || state.selectedChampions).find(c => {
+      const def = CHAMPIONS.find(d => d.id === c.defId);
+      return def?.role === role;
+    });
+    const def = champ ? CHAMPIONS.find(d => d.id === champ.defId) : null;
+    return {
+      role,
+      roleLabel: ROLE_NAMES[role],
+      player: member?.name || '—',
+      champ: def?.name || '—',
+      champImage: def?.image || null,
+      champColor: def?.color || '#333',
+    };
+  });
+
   return (
-    <div className="screen-center relative bg-[#0A0E1A] px-4 py-4 md:py-8 safe-top safe-chrome-x safe-bottom overflow-hidden">
+    <div className="screen-center relative bg-[#0A0E1A] px-4 py-4 md:py-8 safe-top safe-chrome-x safe-bottom">
       <div className="absolute inset-0 pointer-events-none">
         {confetti.map(c => (
           <div key={c.id} className="absolute w-2 h-2 rounded-sm animate-confetti" style={{ left: `${c.x}%`, top: '-10px', backgroundColor: c.color, animationDelay: `${c.delay}s` }} />
         ))}
       </div>
-      <div className="relative z-10 flex flex-col items-center gap-4 md:gap-6 max-w-sm w-full">
-        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#8B6914] flex items-center justify-center shadow-[0_0_60px_rgba(201,168,76,0.4)]">
+      <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-4 md:gap-6 pb-4">
+        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#8B6914] flex items-center justify-center shadow-[0_0_60px_rgba(201,168,76,0.4)] shrink-0">
           <Trophy className="w-10 h-10 md:w-12 md:h-12 text-[#0A0E1A]" />
         </div>
-        <div className="text-center">
+        <div className="text-center shrink-0">
           <h1 className="text-3xl md:text-4xl font-bold text-[#C9A84C]" style={{ fontFamily: 'Cinzel, serif' }}>¡VICTORIA!</h1>
-          <p className="text-[#8B9BB4] mt-1 md:mt-2 text-sm">Victoria en la grieta</p>
+          <p className="text-[#8B9BB4] mt-1 md:mt-2 text-sm">
+            {state.playerTeamName || 'Tu equipo'} · Victoria en la grieta
+          </p>
         </div>
-        <div className="w-full bg-[#141B2D] rounded-xl border border-[#1E2740] p-4 grid grid-cols-2 gap-3 text-center">
+        <div className="w-full bg-[#141B2D] rounded-xl border border-[#1E2740] p-4 grid grid-cols-2 gap-3 text-center shrink-0">
           <div>
             <p className="text-2xl font-bold text-[#C9A84C]">{tm?.blue.kills ?? 0}</p>
-            <p className="text-[#8B9BB4] text-xs">Tus kills</p>
+            <p className="text-[#8B9BB4] text-xs">Tus bajas</p>
           </div>
           <div>
             <p className="text-2xl font-bold text-[#E74C3C]">{tm?.red.kills ?? 0}</p>
-            <p className="text-[#8B9BB4] text-xs">Kills rival</p>
+            <p className="text-[#8B9BB4] text-xs">Bajas rival</p>
           </div>
         </div>
+
+        <div className="w-full rounded-xl border border-[#C9A84C]/25 bg-[#0D1220] p-3 space-y-2">
+          <p className="text-[10px] uppercase tracking-wider text-[#C9A84C] text-center">Tu equipo</p>
+          {teamLines.map(l => (
+            <div key={l.role} className="flex items-center gap-2 rounded-lg border border-[#1E2740] bg-[#141B2D] px-2.5 py-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold uppercase text-[#8B9BB4]">{l.roleLabel}</p>
+                <p className="text-sm font-bold text-[#F0E6D2] truncate">{l.player}</p>
+              </div>
+              <span className="text-[#4A5570] text-xs">→</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {l.champImage ? (
+                  <img src={l.champImage} alt={l.champ} className="w-8 h-8 rounded-full object-cover border border-[#2A3550]" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: l.champColor }}>
+                    <User className="w-4 h-4 text-white" />
+                  </div>
+                )}
+                <span className="text-xs font-bold text-[#C9A84C] truncate max-w-[72px]">{l.champ}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
         <button
           type="button"
           onClick={() => {
             playClickSound();
             dispatch({ type: 'ADVANCE_BRACKET' });
           }}
-          className="w-full font-bold py-4 rounded-xl flex items-center justify-center gap-2"
+          className="w-full font-bold py-4 rounded-xl flex items-center justify-center gap-2 shrink-0"
           style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
         >
           CONTINUAR

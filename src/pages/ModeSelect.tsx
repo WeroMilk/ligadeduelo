@@ -113,8 +113,8 @@ function RulesModal({ onClose }: { onClose: () => void }) {
           <section className="space-y-1.5">
             <h3 className="font-bold text-[#F0E6D2]">5. Tus decisiones</h3>
             <ul className="list-disc space-y-1 pl-5 text-[#8B9BB4]">
-              <li><span className="text-[#F0E6D2]">Jungla:</span> gankear una línea o ir al objetivo (si hay).</li>
-              <li><span className="text-[#F0E6D2]">Asedio:</span> en turnos pares puedes empujar torres/nexo.</li>
+              <li><span className="text-[#F0E6D2]">Jungla:</span> emboscar una línea o ir al objetivo (si hay).</li>
+              <li><span className="text-[#F0E6D2]">Ayuda:</span> si vas al objetivo, eliges qué campeón acompaña a la jungla.</li>
             </ul>
           </section>
 
@@ -122,7 +122,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
             <h3 className="font-bold text-[#F0E6D2]">6. Cómo ganar una partida</h3>
             <p>
               Destruye el <span className="text-[#F0E6D2]">Nexo</span> rival (la base) o termina con más
-              <span className="text-[#F0E6D2]"> kills</span> al llegar al turno 10. El marcador son las kills.
+              <span className="text-[#F0E6D2]"> bajas</span> al llegar al turno 10. El marcador son las bajas.
             </p>
           </section>
 

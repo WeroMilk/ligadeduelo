@@ -16,10 +16,10 @@ type Props = {
 export const ANNOUNCE_DURATION_MS = 6000;
 
 function multiLabel(n: number): string | null {
-  if (n >= 5) return '¡PENTAKILL!';
-  if (n === 4) return '¡QUADRA KILL!';
-  if (n === 3) return '¡TRIPLE KILL!';
-  if (n === 2) return '¡DOUBLE KILL!';
+  if (n >= 5) return '¡PENTABAJA!';
+  if (n === 4) return '¡CUÁDRUPLE BAJA!';
+  if (n === 3) return '¡TRIPLE BAJA!';
+  if (n === 2) return '¡DOBLE BAJA!';
   return null;
 }
 

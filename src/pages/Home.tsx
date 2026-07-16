@@ -6,6 +6,8 @@ import { playClickSound } from '@/lib/sounds';
 type ViewportBox = {
   height: number;
   offsetTop: number;
+  offsetLeft: number;
+  width: number;
   keyboard: boolean;
 };
 
@@ -13,10 +15,11 @@ function readViewport(inputFocused: boolean): ViewportBox {
   const vv = window.visualViewport;
   const layoutH = window.innerHeight;
   const height = vv?.height ?? layoutH;
+  const width = vv?.width ?? window.innerWidth;
   const offsetTop = vv?.offsetTop ?? 0;
-  // Teclado: el visual viewport se achica de forma clara respecto al layout.
+  const offsetLeft = vv?.offsetLeft ?? 0;
   const keyboard = inputFocused || height < layoutH - 120;
-  return { height, offsetTop, keyboard };
+  return { height, width, offsetTop, offsetLeft, keyboard };
 }
 
 export default function Home() {
@@ -24,10 +27,11 @@ export default function Home() {
   const [name, setName] = useState('');
   const [vv, setVv] = useState<ViewportBox>(() => ({
     height: typeof window !== 'undefined' ? window.innerHeight : 0,
+    width: typeof window !== 'undefined' ? window.innerWidth : 0,
     offsetTop: 0,
+    offsetLeft: 0,
     keyboard: false,
   }));
-  const formRef = useRef<HTMLDivElement>(null);
   const focusedRef = useRef(false);
 
   const trimmed = name.trim();
@@ -35,7 +39,14 @@ export default function Home() {
   const keyboardUp = vv.keyboard;
 
   useEffect(() => {
-    const sync = () => setVv(readViewport(focusedRef.current));
+    const sync = () => {
+      const next = readViewport(focusedRef.current);
+      setVv(next);
+      // Evita que iOS deje el layout desplazado detrás del teclado.
+      if (next.keyboard) {
+        window.scrollTo(0, 0);
+      }
+    };
     sync();
     const viewport = window.visualViewport;
     viewport?.addEventListener('resize', sync);
@@ -47,15 +58,6 @@ export default function Home() {
       window.removeEventListener('resize', sync);
     };
   }, []);
-
-  // Con teclado abierto: mantener el bloque completo dentro del área visible.
-  useEffect(() => {
-    if (!keyboardUp || !formRef.current) return;
-    const id = window.requestAnimationFrame(() => {
-      formRef.current?.scrollIntoView({ block: 'start', inline: 'nearest' });
-    });
-    return () => window.cancelAnimationFrame(id);
-  }, [keyboardUp, vv.height, vv.offsetTop]);
 
   const handleStart = () => {
     if (!canStart) return;
@@ -72,8 +74,8 @@ export default function Home() {
           ? {
               position: 'fixed',
               top: vv.offsetTop,
-              left: 0,
-              right: 0,
+              left: vv.offsetLeft,
+              width: vv.width,
               height: vv.height,
               zIndex: 60,
             }
@@ -86,12 +88,11 @@ export default function Home() {
       <div
         className={`flex-1 min-h-0 flex flex-col items-center overflow-y-auto overscroll-contain px-4 safe-chrome-x ${
           keyboardUp
-            ? 'justify-start pt-3 pb-3'
+            ? 'justify-center py-4'
             : 'justify-center safe-top safe-bottom pb-6'
         }`}
       >
         <div
-          ref={formRef}
           className={`w-full max-w-md text-center ${
             keyboardUp ? 'space-y-3' : 'space-y-4 md:space-y-6 -translate-y-8 md:-translate-y-6'
           }`}
@@ -107,7 +108,7 @@ export default function Home() {
             </h1>
             <p
               className={`text-[#8B9BB4] ${
-                keyboardUp ? 'text-[11px] mt-1' : 'text-xs md:text-sm mt-1.5 md:mt-2'
+                keyboardUp ? 'text-[11px] mt-1 leading-snug' : 'text-xs md:text-sm mt-1.5 md:mt-2'
               }`}
             >
               Escríbelo tú. Luego eliges 5 integrantes y 5 campeones.
@@ -125,10 +126,10 @@ export default function Home() {
               onFocus={() => {
                 focusedRef.current = true;
                 setVv(readViewport(true));
+                window.scrollTo(0, 0);
               }}
               onBlur={() => {
                 focusedRef.current = false;
-                // Pequeño delay: iOS a veces dispara blur al tocar el botón.
                 window.setTimeout(() => setVv(readViewport(false)), 120);
               }}
               onKeyDown={e => {
@@ -148,8 +149,8 @@ export default function Home() {
             type="button"
             onClick={handleStart}
             disabled={!canStart}
-            className={`w-full font-bold rounded-xl flex items-center justify-center gap-3 disabled:opacity-40 ${
-              keyboardUp ? 'text-sm py-3' : 'text-base md:text-lg py-3.5 md:py-4'
+            className={`w-full font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-40 ${
+              keyboardUp ? 'text-sm py-3' : 'text-base md:text-lg py-3.5 md:py-4 gap-3'
             }`}
             style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
           >
