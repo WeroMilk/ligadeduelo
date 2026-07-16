@@ -149,30 +149,53 @@ export default function ModeSelect() {
   const [showRules, setShowRules] = useState(false);
 
   return (
-    <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="shrink-0 px-4 safe-top safe-chrome-x pb-3 text-center md:pb-2">
-        <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#8B6914] flex items-center justify-center mb-3">
-          <Swords className="w-8 h-8 text-[#0A0E1A]" />
+    <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden bg-[#05080f]">
+      {/* Fondo: por debajo de todo; portrait móvil / landscape desktop */}
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden>
+        <img
+          src="/backgrounds/rift-portrait.png"
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover object-center md:hidden"
+          draggable={false}
+        />
+        <img
+          src="/backgrounds/rift-landscape.png"
+          alt=""
+          className="absolute inset-0 hidden h-full w-full object-cover object-center md:block"
+          draggable={false}
+        />
+        {/* Velo suave para legibilidad del UI sin tapar el arte */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#05080f]/55 via-[#05080f]/35 to-[#05080f]/75 md:from-[#05080f]/45 md:via-[#05080f]/25 md:to-[#05080f]/70" />
+      </div>
+
+      <div className="relative z-10 shrink-0 px-4 safe-top safe-chrome-x pb-2 text-center md:pb-2">
+        <div className="mx-auto w-12 h-12 md:w-16 md:h-16 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#8B6914] flex items-center justify-center mb-2 md:mb-3 shadow-[0_0_28px_rgba(201,168,76,0.35)]">
+          <Swords className="w-6 h-6 md:w-8 md:h-8 text-[#0A0E1A]" />
         </div>
-        <h1 className="text-3xl font-bold text-[#C9A84C] leading-tight" style={{ fontFamily: 'Cinzel, serif' }}>
+        <h1
+          className="text-2xl md:text-3xl font-bold text-[#C9A84C] leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)]"
+          style={{ fontFamily: 'Cinzel, serif' }}
+        >
           LIGA DE DUELO
         </h1>
-        <p className="text-[#8B9BB4] text-sm mt-2 tracking-wide uppercase">Elige cómo quieres jugar</p>
+        <p className="text-[#E8EEF8] text-xs md:text-sm mt-1 md:mt-2 tracking-wide uppercase drop-shadow-[0_1px_8px_rgba(0,0,0,0.9)]">
+          Elige cómo quieres jugar
+        </p>
         <button
           type="button"
           onClick={() => {
             playClickSound();
             setShowRules(true);
           }}
-          className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#2A3550] bg-transparent px-4 py-2 text-sm text-[#C9A84C] hover:border-[#C9A84C]/60 hover:bg-[#141B2D] transition-colors"
+          className="mt-2 md:mt-3 inline-flex items-center gap-2 rounded-lg border border-[#C9A84C]/45 bg-[#0A0E1A]/55 backdrop-blur-sm px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm text-[#C9A84C] hover:border-[#C9A84C]/80 hover:bg-[#0A0E1A]/75 transition-colors"
         >
           <BookOpen className="w-4 h-4 shrink-0" />
           Reglas
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 max-w-5xl mx-auto w-full md:flex md:items-start md:pb-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full md:gap-4 pb-2">
+      <div className="relative z-10 min-h-0 flex-1 overflow-hidden px-4 py-2 max-w-5xl mx-auto w-full flex flex-col md:overflow-y-auto md:scrollbar-hide md:pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4 w-full flex-1 min-h-0 md:flex-none md:auto-rows-min">
           {MODES.map(m => (
             <button
               key={m.id}
@@ -183,31 +206,31 @@ export default function ModeSelect() {
                 playClickSound();
                 dispatch({ type: 'SET_GAME_MODE', mode: m.id });
               }}
-              className={`relative w-full text-left rounded-2xl border-2 p-4 md:p-6 flex md:flex-col gap-4 transition-all md:min-h-[220px] ${
+              className={`relative w-full text-left rounded-2xl border-2 p-3 md:p-6 flex md:flex-col gap-3 md:gap-4 transition-all min-h-0 md:min-h-[220px] backdrop-blur-md ${
                 m.enabled
-                  ? 'border-[#1E2740] bg-[#141B2D] hover:border-[#C9A84C] active:scale-[0.99]'
-                  : 'border-[#1E2740]/70 bg-[#0F1420] opacity-55 cursor-not-allowed'
+                  ? 'border-[#C9A84C]/35 bg-[#0D1220]/78 hover:border-[#C9A84C] hover:bg-[#0D1220]/88 active:scale-[0.99] shadow-[0_8px_32px_rgba(0,0,0,0.45)]'
+                  : 'border-[#2A3550]/60 bg-[#0A0E1A]/55 opacity-60 cursor-not-allowed'
               }`}
               aria-disabled={!m.enabled}
             >
               {!m.enabled && (
-                <span className="absolute right-3 top-3 rounded-md border border-[#2A3550] bg-[#0A0E1A] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4]">
+                <span className="absolute right-2 top-2 md:right-3 md:top-3 rounded-md border border-[#2A3550] bg-[#0A0E1A]/90 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4]">
                   Próximamente
                 </span>
               )}
-              <div className={`w-12 h-12 md:w-14 md:h-14 rounded-xl bg-[#0A0E1A] border border-[#2A3550] flex items-center justify-center shrink-0 ${m.enabled ? 'text-[#C9A84C]' : 'text-[#4A5570]'}`}>
+              <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl bg-[#0A0E1A]/80 border border-[#2A3550] flex items-center justify-center shrink-0 ${m.enabled ? 'text-[#C9A84C]' : 'text-[#4A5570]'}`}>
                 {m.icon}
               </div>
-              <div className="min-w-0">
-                <p className={`font-bold text-lg ${m.enabled ? 'text-[#F0E6D2]' : 'text-[#8B9BB4]'}`}>{m.title}</p>
-                <p className="text-xs text-[#8B9BB4] mt-1 leading-snug">{m.desc}</p>
+              <div className="min-w-0 flex-1">
+                <p className={`font-bold text-base md:text-lg ${m.enabled ? 'text-[#F0E6D2]' : 'text-[#8B9BB4]'}`}>{m.title}</p>
+                <p className="text-[11px] md:text-xs text-[#C5D0E0]/90 mt-0.5 md:mt-1 leading-snug line-clamp-2 md:line-clamp-none">{m.desc}</p>
               </div>
             </button>
           ))}
         </div>
       </div>
 
-      <p className="shrink-0 text-[11px] text-center text-[#4A5570] px-4 pt-2 pb-3">
+      <p className="relative z-10 shrink-0 text-[10px] md:text-[11px] text-center text-[#A8B4C8]/80 px-4 pt-1 pb-2 md:pb-3 drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)]">
         Todos los derechos reservados · HOMEBOYS PROD ® 2026
       </p>
 

@@ -40,27 +40,29 @@ export default function TournamentWin() {
 
   if (!playerWon) {
     return (
-      <div className="screen-center relative bg-[#0A0E1A] px-4 py-6 safe-top safe-chrome-x safe-bottom">
-        <div className="relative z-10 flex flex-col items-center gap-4 max-w-md w-full">
-          <div className="w-20 h-20 rounded-full bg-[#141B2D] border-2 border-[#2A3550] flex items-center justify-center">
-            <Flag className="w-9 h-9 text-[#8B9BB4]" />
+      <div className="screen-center relative bg-[#0A0E1A] px-4 py-3 md:py-6 safe-top safe-chrome-x safe-bottom">
+        <div className="relative z-10 flex flex-col items-center gap-3 md:gap-4 max-w-md w-full min-h-0">
+          <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-[#141B2D] border-2 border-[#2A3550] flex items-center justify-center shrink-0">
+            <Flag className="w-7 h-7 md:w-9 md:h-9 text-[#8B9BB4]" />
           </div>
-          <div className="text-center">
-            <p className="text-[#8B9BB4] text-sm uppercase tracking-[0.3em] mb-2">Fin del torneo</p>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+          <div className="text-center shrink-0">
+            <p className="text-[#8B9BB4] text-xs md:text-sm uppercase tracking-[0.3em] mb-1 md:mb-2">Fin del torneo</p>
+            <h1 className="text-xl sm:text-3xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
               Campeón: {champion?.name || 'Otro equipo'}
             </h1>
-            <p className="text-[#8B9BB4] mt-2 text-sm">
+            <p className="text-[#8B9BB4] mt-1 md:mt-2 text-xs md:text-sm">
               Tu equipo fue eliminado. Espectaste hasta el final del bracket.
             </p>
           </div>
 
-          <TournamentRecap playerWon={false} />
+          <div className="w-full min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+            <TournamentRecap playerWon={false} />
+          </div>
 
           <button
             type="button"
             onClick={handleRestart}
-            className="w-full bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold text-lg py-4 rounded-xl flex items-center justify-center gap-2"
+            className="w-full shrink-0 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold text-base md:text-lg py-3.5 md:py-4 rounded-xl flex items-center justify-center gap-2"
           >
             <RotateCcw className="w-5 h-5" />
             NUEVO TORNEO
@@ -71,7 +73,7 @@ export default function TournamentWin() {
   }
 
   return (
-    <div className="screen-center relative bg-[#0A0E1A] px-4 py-6 safe-top safe-chrome-x safe-bottom">
+    <div className="screen-center relative bg-[#0A0E1A] px-4 py-3 md:py-6 safe-top safe-chrome-x safe-bottom">
       <div className="absolute inset-0 pointer-events-none">
         {particles.map(p => (
           <div
@@ -94,30 +96,30 @@ export default function TournamentWin() {
         }`}
       />
 
-      <div className="relative z-10 flex flex-col items-center gap-4 max-w-md w-full">
-        <div className={`w-24 h-24 rounded-full flex items-center justify-center animate-pulse-slow ${
+      <div className="relative z-10 flex flex-col items-center gap-3 md:gap-4 max-w-md w-full min-h-0">
+        <div className={`w-16 h-16 md:w-24 md:h-24 rounded-full flex items-center justify-center animate-pulse-slow shrink-0 ${
           frame === 'obsidian'
             ? 'bg-gradient-to-br from-[#9B59B6] via-[#6B1FA6] to-[#2C1638] shadow-[0_0_80px_rgba(155,89,182,0.5)]'
             : 'bg-gradient-to-br from-[#F1C40F] via-[#C9A84C] to-[#8B6914] shadow-[0_0_80px_rgba(201,168,76,0.5)]'
         }`}>
-          <Crown className="w-12 h-12 text-[#0A0E1A]" />
+          <Crown className="w-8 h-8 md:w-12 md:h-12 text-[#0A0E1A]" />
         </div>
 
-        <div className="text-center">
-          <p className="text-[#C9A84C] text-sm uppercase tracking-[0.3em] mb-2">Felicidades</p>
+        <div className="text-center shrink-0">
+          <p className="text-[#C9A84C] text-xs md:text-sm uppercase tracking-[0.3em] mb-1 md:mb-2">Felicidades</p>
           <h1
-            className={`text-2xl sm:text-3xl font-bold ${frame === 'obsidian' ? 'text-[#C39BD3]' : 'text-[#F1C40F]'}`}
+            className={`text-xl sm:text-3xl font-bold ${frame === 'obsidian' ? 'text-[#C39BD3]' : 'text-[#F1C40F]'}`}
             style={{ fontFamily: 'Cinzel, serif', textShadow: '0 2px 20px rgba(241,196,15,0.4)' }}
           >
             ¡CAMPEÓN DEL TORNEO!
           </h1>
-          <p className="text-[#8B9BB4] mt-2 text-sm">
+          <p className="text-[#8B9BB4] mt-1 md:mt-2 text-xs md:text-sm">
             {state.playerTeamName || 'Tu equipo'} ha conquistado la Grieta
           </p>
         </div>
 
         {titles.length > 0 && (
-          <div className="w-full flex flex-wrap justify-center gap-2">
+          <div className="w-full flex flex-wrap justify-center gap-2 shrink-0">
             {titles.map(t => (
               <span
                 key={t}
@@ -134,9 +136,11 @@ export default function TournamentWin() {
           </div>
         )}
 
-        <TournamentRecap playerWon />
+        <div className="w-full min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+          <TournamentRecap playerWon />
+        </div>
 
-        <div className={`w-full rounded-xl border p-3 ${
+        <div className={`w-full rounded-xl border p-2.5 md:p-3 shrink-0 ${
           frame === 'obsidian' ? 'bg-[#12081A] border-[#9B59B6]/35' : 'bg-[#141B2D] border-[#C9A84C]/30'
         }`}>
           <p className={`text-xs uppercase tracking-wider text-center mb-2 ${
@@ -175,7 +179,7 @@ export default function TournamentWin() {
         <button
           type="button"
           onClick={handleRestart}
-          className="w-full bg-gradient-to-r from-[#C9A84C] to-[#F1C40F] text-[#0A0E1A] font-bold text-lg py-4 rounded-xl shadow-[0_4px_30px_rgba(201,168,76,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          className="w-full shrink-0 bg-gradient-to-r from-[#C9A84C] to-[#F1C40F] text-[#0A0E1A] font-bold text-base md:text-lg py-3.5 md:py-4 rounded-xl shadow-[0_4px_30px_rgba(201,168,76,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
         >
           <RotateCcw className="w-5 h-5" />
           JUGAR OTRO TORNEO

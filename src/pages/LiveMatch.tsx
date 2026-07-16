@@ -10,32 +10,48 @@ import { setAdHidden } from '@/lib/ad-visibility';
 import { objectiveName } from '@/lib/game-data';
 import type { CombatFloat, LaneId, RoundResolution, Structure, TeamPlan } from '@/types/game';
 
-const MAP_SIZE_MOBILE = 280;
+const MAP_SIZE_MOBILE_MAX = 280;
+const MAP_SIZE_MOBILE_MIN = 168;
 
-function useMapSize() {
-  const [size, setSize] = useState(MAP_SIZE_MOBILE);
+function useMapSize(containerRef: React.RefObject<HTMLElement | null>) {
+  const [size, setSize] = useState(240);
   useEffect(() => {
+    const el = containerRef.current;
     const update = () => {
       const desktop = window.matchMedia('(min-width: 768px)').matches;
-      if (!desktop) {
-        setSize(MAP_SIZE_MOBILE);
+      if (desktop) {
+        const byH = Math.floor(window.innerHeight * 0.62);
+        const byW = Math.floor(window.innerWidth * 0.48);
+        setSize(Math.max(420, Math.min(580, byH, byW)));
         return;
       }
-      // ~62% del alto útil, acotado para que quepa con panel HP y header
-      const byH = Math.floor(window.innerHeight * 0.62);
-      const byW = Math.floor(window.innerWidth * 0.48);
-      setSize(Math.max(420, Math.min(580, byH, byW)));
+      // Móvil: encajar mapa + estructuras + kills en el alto disponible del body
+      const h = el?.clientHeight ?? Math.floor(window.innerHeight * 0.45);
+      // capsule ~28 + gaps ~24 + estructuras ~72 + kills ~56 + padding
+      const reserved = 180;
+      const byH = Math.floor((h - reserved) / 1.12);
+      const byW = Math.floor((el?.clientWidth ?? window.innerWidth) - 32);
+      setSize(Math.max(MAP_SIZE_MOBILE_MIN, Math.min(MAP_SIZE_MOBILE_MAX, byH, byW)));
     };
     update();
     window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
+    let ro: ResizeObserver | null = null;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(update);
+      ro.observe(el);
+    }
+    return () => {
+      window.removeEventListener('resize', update);
+      ro?.disconnect();
+    };
+  }, [containerRef]);
   return size;
 }
 const PROMPT_SEC = 8;
 const LANE_MS = 2000;
-const CINEMA_STUCK_MS = 14000;
+const CINEMA_STUCK_MS = 12000;
 const QTE_STUCK_MS = 55000;
+const ANNOUNCE_MAX_WAIT_MS = 10000;
 
 type Phase =
   | { t: 'prompt'; kind: DecisionKind }
@@ -116,7 +132,8 @@ function StructureHpRow({ structures, team }: { structures: Structure[]; team: '
 export default function LiveMatch() {
   const { state, dispatch } = useGame();
   const tm = state.turnMatch;
-  const mapSize = useMapSize();
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const mapSize = useMapSize(bodyRef);
   const [phase, setPhase] = useState<Phase | null>(null);
   const [promptLeft, setPromptLeft] = useState(PROMPT_SEC);
   const [scale, setScale] = useState(0.92);
@@ -179,18 +196,20 @@ export default function LiveMatch() {
     return items;
   };
 
-  /** Espera a que terminen los popups de kill/objetivo antes de seguir. */
+  /** Espera a que terminen los popups de kill/objetivo antes de seguir (con tope fail-open). */
   const endCinemaWhenAnnouncesDone = (res: RoundResolution, minWaitMs = 0) => {
     const started = Date.now();
+    const maxWait = Math.max(minWaitMs, ANNOUNCE_MAX_WAIT_MS);
     const tryEnd = () => {
       const waited = Date.now() - started;
-      if (waited < minWaitMs || announceBusyRef.current) {
+      const announceBlocking = announceBusyRef.current && waited < maxWait;
+      if (waited < minWaitMs || announceBlocking) {
         cinemaTimers.current.push(window.setTimeout(tryEnd, 250));
         return;
       }
       endCinemaAndContinue(res);
     };
-    cinemaTimers.current.push(window.setTimeout(tryEnd, Math.max(80, minWaitMs)));
+    cinemaTimers.current.push(window.setTimeout(tryEnd, Math.max(80, Math.min(minWaitMs, 250))));
   };
 
   const resetCinemaGuards = () => {
@@ -226,6 +245,8 @@ export default function LiveMatch() {
     awaitingCinema.current = false;
     awaitingQte.current = false;
     needsPostQteClaim.current = false;
+    announceBusyRef.current = false;
+    setAnnounceBusy(false);
     resetCinemaGuards();
     setActiveFloats([]);
     setCinemaRes(null);
@@ -379,6 +400,7 @@ export default function LiveMatch() {
     } else {
       // Choque de junglas: sin claim de monstruo
       cinemaForKey.current = `gank-done-${res.round}`;
+      postQteClaim.current = true;
       enqueueAnnounces(announcesFromRes(res), `gank-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}`);
       endCinemaWhenAnnouncesDone(res, ANNOUNCE_DURATION_MS);
     }
@@ -419,7 +441,10 @@ export default function LiveMatch() {
     if (promptsForRound.current === tm.round) return;
     clearCinema();
     beginPrompts(tm.round);
-    return () => clearCinema();
+    return () => {
+      // No matar timers del claim post-QTE al subir de ronda
+      if (!awaitingCinema.current && !awaitingQte.current) clearCinema();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tm?.round, tm?.isComplete]);
 
@@ -427,7 +452,9 @@ export default function LiveMatch() {
     const res = tm?.lastResolution;
     if (!res || !awaitingCinema.current) return;
     if (awaitingQte.current) return;
-    if (postQteClaim.current) return;
+    // Post-QTE: el claim effect es el único dueño
+    if (postQteClaim.current || needsPostQteClaim.current) return;
+    if (cinemaForKey.current?.startsWith('claim-') || cinemaForKey.current?.startsWith('gank-done-')) return;
     const key = `lanes-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}-${res.pendingObjectiveQte ? 'qte' : 'ok'}`;
     if (cinemaForKey.current === key || cinemaForKey.current === `${key}-qte-pending`) return;
     cinemaForKey.current = res.pendingObjectiveQte ? `${key}-qte-pending` : key;
@@ -443,6 +470,8 @@ export default function LiveMatch() {
     setPhase({ t: 'idle' });
     if (tm?.lastResolution && awaitingCinema.current) {
       endCinemaAndContinue(tm.lastResolution);
+    } else if (tm && !awaitingCinema.current && promptsForRound.current !== tm.round) {
+      beginPrompts(tm.round);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, tm?.pendingObjective, tm?.lastResolution]);
@@ -460,21 +489,40 @@ export default function LiveMatch() {
       if (awaitingQte.current || p?.t === 'qte') {
         if (elapsed < QTE_STUCK_MS) return;
         awaitingQte.current = false;
+        if (!current.pendingObjective) {
+          setPhase({ t: 'idle' });
+          if (res && awaitingCinema.current) {
+            clearCinema();
+            endCinemaAndContinue(res);
+          } else if (!awaitingCinema.current) {
+            beginPrompts(current.round);
+          }
+          return;
+        }
         dispatch({
           type: 'RESOLVE_OBJECTIVE_QTE',
           qte: { skirmishWinner: null, attackingTeam: 'blue', monsterTaken: false },
         });
-        markPhaseStart();
         return;
       }
 
-      if (!awaitingCinema.current) return;
+      if (!awaitingCinema.current) {
+        // Idle huérfano: misma ronda sin prompts activos
+        if (
+          p?.t === 'idle' &&
+          promptsForRound.current === current.round &&
+          elapsed > CINEMA_STUCK_MS &&
+          !current.pendingObjective
+        ) {
+          beginPrompts(current.round);
+        }
+        return;
+      }
       if (elapsed < CINEMA_STUCK_MS) return;
       if (!res) return;
-      if (p && (p.t === 'lane' || p.t === 'objective' || p.t === 'idle' || !p)) {
-        clearCinema();
-        endCinemaAndContinue(res);
-      }
+      // Fail-open: cualquier fase si el cine lleva demasiado
+      clearCinema();
+      endCinemaAndContinue(res);
     }, 3000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -485,16 +533,13 @@ export default function LiveMatch() {
     const onVis = () => {
       if (document.visibilityState !== 'visible') return;
       const current = tmRef.current;
-      const p = phaseRef.current;
       if (!current || !awaitingCinema.current || awaitingQte.current) return;
       const elapsed = Date.now() - phaseStartedAt.current;
       if (elapsed < CINEMA_STUCK_MS) return;
-      if (p && (p.t === 'lane' || p.t === 'objective' || p.t === 'idle')) {
-        const res = current.lastResolution;
-        if (res) {
-          clearCinema();
-          endCinemaAndContinue(res);
-        }
+      const res = current.lastResolution;
+      if (res) {
+        clearCinema();
+        endCinemaAndContinue(res);
       }
     };
     document.addEventListener('visibilitychange', onVis);
@@ -572,10 +617,10 @@ export default function LiveMatch() {
       <CombatScreenFX signal={fx} />
       <CombatAnnounceOverlay batch={announceBatch} onBusyChange={setAnnounceBusy} />
 
-      <div className="shrink-0 px-4 py-3 safe-top safe-chrome-x border-b border-[#1E2740] max-w-lg md:max-w-6xl mx-auto w-full">
-        <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Partida en vivo</p>
+      <div className="shrink-0 px-3 py-2 safe-top safe-chrome-x border-b border-[#1E2740] max-w-lg md:max-w-6xl mx-auto w-full md:px-4 md:py-3">
+        <p className="text-[#C9A84C] text-[10px] md:text-xs uppercase tracking-wider">Partida en vivo</p>
         <div className="flex justify-between items-end gap-2">
-          <h1 className="text-lg md:text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+          <h1 className="text-base md:text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
             Ronda {displayRound}/{tm.maxRounds}
           </h1>
           <p className="text-sm md:text-base font-bold">
@@ -587,13 +632,16 @@ export default function LiveMatch() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 max-w-lg mx-auto w-full md:max-w-6xl md:overflow-hidden md:flex md:flex-row md:items-center md:justify-center md:gap-10">
-        <div className="flex flex-col items-center gap-3 w-full md:w-auto md:shrink-0">
-          <div className="rounded-full border border-[#C9A84C]/40 bg-[#141B2D] px-3 py-1">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#C9A84C]">{capsule}</p>
+      <div
+        ref={bodyRef}
+        className="flex-1 min-h-0 overflow-hidden px-3 py-2 max-w-lg mx-auto w-full flex flex-col justify-between gap-2 md:max-w-6xl md:px-4 md:py-3 md:flex-row md:items-center md:justify-center md:gap-10"
+      >
+        <div className="flex flex-col items-center gap-1.5 md:gap-3 w-full min-h-0 md:w-auto md:shrink-0">
+          <div className="rounded-full border border-[#C9A84C]/40 bg-[#141B2D] px-3 py-0.5 shrink-0">
+            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-[#C9A84C]">{capsule}</p>
           </div>
 
-          <div className="relative flex items-center justify-center overflow-hidden" style={{ width: slot, height: slot }}>
+          <div className="relative flex items-center justify-center overflow-hidden shrink-0" style={{ width: slot, height: slot }}>
             <div className="transition-transform duration-700 ease-out" style={{ transform: `scale(${scale})`, width: mapSize, height: mapSize }}>
               <Minimap
                 size={mapSize}
@@ -616,7 +664,7 @@ export default function LiveMatch() {
             </div>
           </div>
 
-          <div className="w-full space-y-2 rounded-xl border border-[#1E2740] bg-[#0D1220] p-2.5" style={{ maxWidth: mapSize }}>
+          <div className="w-full space-y-1.5 rounded-xl border border-[#1E2740] bg-[#0D1220] p-2 shrink-0" style={{ maxWidth: mapSize }}>
             <p className="text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4] text-center">
               Estructuras
             </p>
@@ -625,17 +673,17 @@ export default function LiveMatch() {
           </div>
         </div>
 
-        <div className="w-full grid grid-cols-2 gap-2 text-[11px] mt-4 md:mt-0 md:w-64 md:grid-cols-1 shrink-0 md:gap-3">
-          <div className="rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1.5 md:py-4 md:px-3">
+        <div className="w-full grid grid-cols-2 gap-2 text-[11px] shrink-0 md:w-64 md:grid-cols-1 md:gap-3">
+          <div className="rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1 md:py-4 md:px-3">
             <p className="text-[#8B9BB4]">Azul</p>
             <p className="font-bold text-[#F0E6D2] truncate md:text-sm">{tm.blue.name}</p>
-            <p className="text-lg md:text-2xl font-bold text-[#3498DB] mt-1">{tm.blue.kills}</p>
+            <p className="text-base md:text-2xl font-bold text-[#3498DB] mt-0.5 md:mt-1">{tm.blue.kills}</p>
             <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Kills</p>
           </div>
-          <div className="rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1.5 text-right md:text-left md:py-4 md:px-3">
+          <div className="rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1 text-right md:text-left md:py-4 md:px-3">
             <p className="text-[#8B9BB4]">Rojo</p>
             <p className="font-bold text-[#F0E6D2] truncate md:text-sm">{tm.red.name}</p>
-            <p className="text-lg md:text-2xl font-bold text-[#E74C3C] mt-1">{tm.red.kills}</p>
+            <p className="text-base md:text-2xl font-bold text-[#E74C3C] mt-0.5 md:mt-1">{tm.red.kills}</p>
             <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Kills</p>
           </div>
         </div>

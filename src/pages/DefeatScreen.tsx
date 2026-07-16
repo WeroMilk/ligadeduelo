@@ -24,21 +24,21 @@ export default function DefeatScreen() {
   };
 
   return (
-    <div className="screen-center relative bg-[#0A0E1A] px-4 py-8 safe-top safe-chrome-x safe-bottom">
+    <div className="screen-center relative bg-[#0A0E1A] px-4 py-4 md:py-8 safe-top safe-chrome-x safe-bottom overflow-hidden">
       {/* Red vignette */}
       <div className="absolute inset-0 bg-gradient-radial from-[#E74C3C]/10 via-transparent to-transparent" />
 
-      <div className="relative z-10 flex flex-col items-center gap-6 max-w-sm w-full">
+      <div className="relative z-10 flex flex-col items-center gap-4 md:gap-6 max-w-sm w-full">
         {/* Skull */}
-        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#E74C3C] to-[#922B21] flex items-center justify-center shadow-[0_0_60px_rgba(231,76,60,0.3)]">
-          <Skull className="w-12 h-12 text-[#0A0E1A]" />
+        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-[#E74C3C] to-[#922B21] flex items-center justify-center shadow-[0_0_60px_rgba(231,76,60,0.3)]">
+          <Skull className="w-10 h-10 md:w-12 md:h-12 text-[#0A0E1A]" />
         </div>
 
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-[#E74C3C]" style={{ fontFamily: 'Cinzel, serif' }}>
+          <h1 className="text-3xl md:text-4xl font-bold text-[#E74C3C]" style={{ fontFamily: 'Cinzel, serif' }}>
             ELIMINADO
           </h1>
-          <p className="text-[#8B9BB4] mt-2">
+          <p className="text-[#8B9BB4] mt-1 md:mt-2 text-sm">
             Tu equipo ha sido eliminado del torneo
           </p>
         </div>

@@ -174,7 +174,7 @@ function playMelodyNote(freq: number, dur = 0.35) {
     osc.frequency.value = freq;
     const now = c.currentTime;
     g.gain.setValueAtTime(0.0001, now);
-    g.gain.linearRampToValueAtTime(0.028, now + 0.04);
+    g.gain.linearRampToValueAtTime(0.085, now + 0.04);
     g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
     osc.connect(g);
     g.connect(musicGain);
@@ -207,11 +207,11 @@ export function startBackgroundMusic() {
     if (c.state === 'suspended') void c.resume();
 
     musicGain = c.createGain();
-    musicGain.gain.value = 0.55;
+    musicGain.gain.value = 0.92;
     musicGain.connect(c.destination);
 
-    addDrone(73.42, 0.035); // D2
-    addDrone(110, 0.018); // A2 quinta
+    addDrone(73.42, 0.07); // D2
+    addDrone(110, 0.04); // A2 quinta
 
     let i = 0;
     melodyTimer = window.setInterval(() => {

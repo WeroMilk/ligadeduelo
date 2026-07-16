@@ -120,7 +120,7 @@ export default function ChampionSelect() {
       )}
 
       {/* Mobile: grid 2 cols; Desktop: fila arriba con scroll si no cabe */}
-      <div className="flex-1 min-h-0 max-w-6xl mx-auto w-full px-4 py-2 overflow-y-auto md:pt-3">
+      <div className="flex-1 min-h-0 max-w-6xl mx-auto w-full px-4 py-2 overflow-y-auto scrollbar-hide md:pt-3">
         <div className="grid grid-cols-2 gap-2.5 pb-2 md:grid-cols-3 lg:grid-cols-6 md:gap-2 md:w-full md:content-start md:auto-rows-min">
           {roleChampions.map(champ => {
             const isSelected = selectedIds.includes(champ.id);

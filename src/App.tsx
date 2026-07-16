@@ -3,6 +3,7 @@ import { GameProvider, useGame } from '@/hooks/useGameState';
 import ExitGameButton from '@/components/ExitGameButton';
 import CoffeeTipButton from '@/components/CoffeeTipButton';
 import AdBanner from '@/components/AdBanner';
+import PostMatchAd from '@/components/PostMatchAd';
 import AudioBoot from '@/components/AudioBoot';
 import ModeSelect from '@/pages/ModeSelect';
 import LobbyScreen from '@/pages/LobbyScreen';
@@ -93,6 +94,7 @@ function AppShell() {
         </div>
       </main>
       <AdBanner />
+      <PostMatchAd />
     </div>
   );
 }

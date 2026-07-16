@@ -48,14 +48,20 @@ export default function CombatAnnounceOverlay({ batch, onBusyChange }: Props) {
     onBusyChange?.(busy);
   }, [busy, onBusyChange]);
 
+  // Dequeue next item when idle
   useEffect(() => {
     if (current || queue.length === 0) return;
     const [next, ...rest] = queue;
     setCurrent(next);
     setQueue(rest);
+  }, [current, queue]);
+
+  // Timer only depends on current — must not share deps with queue updates
+  useEffect(() => {
+    if (!current) return;
     const t = window.setTimeout(() => setCurrent(null), ANNOUNCE_DURATION_MS);
     return () => window.clearTimeout(t);
-  }, [current, queue]);
+  }, [current]);
 
   if (!current) return null;
 

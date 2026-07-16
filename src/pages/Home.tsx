@@ -19,16 +19,16 @@ export default function Home() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 flex flex-col items-center justify-start px-4 safe-top safe-chrome-x pb-8 safe-bottom md:justify-center">
-        <div className="w-full max-w-md space-y-6 text-center">
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 safe-top safe-chrome-x pb-4 safe-bottom">
+        <div className="w-full max-w-md space-y-4 md:space-y-6 text-center">
           <div>
             <h1
-              className="text-3xl font-bold text-[#C9A84C] leading-tight"
+              className="text-2xl md:text-3xl font-bold text-[#C9A84C] leading-tight"
               style={{ fontFamily: 'Cinzel, Georgia, serif' }}
             >
               Nombre de equipo
             </h1>
-            <p className="text-sm text-[#8B9BB4] mt-2">
+            <p className="text-xs md:text-sm text-[#8B9BB4] mt-1.5 md:mt-2">
               Escríbelo tú. Luego eliges 5 integrantes y 5 campeones.
             </p>
           </div>
@@ -46,7 +46,7 @@ export default function Home() {
               }}
               placeholder="Ej. Los Invencibles"
               maxLength={24}
-              className="w-full min-h-12 rounded-xl border-2 border-[#2A3550] bg-[#141B2D] px-4 text-[#F0E6D2] placeholder:text-[#4A5570] focus:outline-none focus:border-[#C9A84C]"
+              className="w-full min-h-11 md:min-h-12 rounded-xl border-2 border-[#2A3550] bg-[#141B2D] px-4 text-[#F0E6D2] placeholder:text-[#4A5570] focus:outline-none focus:border-[#C9A84C]"
               autoFocus
             />
           </label>
@@ -55,7 +55,7 @@ export default function Home() {
             type="button"
             onClick={handleStart}
             disabled={!canStart}
-            className="w-full font-bold text-lg py-4 rounded-xl flex items-center justify-center gap-3 disabled:opacity-40"
+            className="w-full font-bold text-base md:text-lg py-3.5 md:py-4 rounded-xl flex items-center justify-center gap-3 disabled:opacity-40"
             style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
           >
             <Sparkles className="w-5 h-5" />

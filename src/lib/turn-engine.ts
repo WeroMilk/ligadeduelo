@@ -779,12 +779,14 @@ export function applyObjectiveWithQte(
   log: CombatLogLine[];
   duels: DuelSummary[];
   floats: CombatFloat[];
+  kills: RawKill[];
 } {
   const log: CombatLogLine[] = [];
   const duels: DuelSummary[] = [];
   const floats: CombatFloat[] = [];
+  const kills: RawKill[] = [];
   if (!state.objective) {
-    return { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null, log, duels, floats };
+    return { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null, log, duels, floats, kills };
   }
   const obj = state.objective;
   const name = objectiveName(obj);
@@ -794,7 +796,7 @@ export function applyObjectiveWithQte(
 
   if (blueP.length === 0 && redP.length === 0) {
     pushLog(log, `${name}: nadie lo contestó esta ronda`);
-    return { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null, log, duels, floats };
+    return { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null, log, duels, floats, kills };
   }
 
   const contested = blueP.length > 0 && redP.length > 0;
@@ -830,29 +832,28 @@ export function applyObjectiveWithQte(
     if (blueP.length > 0 && redP.length === 0) {
       if (bp < objHp * 0.35) {
         pushLog(log, `El equipo azul falla el ${name} (poco daño)`);
-        return { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null, log, duels, floats };
+        return { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null, log, duels, floats, kills };
       }
       winner = 'blue';
     } else if (redP.length > 0 && blueP.length === 0) {
       if (rp < objHp * 0.35) {
         pushLog(log, `El equipo rojo falla el ${name} (poco daño)`);
-        return { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null, log, duels, floats };
+        return { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null, log, duels, floats, kills };
       }
       winner = 'red';
     } else {
-      const objKills: RawKill[] = [];
       if (blueP[0] && redP[0]) {
         resolveDuel(
           { champ: blueP[0], action: bluePlan.actions[blueP[0].instanceId] || 'attack', ult: bluePlan.ultimates.includes(blueP[0].instanceId), lane: 1 },
           { champ: redP[0], action: redPlan.actions[redP[0].instanceId] || 'attack', ult: redPlan.ultimates.includes(redP[0].instanceId), lane: 1 },
-          state, log, duels, floats, 1, objKills,
+          state, log, duels, floats, 1, kills,
         );
       }
       if (blueP[1] && redP[1] && blueP[1].isAlive && redP[1].isAlive) {
         resolveDuel(
           { champ: blueP[1], action: bluePlan.actions[blueP[1].instanceId] || 'attack', ult: bluePlan.ultimates.includes(blueP[1].instanceId), lane: 1 },
           { champ: redP[1], action: redPlan.actions[redP[1].instanceId] || 'attack', ult: redPlan.ultimates.includes(redP[1].instanceId), lane: 1 },
-          state, log, duels, floats, 1, objKills,
+          state, log, duels, floats, 1, kills,
         );
       }
       bp = power(blueP.filter(c => c.isAlive));
@@ -866,7 +867,7 @@ export function applyObjectiveWithQte(
   }
 
   if (!winner) {
-    return { winner: null, contested, freeItem: false, ancestral: false, bonus: null, log, duels, floats };
+    return { winner: null, contested, freeItem: false, ancestral: false, bonus: null, log, duels, floats, kills };
   }
   const rewards = grantObjectiveRewards(state, winner, obj, log);
   return {
@@ -878,6 +879,7 @@ export function applyObjectiveWithQte(
     log,
     duels,
     floats,
+    kills,
   };
 }
 
@@ -888,7 +890,7 @@ function resolveObjective(
   log: CombatLogLine[],
   duels: DuelSummary[],
   floats: CombatFloat[],
-): { winner: TeamColor | null; contested: boolean; freeItem: boolean; ancestral: boolean; bonus: ObjectiveBonusAnnounce | null } {
+): { winner: TeamColor | null; contested: boolean; freeItem: boolean; ancestral: boolean; bonus: ObjectiveBonusAnnounce | null; kills: RawKill[] } {
   const r = applyObjectiveWithQte(state, bluePlan, redPlan, null);
   log.push(...r.log);
   duels.push(...r.duels);
@@ -899,6 +901,7 @@ function resolveObjective(
     freeItem: r.freeItem,
     ancestral: r.ancestral,
     bonus: r.bonus,
+    kills: r.kills,
   };
 }
 
@@ -1148,6 +1151,7 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
   }
 
   const objResult = resolveObjective(next, bluePlan, redPlan, log, duels, floats);
+  killEvents.push(...objResult.kills);
   return finalizeRoundBookkeeping(
     next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
     towerStats, duels, floats, objResult, false, killEvents,
@@ -1198,6 +1202,19 @@ export function finishPendingObjective(
   const duels: DuelSummary[] = [...(prev?.duels || [])];
   const floats: CombatFloat[] = [...(prev?.floats || [])];
   const killEvents: RawKill[] = [];
+  // Rehidratar kills de líneas de la resolución previa para no perderlos al completar QTE
+  if (prev?.killAnnounces) {
+    for (const a of prev.killAnnounces) {
+      for (const victimName of a.victimNames) {
+        killEvents.push({
+          killerId: `prev-${a.team}-${a.killerName}`,
+          killerName: a.killerName,
+          victimName,
+          team: a.team,
+        });
+      }
+    }
+  }
   const scoreBeforeB = next.blue.score - (prev?.blueScoreDelta || 0);
   const scoreBeforeR = next.red.score - (prev?.redScoreDelta || 0);
   const killsBeforeB = next.blue.kills - (prev?.blueKillsDelta || 0);
@@ -1272,6 +1289,7 @@ export function finishPendingObjective(
   log.push(...r.log);
   duels.push(...r.duels);
   floats.push(...r.floats);
+  killEvents.push(...r.kills);
 
   next.pendingObjective = null;
   next.deferredBluePlan = null;

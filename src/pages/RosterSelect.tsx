@@ -148,7 +148,7 @@ export default function RosterSelect() {
         )}
       </div>
 
-      <div className="flex-1 min-h-0 px-4 py-3 max-w-6xl mx-auto w-full overflow-y-auto">
+      <div className="flex-1 min-h-0 px-4 py-2 max-w-6xl mx-auto w-full overflow-y-auto scrollbar-hide md:py-3">
         <div className="grid grid-cols-1 gap-2 pb-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {list.map(m => {
             const active = state.selectedRoster.some(x => x.id === m.id);

@@ -16,8 +16,8 @@ export default function LobbyScreen() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="shrink-0 px-4 py-4 safe-top safe-chrome-x border-b border-[#1E2740] max-w-4xl mx-auto w-full">
-        <h1 className="text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+      <div className="shrink-0 px-4 py-2.5 safe-top safe-chrome-x border-b border-[#1E2740] max-w-4xl mx-auto w-full md:py-4">
+        <h1 className="text-lg md:text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
           {isCode ? 'Sala con código' : 'Lobby compartido'}
         </h1>
         <p className="text-xs text-[#8B9BB4] mt-1">
@@ -42,7 +42,7 @@ export default function LobbyScreen() {
         )}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto md:overflow-hidden px-4 py-3 max-w-4xl mx-auto w-full flex flex-col gap-2">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide md:overflow-hidden px-4 py-2 max-w-4xl mx-auto w-full flex flex-col gap-2 md:py-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:flex-1 md:min-h-0 md:content-start md:overflow-hidden">
           {state.lobbyPlayers.map(p => (
             <div

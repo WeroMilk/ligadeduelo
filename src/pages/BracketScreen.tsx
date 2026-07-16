@@ -63,10 +63,10 @@ export default function BracketScreen() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="shrink-0 bg-[#0A0E1A] border-b border-[#1E2740] px-4 py-3 safe-top safe-chrome-x">
+      <div className="shrink-0 bg-[#0A0E1A] border-b border-[#1E2740] px-4 py-2 safe-top safe-chrome-x md:py-3">
         <div className="max-w-6xl mx-auto">
           <div className="flex justify-center">
-            <div className="inline-flex items-center gap-2 bg-[#141B2D] rounded-lg px-3 py-2 max-w-[90%] min-w-0">
+            <div className="inline-flex items-center gap-2 bg-[#141B2D] rounded-lg px-3 py-1.5 md:py-2 max-w-[90%] min-w-0">
               <Crown className="w-4 h-4 text-[#C9A84C] shrink-0" />
               <span className="text-[#C9A84C] font-bold text-sm truncate text-center">
                 {state.playerTeamName || 'Mi Equipo'}
@@ -74,16 +74,16 @@ export default function BracketScreen() {
             </div>
           </div>
 
-          <div className="mt-2 text-center">
-            <h2 className="text-[#F0E6D2] font-bold text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
+          <div className="mt-1.5 md:mt-2 text-center">
+            <h2 className="text-[#F0E6D2] font-bold text-base md:text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
               Torneo
             </h2>
-            <p className="text-[#8B9BB4] text-sm">
+            <p className="text-[#8B9BB4] text-xs md:text-sm">
               {currentRound?.roundName || ''} · Ronda {currentRoundIdx + 1}/4
             </p>
           </div>
 
-          <div className="mt-2 flex items-center gap-2 rounded-lg border border-[#6B1FA6]/35 bg-[#6B1FA6]/10 px-2.5 py-1.5">
+          <div className="mt-1.5 md:mt-2 flex items-center gap-2 rounded-lg border border-[#6B1FA6]/35 bg-[#6B1FA6]/10 px-2.5 py-1">
             <Ghost className="w-3.5 h-3.5 text-[#C39BD3] shrink-0" />
             <p className="text-[11px] text-[#C39BD3] truncate">
               Rival: <span className="font-bold">{tournament.rivalTeamName || 'Rival'}</span>
@@ -91,7 +91,7 @@ export default function BracketScreen() {
             </p>
           </div>
 
-          <div className="flex gap-2 mt-3">
+          <div className="flex gap-2 mt-2 md:mt-3">
             {['Octavos', 'Cuartos', 'Semifinal', 'Final'].map((name, i) => (
               <div
                 key={name}
@@ -106,9 +106,9 @@ export default function BracketScreen() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 pb-4 md:py-4 max-w-6xl lg:max-w-7xl mx-auto w-full flex flex-col">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide px-3 py-2 pb-3 md:px-4 md:py-4 max-w-6xl lg:max-w-7xl mx-auto w-full flex flex-col">
         {simulating && (
-          <div className="text-center py-2 mb-3 shrink-0">
+          <div className="text-center py-1 mb-2 shrink-0 md:py-2 md:mb-3">
             <div className="inline-flex flex-col items-center gap-1 text-[#8B9BB4]">
               <div className="inline-flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
@@ -125,7 +125,7 @@ export default function BracketScreen() {
         )}
 
         <div
-          className={`flex flex-col gap-3 md:grid md:gap-4 md:auto-rows-min ${
+          className={`flex flex-col gap-2 md:grid md:gap-4 md:auto-rows-min ${
             (currentRound?.matches.length || 0) <= 2
               ? 'md:grid-cols-2 md:max-w-3xl md:mx-auto md:w-full'
               : (currentRound?.matches.length || 0) <= 4
@@ -143,7 +143,7 @@ export default function BracketScreen() {
             return (
               <div
                 key={match.id}
-                className={`rounded-xl border-2 p-4 md:p-4 transition-all md:flex md:flex-col md:justify-center ${
+                className={`rounded-xl border-2 p-2.5 md:p-4 transition-all md:flex md:flex-col md:justify-center ${
                   isActive
                     ? 'border-[#3498DB] bg-[#3498DB]/10 shadow-[0_0_20px_rgba(52,152,219,0.15)]'
                     : hasRival && !winner
@@ -156,19 +156,19 @@ export default function BracketScreen() {
                 }`}
               >
                 {hasRival && (
-                  <p className="text-[10px] text-[#C39BD3] font-bold uppercase tracking-wider mb-2 md:mb-3 flex items-center gap-1">
+                  <p className="text-[10px] text-[#C39BD3] font-bold uppercase tracking-wider mb-1 md:mb-3 flex items-center gap-1">
                     <Ghost className="w-3 h-3" /> Rivalidad
                   </p>
                 )}
                 <div className="flex items-start gap-2 md:gap-3">
-                  <div className={`flex-1 min-w-0 space-y-1.5 ${winner === 'red' ? 'opacity-40' : ''}`}>
+                  <div className={`flex-1 min-w-0 space-y-1 md:space-y-1.5 ${winner === 'red' ? 'opacity-40' : ''}`}>
                     <span className={`block text-xs md:text-sm font-bold leading-snug line-clamp-2 ${
                       match.teamA.id === 'player' ? 'text-[#C9A84C]' :
                       isRivalTeam(match.teamA.id) ? 'text-[#C39BD3]' : 'text-[#F0E6D2]'
                     }`}>
                       {match.teamA.name}
                     </span>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-0.5 md:gap-1">
                       {match.teamA.champions.slice(0, 5).map(c => {
                         const def = CHAMPIONS.find(ch => ch.id === c.defId);
                         return def?.image ? (
@@ -177,13 +177,13 @@ export default function BracketScreen() {
                             src={def.image}
                             alt={def.name}
                             title={def.name}
-                            className="w-7 h-7 md:w-8 md:h-8 rounded-full border border-[#2A3550] object-cover shrink-0"
+                            className="w-5 h-5 md:w-8 md:h-8 rounded-full border border-[#2A3550] object-cover shrink-0"
                           />
                         ) : (
                           <div
                             key={c.defId}
                             title={def?.name}
-                            className="w-7 h-7 md:w-8 md:h-8 rounded-full border border-[#2A3550] flex items-center justify-center text-[8px] font-bold text-white shrink-0"
+                            className="w-5 h-5 md:w-8 md:h-8 rounded-full border border-[#2A3550] flex items-center justify-center text-[8px] font-bold text-white shrink-0"
                             style={{ backgroundColor: def?.color || '#333' }}
                           >
                             <User className="w-3 h-3" />
@@ -217,13 +217,13 @@ export default function BracketScreen() {
                             src={def.image}
                             alt={def.name}
                             title={def.name}
-                            className="w-7 h-7 md:w-8 md:h-8 rounded-full border border-[#2A3550] object-cover shrink-0"
+                            className="w-5 h-5 md:w-8 md:h-8 rounded-full border border-[#2A3550] object-cover shrink-0"
                           />
                         ) : (
                           <div
                             key={c.defId}
                             title={def?.name}
-                            className="w-7 h-7 md:w-8 md:h-8 rounded-full border border-[#2A3550] flex items-center justify-center text-[8px] font-bold text-white shrink-0"
+                            className="w-5 h-5 md:w-8 md:h-8 rounded-full border border-[#2A3550] flex items-center justify-center text-[8px] font-bold text-white shrink-0"
                             style={{ backgroundColor: def?.color || '#333' }}
                           >
                             <User className="w-3 h-3" />
