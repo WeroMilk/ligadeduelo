@@ -32,6 +32,8 @@ function useMapSize() {
 }
 const PROMPT_SEC = 8;
 const LANE_MS = 2000;
+const CINEMA_STUCK_MS = 14000;
+const QTE_STUCK_MS = 55000;
 
 type Phase =
   | { t: 'prompt'; kind: DecisionKind }
@@ -126,16 +128,24 @@ export default function LiveMatch() {
   const promptsForRound = useRef<number | null>(null);
   const cinemaForKey = useRef<string | null>(null);
   const postQteClaim = useRef(false);
+  const needsPostQteClaim = useRef(false);
   const awaitingCinema = useRef(false);
   const awaitingQte = useRef(false);
   const phaseRef = useRef<Phase | null>(null);
+  const tmRef = useRef(tm);
+  const phaseStartedAt = useRef(Date.now());
   const fxNonce = useRef(0);
 
   phaseRef.current = phase;
+  tmRef.current = tm;
 
   const resetCinemaGuards = () => {
     cinemaForKey.current = null;
     postQteClaim.current = false;
+  };
+
+  const markPhaseStart = () => {
+    phaseStartedAt.current = Date.now();
   };
 
   const fireFx = (kind: ScreenFxKind, label?: string, team?: FxSignal['team']) => {
@@ -158,21 +168,25 @@ export default function LiveMatch() {
   };
 
   const endCinemaAndContinue = (res: RoundResolution) => {
+    const current = tmRef.current;
     awaitingCinema.current = false;
     awaitingQte.current = false;
+    needsPostQteClaim.current = false;
     resetCinemaGuards();
     setActiveFloats([]);
     setCinemaRes(null);
     setPhase({ t: 'idle' });
-    if (res.matchOver || tm?.isComplete) {
+    markPhaseStart();
+    if (res.matchOver || current?.isComplete || current?.winner) {
       dispatch({ type: 'FINISH_LIVE_MATCH' });
       return;
     }
-    if (tm) beginPrompts(tm.round);
+    if (current) beginPrompts(current.round);
   };
 
   const playObjectiveClaim = (res: RoundResolution) => {
     clearCinema();
+    markPhaseStart();
     setCinemaRes(res);
     setScale(1.12);
     const schedule = (fn: () => void, ms: number) => {
@@ -198,8 +212,10 @@ export default function LiveMatch() {
   };
 
   const playCinema = (res: RoundResolution) => {
-    if (!tm) return;
+    const current = tmRef.current;
+    if (!current) return;
     clearCinema();
+    markPhaseStart();
     setCinemaRes(res);
     setScale(1.08);
     setPhase({ t: 'lane', lane: 0, fight: false });
@@ -241,21 +257,20 @@ export default function LiveMatch() {
     }, Math.max(900, t - 800));
 
     schedule(() => {
-      if (res.pendingObjectiveQte && tm.pendingObjective) {
+      const live = tmRef.current;
+      if (res.pendingObjectiveQte && live?.pendingObjective) {
         awaitingQte.current = true;
+        needsPostQteClaim.current = true;
+        markPhaseStart();
         setPhase({ t: 'qte' });
         setActiveFloats([]);
         return;
       }
-      // QTE marcado pero sin pending → no colgar
-      if (res.pendingObjectiveQte && !tm.pendingObjective) {
+      if (res.pendingObjectiveQte && !live?.pendingObjective) {
         endCinemaAndContinue(res);
         return;
       }
-      if (res.objective && res.objectiveWinner) {
-        playObjectiveClaim(res);
-      } else if (res.objective) {
-        // Objetivo en mapa pero nadie lo tomó / ya resuelto sin winner
+      if (res.objective) {
         playObjectiveClaim(res);
       } else {
         endCinemaAndContinue(res);
@@ -265,6 +280,7 @@ export default function LiveMatch() {
 
   const onQteComplete = (qte: ObjectiveQtePayload) => {
     awaitingQte.current = false;
+    markPhaseStart();
     setPhase({ t: 'idle' });
     dispatch({ type: 'RESOLVE_OBJECTIVE_QTE', qte });
   };
@@ -274,9 +290,10 @@ export default function LiveMatch() {
     const res = tm?.lastResolution;
     if (!res || !awaitingCinema.current) return;
     if (res.pendingObjectiveQte) return;
-    if (!cinemaForKey.current?.includes('qte-pending')) return;
+    if (!needsPostQteClaim.current && !cinemaForKey.current?.includes('qte-pending')) return;
     const key = `claim-${res.round}-${res.objectiveWinner}`;
     if (cinemaForKey.current === key) return;
+    needsPostQteClaim.current = false;
     postQteClaim.current = true;
     cinemaForKey.current = key;
     playObjectiveClaim(res);
@@ -288,12 +305,14 @@ export default function LiveMatch() {
     const base = generateAIPlan(tm, 'blue');
     const plan = mergeDecisions(base, finalPicks, assistId);
     awaitingCinema.current = true;
+    markPhaseStart();
     setPhase({ t: 'idle' });
     dispatch({ type: 'RESOLVE_LIVE_ROUND', plan });
   };
 
   const beginPrompts = (round: number) => {
-    if (!tm || tm.isComplete) return;
+    const current = tmRef.current;
+    if (!current || current.isComplete) return;
     resetCinemaGuards();
     promptsForRound.current = round;
     const queue: DecisionKind[] = ['jungle'];
@@ -303,6 +322,7 @@ export default function LiveMatch() {
     setScale(0.92);
     setCinemaRes(null);
     setActiveFloats([]);
+    markPhaseStart();
     const first = queue.shift();
     if (first) setPhase({ t: 'prompt', kind: first });
     else resolveWithPicks([]);
@@ -322,7 +342,6 @@ export default function LiveMatch() {
     const res = tm?.lastResolution;
     if (!res || !awaitingCinema.current) return;
     if (awaitingQte.current) return;
-    // Un solo tick tras QTE: no relanzar cine de líneas
     if (postQteClaim.current) return;
     const key = `lanes-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}-${res.pendingObjectiveQte ? 'qte' : 'ok'}`;
     if (cinemaForKey.current === key || cinemaForKey.current === `${key}-qte-pending`) return;
@@ -343,21 +362,60 @@ export default function LiveMatch() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, tm?.pendingObjective, tm?.lastResolution]);
 
-  // Watchdog: awaitingCinema atascado en idle ~12s
+  // Watchdog: rescata idle / cine / QTE trabados (móvil, timers pausados)
   useEffect(() => {
     if (!tm || tm.isComplete) return;
     const id = window.setInterval(() => {
-      if (!awaitingCinema.current || awaitingQte.current) return;
+      const current = tmRef.current;
+      if (!current || current.isComplete) return;
       const p = phaseRef.current;
-      if (p && (p.t === 'lane' || p.t === 'objective' || p.t === 'qte')) return;
-      const res = tm.lastResolution;
+      const elapsed = Date.now() - phaseStartedAt.current;
+      const res = current.lastResolution;
+
+      if (awaitingQte.current || p?.t === 'qte') {
+        if (elapsed < QTE_STUCK_MS) return;
+        awaitingQte.current = false;
+        dispatch({
+          type: 'RESOLVE_OBJECTIVE_QTE',
+          qte: { skirmishWinner: null, attackingTeam: 'blue', monsterTaken: false },
+        });
+        markPhaseStart();
+        return;
+      }
+
+      if (!awaitingCinema.current) return;
+      if (elapsed < CINEMA_STUCK_MS) return;
       if (!res) return;
-      clearCinema();
-      endCinemaAndContinue(res);
-    }, 12000);
+      if (p && (p.t === 'lane' || p.t === 'objective' || p.t === 'idle' || !p)) {
+        clearCinema();
+        endCinemaAndContinue(res);
+      }
+    }, 3000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tm?.round, tm?.lastResolution, tm?.isComplete]);
+  }, [tm?.round, tm?.isComplete]);
+
+  // Al volver de background: si el cine debería haber terminado, forzar avance
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      const current = tmRef.current;
+      const p = phaseRef.current;
+      if (!current || !awaitingCinema.current || awaitingQte.current) return;
+      const elapsed = Date.now() - phaseStartedAt.current;
+      if (elapsed < CINEMA_STUCK_MS) return;
+      if (p && (p.t === 'lane' || p.t === 'objective' || p.t === 'idle')) {
+        const res = current.lastResolution;
+        if (res) {
+          clearCinema();
+          endCinemaAndContinue(res);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!phase || phase.t !== 'prompt') return;

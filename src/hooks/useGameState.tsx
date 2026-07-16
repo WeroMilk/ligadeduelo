@@ -207,9 +207,28 @@ function matchInvolvesRival(match: Match, rivalId: string) {
   return match.teamA.id === rivalId || match.teamB.id === rivalId;
 }
 
+function resolveLiveWinner(turnMatch: TurnMatchState): 'blue' | 'red' {
+  if (turnMatch.winner === 'blue' || turnMatch.winner === 'red') return turnMatch.winner;
+  const fromRes = turnMatch.lastResolution?.winner;
+  if (fromRes === 'blue' || fromRes === 'red') return fromRes;
+
+  const nexusBlue = turnMatch.structures.find(s => s.id === 'nexus_blue');
+  const nexusRed = turnMatch.structures.find(s => s.id === 'nexus_red');
+  const redDead = !!nexusRed?.isDestroyed;
+  const blueDead = !!nexusBlue?.isDestroyed;
+  if (redDead && !blueDead) return 'blue';
+  if (blueDead && !redDead) return 'red';
+
+  if (turnMatch.blue.score !== turnMatch.red.score) {
+    return turnMatch.blue.score > turnMatch.red.score ? 'blue' : 'red';
+  }
+  return turnMatch.blue.kills >= turnMatch.red.kills ? 'blue' : 'red';
+}
+
 function applyMatchEnd(state: GameState, turnMatch: TurnMatchState): GameState {
-  const winner = turnMatch.winner || 'blue';
+  const winner = resolveLiveWinner(turnMatch);
   const result = winner === 'blue' ? 'win' : 'lose';
+  const sealed = { ...turnMatch, isComplete: true, winner };
   let defeatedRival = state.defeatedRival;
   let tournament = state.tournament;
   if (tournament && state.currentMatch) {
@@ -229,7 +248,7 @@ function applyMatchEnd(state: GameState, turnMatch: TurnMatchState): GameState {
   }
   return {
     ...state,
-    turnMatch,
+    turnMatch: sealed,
     tournament,
     defeatedRival,
     matchResult: result,

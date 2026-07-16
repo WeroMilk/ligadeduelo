@@ -818,15 +818,36 @@ function finalizeRoundBookkeeping(
   const nexusBlue = next.structures.find(s => s.id === 'nexus_blue');
   const nexusRed = next.structures.find(s => s.id === 'nexus_red');
   if (!pendingQte) {
-    if (nexusRed?.isDestroyed) { matchOver = true; winner = 'blue'; autoNexus = true; next.blue.score += POINTS_NEXUS; }
-    if (nexusBlue?.isDestroyed) { matchOver = true; winner = 'red'; autoNexus = true; next.red.score += POINTS_NEXUS; }
+    const redDead = !!nexusRed?.isDestroyed;
+    const blueDead = !!nexusBlue?.isDestroyed;
+
+    if (redDead && !blueDead) {
+      matchOver = true;
+      winner = 'blue';
+      autoNexus = true;
+      next.blue.score += POINTS_NEXUS;
+    } else if (blueDead && !redDead) {
+      matchOver = true;
+      winner = 'red';
+      autoNexus = true;
+      next.red.score += POINTS_NEXUS;
+    } else if (redDead && blueDead) {
+      // Ambos nexos caen en la misma ronda: gana quien iba mejor en marcador (sin sumar nexo 2 veces)
+      matchOver = true;
+      autoNexus = true;
+      winner = next.blue.score > next.red.score ? 'blue'
+        : next.red.score > next.blue.score ? 'red'
+        : next.blue.kills >= next.red.kills ? 'blue' : 'red';
+      if (winner === 'blue') next.blue.score += POINTS_NEXUS;
+      else next.red.score += POINTS_NEXUS;
+      pushLog(log, `Ambos nexos caen · gana ${winner === 'blue' ? next.blue.name : next.red.name} por marcador`);
+    }
 
     if (!matchOver && next.round >= next.maxRounds) {
       matchOver = true;
-      winner = next.blue.score >= next.red.score ? 'blue' : 'red';
-      if (next.blue.score === next.red.score) {
-        winner = next.blue.kills >= next.red.kills ? 'blue' : 'red';
-      }
+      winner = next.blue.score > next.red.score ? 'blue'
+        : next.red.score > next.blue.score ? 'red'
+        : next.blue.kills >= next.red.kills ? 'blue' : 'red';
       pushLog(log, `Fin de las ${next.maxRounds} rondas. Marcador ${next.blue.score}–${next.red.score}`);
     }
   }
@@ -916,7 +937,18 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
   const redWants = redPlan.jungleTarget === 'objective' && !!next.objective;
 
   // Si el jugador va al objetivo (solo o contested), diferir a QTE.
+  // Si un nexo ya cayó, la partida terminó: no abrir QTE.
   if (blueWants) {
+    const nexusBlue = next.structures.find(s => s.id === 'nexus_blue');
+    const nexusRed = next.structures.find(s => s.id === 'nexus_red');
+    if (nexusBlue?.isDestroyed || nexusRed?.isDestroyed) {
+      return finalizeRoundBookkeeping(
+        next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
+        towerStats, duels, floats,
+        { winner: null, contested: false, freeItem: false, ancestral: false },
+        false,
+      );
+    }
     const blueP = objectiveParticipants(next.blue, bluePlan);
     const redP = objectiveParticipants(next.red, redPlan);
     next.pendingObjective = {
@@ -948,17 +980,31 @@ export function finishPendingObjective(
   qte: { skirmishWinner: TeamColor | null; attackingTeam: TeamColor; monsterTaken: boolean },
 ): TurnMatchState {
   if (!state.pendingObjective) return state;
-  // Sin planes diferidos: limpiar para no dejar el partido colgado
+  // Sin planes diferidos: finalizar ronda igual para no dejar el partido a medias
   if (!state.deferredBluePlan || !state.deferredRedPlan) {
-    return {
+    const next = {
       ...state,
+      blue: deepCloneTeam(state.blue),
+      red: deepCloneTeam(state.red),
+      structures: state.structures.map(s => ({ ...s })),
       pendingObjective: null,
       deferredBluePlan: null,
       deferredRedPlan: null,
-      lastResolution: state.lastResolution
-        ? { ...state.lastResolution, pendingObjectiveQte: false, objectiveWinner: null }
-        : null,
     };
+    const prev = state.lastResolution;
+    return finalizeRoundBookkeeping(
+      next,
+      [...(prev?.log || [])],
+      next.blue.score - (prev?.blueScoreDelta || 0),
+      next.red.score - (prev?.redScoreDelta || 0),
+      next.blue.kills - (prev?.blueKillsDelta || 0),
+      next.red.kills - (prev?.redKillsDelta || 0),
+      { blue: prev?.towersTakenBlue || 0, red: prev?.towersTakenRed || 0 },
+      [...(prev?.duels || [])],
+      [...(prev?.floats || [])],
+      { winner: null, contested: false, freeItem: false, ancestral: false },
+      false,
+    );
   }
   const next = {
     ...state,

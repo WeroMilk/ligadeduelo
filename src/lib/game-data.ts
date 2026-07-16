@@ -390,6 +390,16 @@ export function objectiveName(obj: ObjectiveType): string {
   }
 }
 
+export function objectiveImage(obj: ObjectiveType): string | null {
+  switch (obj) {
+    case 'dragon_fire': return '/objectives/dragon_fire.png';
+    case 'dragon_water': return '/objectives/dragon_water.png';
+    case 'baron': return '/objectives/baron.png';
+    case 'dragon_ancestral': return '/objectives/dragon_ancestral.png';
+    default: return null;
+  }
+}
+
 export function objectiveIsBaronSide(obj: ObjectiveType): boolean {
   return obj === 'baron' || obj === 'dragon_ancestral';
 }

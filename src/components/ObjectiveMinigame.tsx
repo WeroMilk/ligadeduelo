@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Champion, ObjectiveType, PendingObjective, TeamColor } from '@/types/game';
-import { CHAMPIONS, objectiveName } from '@/lib/game-data';
+import { CHAMPIONS, objectiveName, objectiveImage } from '@/lib/game-data';
 
 export type ObjectiveQtePayload = {
   skirmishWinner: TeamColor | null;
@@ -89,18 +89,29 @@ function Portrait({
 
 function MonsterIcon({ obj, anim }: { obj: ObjectiveType; anim: FighterAnim }) {
   const color = monsterColor(obj);
+  const src = objectiveImage(obj);
+  const [imgOk, setImgOk] = useState(!!src);
   const animCls =
     anim === 'shake' || anim === 'counter' ? 'animate-obj-monster-hit' :
     anim === 'lunge' ? 'animate-obj-counter' :
     'animate-obj-monster-idle';
   return (
     <div
-      className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 flex items-center justify-center shrink-0 ${animCls}`}
-      style={{ borderColor: color, backgroundColor: `${color}33`, boxShadow: `0 0 24px ${color}55` }}
+      className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-2 overflow-hidden flex items-center justify-center shrink-0 ${animCls}`}
+      style={{ borderColor: color, backgroundColor: `${color}22`, boxShadow: `0 0 28px ${color}55` }}
     >
-      <span className="text-2xl sm:text-3xl font-bold" style={{ color, fontFamily: 'Cinzel, serif' }}>
-        {obj === 'baron' ? 'B' : 'D'}
-      </span>
+      {src && imgOk ? (
+        <img
+          src={src}
+          alt={objectiveName(obj)}
+          className="w-full h-full object-cover"
+          onError={() => setImgOk(false)}
+        />
+      ) : (
+        <span className="text-2xl sm:text-3xl font-bold" style={{ color, fontFamily: 'Cinzel, serif' }}>
+          {obj === 'baron' ? 'B' : 'D'}
+        </span>
+      )}
     </div>
   );
 }
@@ -128,6 +139,13 @@ export default function ObjectiveMinigame({
   const [blueAnim, setBlueAnim] = useState<FighterAnim>('idle');
   const [redAnim, setRedAnim] = useState<FighterAnim>('idle');
   const [monsterAnim, setMonsterAnim] = useState<FighterAnim>('idle');
+  const completedRef = useRef(false);
+
+  const finishOnce = useCallback((result: ObjectiveQtePayload) => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    onComplete(result);
+  }, [onComplete]);
 
   const blueFighters = useMemo(
     () => pending.blueIds
@@ -209,21 +227,21 @@ export default function ObjectiveMinigame({
       setSkirmishWinner('red');
       setLog('El rival gana la escaramuza · ellos pelean al monstruo');
       window.setTimeout(() => {
-        onComplete({
+        finishOnce({
           skirmishWinner: 'red',
           attackingTeam: 'red',
           monsterTaken: Math.random() < 0.55,
         });
       }, 900);
     }
-  }, [blueBar, redBar, phase, onComplete]);
+  }, [blueBar, redBar, phase, finishOnce]);
 
   useEffect(() => {
     if (phase !== 'monster' || skirmishWinner === 'red') return;
     if (monsterHp <= 0) {
       setLog('¡Objetivo conquistado!');
       window.setTimeout(() => {
-        onComplete({
+        finishOnce({
           skirmishWinner: contested ? 'blue' : null,
           attackingTeam: 'blue',
           monsterTaken: true,
@@ -232,14 +250,14 @@ export default function ObjectiveMinigame({
     } else if (allyHp <= 0) {
       setLog('Vuestro equipo cae ante el monstruo');
       window.setTimeout(() => {
-        onComplete({
+        finishOnce({
           skirmishWinner: contested ? 'blue' : null,
           attackingTeam: 'blue',
           monsterTaken: false,
         });
       }, 600);
     }
-  }, [monsterHp, allyHp, phase, skirmishWinner, contested, onComplete]);
+  }, [monsterHp, allyHp, phase, skirmishWinner, contested, finishOnce]);
 
   const onZoneClick = (e: React.MouseEvent) => {
     e.stopPropagation();

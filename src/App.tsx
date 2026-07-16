@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { GameProvider, useGame } from '@/hooks/useGameState';
 import ExitGameButton from '@/components/ExitGameButton';
+import AdBanner from '@/components/AdBanner';
 import ModeSelect from '@/pages/ModeSelect';
 import LobbyScreen from '@/pages/LobbyScreen';
 import Home from '@/pages/Home';
@@ -72,9 +73,10 @@ export default function App() {
   return (
     <ErrorBoundary>
       <GameProvider>
-        <div className="flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2] safe-x md:py-4 lg:py-5">
+        <div className="flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2] safe-x md:py-4 lg:py-5 pb-16 sm:pb-[4.5rem]">
           <ExitGameButton />
           <GameRouter />
+          <AdBanner />
         </div>
       </GameProvider>
     </ErrorBoundary>

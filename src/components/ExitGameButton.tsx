@@ -13,10 +13,10 @@ export default function ExitGameButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed top-3 right-3 z-[80] md:top-7 lg:top-8 safe-top w-9 h-9 rounded-full border border-[#2A3550]/80 bg-[#0A0E1A]/70 text-[#8B9BB4] hover:text-[#C9A84C] hover:border-[#C9A84C] hover:bg-[#141B2D] flex items-center justify-center transition-colors backdrop-blur-sm"
+        className="fixed top-3 right-3 z-[80] md:top-7 lg:top-8 safe-top w-9 h-9 p-0 rounded-full border border-[#2A3550]/80 bg-[#0A0E1A]/70 text-[#8B9BB4] hover:text-[#C9A84C] hover:border-[#C9A84C] hover:bg-[#141B2D] inline-flex items-center justify-center overflow-hidden leading-none transition-colors backdrop-blur-sm"
         aria-label="Salir del juego"
       >
-        <X className="w-4 h-4" strokeWidth={2.5} />
+        <X className="size-4 shrink-0 block" strokeWidth={2.5} aria-hidden />
       </button>
 
       {open && (
