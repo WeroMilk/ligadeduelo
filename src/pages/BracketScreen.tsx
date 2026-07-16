@@ -83,14 +83,6 @@ export default function BracketScreen() {
             </p>
           </div>
 
-          <div className="mt-1.5 md:mt-2 flex items-center gap-2 rounded-lg border border-[#6B1FA6]/35 bg-[#6B1FA6]/10 px-2.5 py-1">
-            <Ghost className="w-3.5 h-3.5 text-[#C39BD3] shrink-0" />
-            <p className="text-[11px] text-[#C39BD3] truncate">
-              Rival: <span className="font-bold">{tournament.rivalTeamName || 'Rival'}</span>
-              {state.defeatedRival ? ' · ¡vencido!' : ' · te persigue en el bracket'}
-            </p>
-          </div>
-
           <div className="flex gap-2 mt-2 md:mt-3">
             {['Octavos', 'Cuartos', 'Semifinal', 'Final'].map((name, i) => (
               <div

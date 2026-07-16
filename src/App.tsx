@@ -94,15 +94,18 @@ function AppShell() {
   }, [egg.phase]);
 
   return (
-    <div className="flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2] safe-x md:px-4 lg:px-6">
-      <ExitGameButton />
-      <CoffeeTipButton />
-      <AudioBoot />
-      <main className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-        <div className="flex h-full min-h-0 w-full flex-col">
-          <GameRouter />
-        </div>
-      </main>
+    <div className="flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2]">
+      <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden safe-x md:px-4 lg:px-6">
+        <ExitGameButton />
+        <CoffeeTipButton />
+        <AudioBoot />
+        <main className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+          <div className="flex h-full min-h-0 w-full flex-col">
+            <GameRouter />
+          </div>
+        </main>
+      </div>
+      {/* Banner a ancho completo (fuera del padding de la app) */}
       <AdBanner />
       <PostMatchAd />
       <AdUnlockModal open={showUnlockPrompt} onClose={() => setPromptDismissed(true)} />
