@@ -19,8 +19,8 @@ export default function Home() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 safe-top safe-chrome-x pb-4 safe-bottom">
-        <div className="w-full max-w-md space-y-4 md:space-y-6 text-center">
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 safe-top safe-chrome-x pb-6 safe-bottom">
+        <div className="w-full max-w-md -translate-y-8 space-y-4 text-center md:-translate-y-6 md:space-y-6">
           <div>
             <h1
               className="text-2xl md:text-3xl font-bold text-[#C9A84C] leading-tight"
