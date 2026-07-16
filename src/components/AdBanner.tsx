@@ -1,4 +1,4 @@
-/** Banner publicitario permanente. Móvil intacto; desktop más ancho y alto. */
+/** Banner publicitario permanente. Móvil intacto; en desktop solo el PNG (sin franjas). */
 import { useSyncExternalStore } from 'react';
 import { registerBannerTap } from '@/lib/ad-easter-egg';
 import { getAdsDisabledForever, subscribeAdsDisabledForever } from '@/lib/ad-premium';
@@ -19,23 +19,26 @@ export default function AdBanner() {
       role="complementary"
       aria-label="Publicidad"
     >
+      {/*
+        Móvil: ancho completo + cover (igual que antes).
+        Desktop: el botón se ajusta al ancho natural del PNG → sin franjas azules.
+      */}
       <button
         type="button"
-        className="group relative mx-auto block h-[72px] w-full max-w-3xl overflow-hidden rounded-md border border-white/15 bg-[#4f9bc4] shadow-[0_3px_18px_rgba(0,0,0,0.42)] md:h-[120px] md:max-w-6xl md:rounded-lg lg:h-[132px] lg:max-w-7xl"
+        className="group relative mx-auto block h-[72px] w-full max-w-3xl overflow-hidden rounded-md border border-white/15 bg-[#4f9bc4] shadow-[0_3px_18px_rgba(0,0,0,0.42)] md:flex md:h-[120px] md:w-fit md:max-w-full md:rounded-lg md:bg-transparent lg:h-[140px]"
         style={{ userSelect: 'none' }}
         onClick={() => registerBannerTap()}
         aria-label="Banner publicitario Servipartz"
       >
-        {/* La copia desenfocada mantiene el color en pantallas ultrapanorámicas. */}
         <img
           src={AD_IMG}
           alt=""
           aria-hidden
-          className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-70 blur-xl saturate-125"
+          className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-70 blur-xl saturate-125 md:hidden"
           draggable={false}
         />
         <div
-          className="pointer-events-none absolute inset-0"
+          className="pointer-events-none absolute inset-0 md:hidden"
           style={{
             background:
               'linear-gradient(90deg, rgba(7,17,29,0.22) 0%, transparent 16%, transparent 84%, rgba(7,17,29,0.22) 100%)',
@@ -46,7 +49,7 @@ export default function AdBanner() {
         <img
           src={AD_IMG}
           alt="Servipartz · Dispensadores de agua · Contáctanos +52 662 404 9965"
-          className="pointer-events-none relative z-[1] h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.015] md:object-contain"
+          className="pointer-events-none relative z-[1] h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.015] md:w-auto md:max-h-full md:object-contain"
           loading="lazy"
           decoding="async"
           draggable={false}
