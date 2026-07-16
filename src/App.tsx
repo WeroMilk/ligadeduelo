@@ -73,12 +73,25 @@ export default function App() {
   return (
     <ErrorBoundary>
       <GameProvider>
-        <div className="flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2] safe-x md:py-4 lg:py-5 pb-16 sm:pb-[4.5rem]">
-          <ExitGameButton />
-          <GameRouter />
-          <AdBanner />
-        </div>
+        <AppShell />
       </GameProvider>
     </ErrorBoundary>
+  );
+}
+
+function AppShell() {
+  const { state } = useGame();
+  const hideAd = state.currentScreen === 'liveMatch';
+
+  return (
+    <div
+      className={`flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2] safe-x md:py-4 lg:py-5 ${
+        hideAd ? 'pb-0' : 'pb-11'
+      }`}
+    >
+      <ExitGameButton />
+      <GameRouter />
+      <AdBanner />
+    </div>
   );
 }
