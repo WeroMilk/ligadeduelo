@@ -150,22 +150,31 @@ export default function ModeSelect() {
 
   return (
     <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden bg-[#05080f]">
-      {/* Fondo: por debajo de todo; portrait móvil / landscape desktop */}
-      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden>
+      {/* Fondo: móvil full-bleed; desktop arte centrado sin estirar */}
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-[#05080f]" aria-hidden>
         <img
           src="/backgrounds/rift-portrait.png"
           alt=""
           className="absolute inset-0 h-full w-full object-cover object-center md:hidden"
           draggable={false}
         />
-        <img
-          src="/backgrounds/rift-landscape.png"
-          alt=""
-          className="absolute inset-0 hidden h-full w-full object-cover object-center md:block"
-          draggable={false}
+        <div className="absolute inset-0 hidden md:flex items-center justify-center">
+          <img
+            src="/backgrounds/rift-landscape.png"
+            alt=""
+            className="h-full w-full max-h-[min(58vh,540px)] max-w-[min(96vw,1100px)] object-contain object-center opacity-95"
+            draggable={false}
+          />
+        </div>
+        {/* Velo + viñeta: integra el arte con el UI */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#05080f]/60 via-[#05080f]/30 to-[#05080f]/80 md:from-[#05080f]/70 md:via-transparent md:to-[#05080f]/85" />
+        <div
+          className="absolute inset-0 hidden md:block"
+          style={{
+            background:
+              'radial-gradient(ellipse 75% 65% at 50% 42%, transparent 0%, rgba(5,8,15,0.35) 55%, rgba(5,8,15,0.92) 100%)',
+          }}
         />
-        {/* Velo suave para legibilidad del UI sin tapar el arte */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#05080f]/55 via-[#05080f]/35 to-[#05080f]/75 md:from-[#05080f]/45 md:via-[#05080f]/25 md:to-[#05080f]/70" />
       </div>
 
       <div className="relative z-10 shrink-0 px-4 safe-top safe-chrome-x pb-2 text-center md:pb-2">

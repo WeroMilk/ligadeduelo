@@ -13,16 +13,16 @@ export default function AdBanner() {
 
   return (
     <div
-      className="pointer-events-none relative z-[40] w-full shrink-0 px-3 pt-2"
-      style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))' }}
+      className="pointer-events-none relative z-[40] w-full shrink-0 px-3 pt-1"
+      style={{ paddingBottom: 'max(0.35rem, env(safe-area-inset-bottom, 0px))' }}
       role="complementary"
       aria-label="Publicidad"
     >
       <div
-        className="relative mx-auto h-[88px] w-full max-w-5xl overflow-hidden rounded-md border border-[#2A3550]/80 bg-[#0E121C] shadow-[0_4px_18px_rgba(0,0,0,0.35)] sm:h-[110px] md:h-[140px] lg:h-[160px]"
+        className="relative mx-auto h-[52px] w-full max-w-2xl overflow-hidden rounded-md border border-[#2A3550]/80 bg-[#0E121C] shadow-[0_2px_12px_rgba(0,0,0,0.35)] sm:h-[60px] md:h-[72px] lg:max-w-3xl lg:h-[80px]"
         style={{ userSelect: 'none' }}
       >
-        <span className="absolute right-1.5 top-1.5 z-10 rounded bg-black/55 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-white/90">
+        <span className="absolute right-1 top-1 z-10 rounded bg-black/55 px-1 py-0.5 text-[8px] font-bold uppercase tracking-[0.14em] text-white/90">
           Publicidad
         </span>
 
