@@ -85,7 +85,7 @@ export default function App() {
 }
 
 function AppShell() {
-  const egg = useSyncExternalStore(subscribeEasterEgg, getEasterEggSnapshot, () => getEasterEggSnapshot());
+  const egg = useSyncExternalStore(subscribeEasterEgg, getEasterEggSnapshot, getEasterEggSnapshot);
   const [promptDismissed, setPromptDismissed] = useState(false);
   const showUnlockPrompt = egg.phase === 'prompt' && !promptDismissed;
 

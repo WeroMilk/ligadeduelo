@@ -13,14 +13,21 @@ const TAPS_NEEDED = 7;
 let phase: EasterEggPhase = 'idle';
 let logoTaps = 0;
 let bannerTaps = 0;
+/** Referencia estable para useSyncExternalStore (Object.is). */
+let snapshot: Snapshot = { phase, logoTaps, bannerTaps };
 const listeners = new Set<() => void>();
 
+function refreshSnapshot() {
+  snapshot = { phase, logoTaps, bannerTaps };
+}
+
 function notify() {
+  refreshSnapshot();
   listeners.forEach(l => l());
 }
 
 export function getEasterEggSnapshot(): Snapshot {
-  return { phase, logoTaps, bannerTaps };
+  return snapshot;
 }
 
 export function subscribeEasterEgg(listener: () => void) {
@@ -32,6 +39,7 @@ export function subscribeEasterEgg(listener: () => void) {
 
 export function resetEasterEgg() {
   if (phase === 'prompt') return;
+  if (phase === 'idle' && logoTaps === 0 && bannerTaps === 0) return;
   phase = 'idle';
   logoTaps = 0;
   bannerTaps = 0;
@@ -62,10 +70,8 @@ export function registerBannerTap() {
   bannerTaps += 1;
   if (bannerTaps >= TAPS_NEEDED) {
     phase = 'prompt';
-    notify();
-  } else {
-    notify();
   }
+  notify();
 }
 
 export function closeEasterEggPrompt() {
