@@ -49,52 +49,62 @@ export function subscribeAudioPrefs(cb: (p: Prefs) => void): () => void {
   return () => { listeners.delete(cb); };
 }
 
-function ctx(): AudioContext | null {
+/** Crea el contexto solo tras un gesto (unlockAudio). Evita el warning de autoplay. */
+function createCtx(): AudioContext | null {
   if (typeof window === 'undefined') return null;
-  if (!audioCtx) {
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AC) return null;
-    audioCtx = new AC();
-  }
+  if (audioCtx) return audioCtx;
+  const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  if (!AC) return null;
+  audioCtx = new AC();
+  return audioCtx;
+}
+
+function runningCtx(): AudioContext | null {
+  if (!unlocked || !audioCtx || audioCtx.state !== 'running') return null;
   return audioCtx;
 }
 
 export async function unlockAudio(): Promise<void> {
-  const c = ctx();
+  const c = createCtx();
   if (!c) return;
   try {
     if (c.state === 'suspended') await c.resume();
-    unlocked = true;
-    if (!getAudioPrefs().musicMuted) startBackgroundMusic();
+    unlocked = c.state === 'running';
+    if (unlocked && !getAudioPrefs().musicMuted) startBackgroundMusic();
   } catch {
-    /* ignore */
+    unlocked = false;
   }
-}
-
-function ensureUnlocked() {
-  if (!unlocked) void unlockAudio();
 }
 
 function beep(freq: number, duration: number, type: OscillatorType = 'square', gain = 0.04) {
   if (getAudioPrefs().sfxMuted) return;
-  try {
-    const c = ctx();
-    if (!c) return;
-    ensureUnlocked();
-    if (c.state === 'suspended') void c.resume();
-    const osc = c.createOscillator();
-    const g = c.createGain();
-    osc.type = type;
-    osc.frequency.value = freq;
-    const now = c.currentTime;
-    g.gain.setValueAtTime(Math.max(0.0001, gain), now);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(0.01, duration));
-    osc.connect(g);
-    g.connect(c.destination);
-    osc.start(now);
-    osc.stop(now + duration + 0.02);
-  } catch {
-    /* ignore */
+  const play = () => {
+    try {
+      const c = runningCtx();
+      if (!c) return;
+      const osc = c.createOscillator();
+      const g = c.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      const now = c.currentTime;
+      g.gain.setValueAtTime(Math.max(0.0001, gain), now);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(0.01, duration));
+      osc.connect(g);
+      g.connect(c.destination);
+      osc.start(now);
+      osc.stop(now + duration + 0.02);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  if (runningCtx()) {
+    play();
+    return;
+  }
+  // Primer gesto: crea/reanuda. No forzar resume si ya hay contexto suspendido sin gesto.
+  if (!audioCtx) {
+    void unlockAudio().then(play);
   }
 }
 
@@ -166,7 +176,7 @@ const MELODY = [
 function playMelodyNote(freq: number, dur = 0.35) {
   if (getAudioPrefs().musicMuted || !musicGain) return;
   try {
-    const c = ctx();
+    const c = runningCtx();
     if (!c || !musicGain) return;
     const osc = c.createOscillator();
     const g = c.createGain();
@@ -186,7 +196,7 @@ function playMelodyNote(freq: number, dur = 0.35) {
 }
 
 function addDrone(freq: number, vol: number) {
-  const c = ctx();
+  const c = runningCtx();
   if (!c || !musicGain) return;
   const osc = c.createOscillator();
   const gain = c.createGain();
@@ -201,11 +211,9 @@ function addDrone(freq: number, vol: number) {
 
 export function startBackgroundMusic() {
   if (getAudioPrefs().musicMuted || musicPlaying) return;
-  const c = ctx();
+  const c = runningCtx();
   if (!c) return;
   try {
-    if (c.state === 'suspended') void c.resume();
-
     musicGain = c.createGain();
     musicGain.gain.value = 0.92;
     musicGain.connect(c.destination);
@@ -248,10 +256,7 @@ export function stopBackgroundMusic() {
 export function setMusicMuted(muted: boolean) {
   writeBool(LS_MUSIC, muted);
   if (muted) stopBackgroundMusic();
-  else {
-    ensureUnlocked();
-    startBackgroundMusic();
-  }
+  else void unlockAudio();
   notify();
 }
 

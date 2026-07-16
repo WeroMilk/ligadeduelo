@@ -6,17 +6,18 @@ export default function AudioBoot() {
   useEffect(() => {
     const boot = () => {
       void unlockAudio();
-      window.removeEventListener('pointerdown', boot);
-      window.removeEventListener('keydown', boot);
-      window.removeEventListener('touchstart', boot);
+      window.removeEventListener('pointerdown', boot, true);
+      window.removeEventListener('keydown', boot, true);
+      window.removeEventListener('touchstart', boot, true);
     };
-    window.addEventListener('pointerdown', boot, { once: true });
-    window.addEventListener('keydown', boot, { once: true });
-    window.addEventListener('touchstart', boot, { once: true });
+    // Capture: corre antes que onClick, así el contexto ya se reanuda en el gesto.
+    window.addEventListener('pointerdown', boot, { capture: true, once: true });
+    window.addEventListener('keydown', boot, { capture: true, once: true });
+    window.addEventListener('touchstart', boot, { capture: true, once: true });
     return () => {
-      window.removeEventListener('pointerdown', boot);
-      window.removeEventListener('keydown', boot);
-      window.removeEventListener('touchstart', boot);
+      window.removeEventListener('pointerdown', boot, true);
+      window.removeEventListener('keydown', boot, true);
+      window.removeEventListener('touchstart', boot, true);
     };
   }, []);
   return null;
