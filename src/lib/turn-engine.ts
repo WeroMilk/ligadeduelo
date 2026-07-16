@@ -66,12 +66,12 @@ const COMBAT_DAMAGE_MULT = 0.9;
 const AI_DAMAGE_MULT = 1.24;
 const DEFEND_DAMAGE_MULT = 0.48;
 const BURN_ARMOR_DMG = 12;
-/** Torres un poco más duras → asediar hasta el nexo cuesta más. */
-const TOWER_MAX_HP = 1550;
-const NEXUS_MAX_HP = 2400;
-/** ~5–6 golpes por torre */
-const SIEGE_TOWER_DMG = 260;
-const SIEGE_NEXUS_DMG = 360;
+/** HP que permite tumbar torre+nexo antes de la ronda 10 si dejas una línea sola. */
+const TOWER_MAX_HP = 1400;
+const NEXUS_MAX_HP = 2000;
+/** ~2–3 golpes por torre, ~3 por nexo. */
+const SIEGE_TOWER_DMG = 520;
+const SIEGE_NEXUS_DMG = 700;
 
 function pushFloat(
   floats: CombatFloat[],
@@ -762,7 +762,8 @@ function resolveLaneGroup(
         resolveFocusStrike(
           atk, target, state, log, duels, floats, lane, killEvents, allyTotal, enemyTotal,
         );
-      } else if (atk.action !== 'defend') {
+      } else {
+        // Sin contrincante: siempre asedia torre/nexo (errores de carril)
         const towerTeam: TeamColor = atk.champ.team === 'blue' ? 'red' : 'blue';
         siegeTower(state, towerTeam, lane, atk.champ, log, duels, floats, towerStats);
       }
@@ -772,23 +773,31 @@ function resolveLaneGroup(
   focusExtras(blueExtras, red, blue.length, red.length);
   focusExtras(redExtras, blue, red.length, blue.length);
 
-  // Si un bando limpió la línea, quienes pelearon 1v1 y siguen vivos pueden asediar
+  // Si un bando limpió la línea, quienes pelearon 1v1 y siguen vivos asedian sí o sí
   const redLeft = red.some(r => r.champ.isAlive && r.champ.stats.hp > 0);
   const blueLeft = blue.some(b => b.champ.isAlive && b.champ.stats.hp > 0);
   if (!redLeft) {
     for (const bf of blue) {
-      if (!bf.champ.isAlive || bf.champ.stats.hp <= 0 || bf.action === 'defend') continue;
+      if (!bf.champ.isAlive || bf.champ.stats.hp <= 0) continue;
       if (!pairedBlue.has(bf.champ.instanceId)) continue; // extras ya asediaron si no había blanco
       siegeTower(state, 'red', lane, bf.champ, log, duels, floats, towerStats);
     }
   }
   if (!blueLeft) {
     for (const rf of red) {
-      if (!rf.champ.isAlive || rf.champ.stats.hp <= 0 || rf.action === 'defend') continue;
+      if (!rf.champ.isAlive || rf.champ.stats.hp <= 0) continue;
       if (!pairedRed.has(rf.champ.instanceId)) continue;
       siegeTower(state, 'blue', lane, rf.champ, log, duels, floats, towerStats);
     }
   }
+}
+
+function calcSiegeDamage(sieger: Champion, base: number, target: 'tower' | 'nexus'): number {
+  let dmg = base;
+  const passive = champDef(sieger).passive?.id;
+  if (passive === 'blast') dmg = Math.floor(dmg * 1.3);
+  if (passive === 'fortify' && target === 'tower') dmg = Math.floor(dmg * 1.25);
+  return dmg;
 }
 
 function siegeTower(
@@ -818,7 +827,8 @@ function siegeTower(
   if (!tower) {
     const nexus = state.structures.find(s => s.type === 'nexus' && s.team === towerTeam && !s.isDestroyed);
     if (nexus) {
-      const dmg = Math.min(SIEGE_NEXUS_DMG, nexus.hp);
+      const raw = calcSiegeDamage(sieger, SIEGE_NEXUS_DMG, 'nexus');
+      const dmg = Math.min(raw, nexus.hp);
       nexus.hp = Math.max(0, nexus.hp - dmg);
       siegerSnap.damageDealt = dmg;
       pushFloat(floats, {
@@ -852,7 +862,8 @@ function siegeTower(
     return;
   }
 
-  const dmg = Math.min(SIEGE_TOWER_DMG, tower.hp);
+  const raw = calcSiegeDamage(sieger, SIEGE_TOWER_DMG, 'tower');
+  const dmg = Math.min(raw, tower.hp);
   tower.hp = Math.max(0, tower.hp - dmg);
   siegerSnap.damageDealt = dmg;
   pushFloat(floats, {
@@ -865,8 +876,10 @@ function siegeTower(
   });
   pushLog(log, `${champDef(sieger).name} asedia la torre ${laneLabel(lane)} · ${dmg} de daño (${tower.hp}/${tower.maxHp})`);
   let summary = `${champDef(sieger).name} asedia torre ${laneLabel(lane)} (−${dmg})`;
+  let towerFell = false;
   if (tower.hp <= 0) {
     tower.isDestroyed = true;
+    towerFell = true;
     if (sieger.team === 'blue') {
       state.blue.score += POINTS_TOWER;
       towerStats.blue += 1;
@@ -886,6 +899,10 @@ function siegeTower(
     summary,
     siegeTargetId: tower.id,
   });
+  // Al tumbar la torre, el mismo golpe sigue al nexo (empuje de línea libre)
+  if (towerFell) {
+    siegeTower(state, towerTeam, lane, sieger, log, duels, floats, towerStats);
+  }
 }
 
 function objectiveParticipants(team: TeamData, plan: TeamPlan): Champion[] {

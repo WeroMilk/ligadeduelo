@@ -318,6 +318,7 @@ export default function ObjectiveMinigame({
       if (Math.random() < ENEMY_ESCAPE_CHANCE) {
         setPhase('escape-popup');
         setLog('El enemigo escapó');
+        finishedRef.current = false;
       } else {
         continueAfterFate('blue', 'killed');
       }
@@ -398,6 +399,46 @@ export default function ObjectiveMinigame({
     }, 280);
   };
 
+  /** Simula solo la fase actual (escaramuza o monstruo). No toca barras para no re-disparar effects. */
+  const simulatePhase = () => {
+    if (completedRef.current || finishedRef.current) return;
+    if (phase === 'escape-popup') return;
+
+    finishedRef.current = true;
+    setZone(null);
+
+    if (phase === 'skirmish') {
+      const playerWins = Math.random() < 0.55;
+      if (playerWins) {
+        setLog('Simulado · ganaste el choque');
+        if (Math.random() < ENEMY_ESCAPE_CHANCE) {
+          setPhase('escape-popup');
+          setLog('Simulado · el enemigo escapó');
+          finishedRef.current = false;
+        } else {
+          continueAfterFate('blue', 'killed');
+        }
+      } else {
+        setLog('Simulado · el rival gana el choque');
+        continueAfterFate('red', 'killed');
+      }
+      return;
+    }
+
+    if (phase === 'monster') {
+      const taken = Math.random() < 0.68;
+      setLog(taken ? 'Simulado · objetivo conquistado' : 'Simulado · fallaste el objetivo');
+      window.setTimeout(() => {
+        finishOnce({
+          skirmishWinner: contested ? 'blue' : null,
+          attackingTeam: 'blue',
+          monsterTaken: taken,
+          loserFate: contested ? loserFateRef.current : undefined,
+        });
+      }, 450);
+    }
+  };
+
   const label = isGank
     ? `Choque · ${pending.lane === 0 ? 'Superior' : pending.lane === 2 ? 'Inferior' : 'Central'}`
     : objectiveName(pending.objective);
@@ -440,99 +481,111 @@ export default function ObjectiveMinigame({
             </button>
           </div>
         ) : (
-          <div
-            className={`relative h-72 sm:h-80 bg-[#141B2D] ${
-              flash === 'hit' ? 'ring-2 ring-[#2ECC71]' : flash === 'miss' ? 'ring-2 ring-[#E74C3C]' : ''
-            }`}
-          >
-            {phase === 'skirmish' ? (
-              <div className="absolute inset-x-4 top-3 space-y-2">
-                <div>
-                  <div className="flex justify-between text-[10px] mb-0.5">
-                    <span className="text-[#3498DB]">Tu equipo</span>
-                    <span className="text-[#3498DB]">{blueBar}%</span>
+          <>
+            <div
+              className={`relative h-72 sm:h-80 bg-[#141B2D] ${
+                flash === 'hit' ? 'ring-2 ring-[#2ECC71]' : flash === 'miss' ? 'ring-2 ring-[#E74C3C]' : ''
+              }`}
+            >
+              {phase === 'skirmish' ? (
+                <div className="absolute inset-x-4 top-3 space-y-2">
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-0.5">
+                      <span className="text-[#3498DB]">Tu equipo</span>
+                      <span className="text-[#3498DB]">{blueBar}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-black/50 overflow-hidden">
+                      <div className="h-full bg-[#3498DB] transition-all" style={{ width: `${blueBar}%` }} />
+                    </div>
                   </div>
-                  <div className="h-2 rounded-full bg-black/50 overflow-hidden">
-                    <div className="h-full bg-[#3498DB] transition-all" style={{ width: `${blueBar}%` }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-[10px] mb-0.5">
-                    <span className="text-[#E74C3C]">Enemigos</span>
-                    <span className="text-[#E74C3C]">{redBar}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-black/50 overflow-hidden">
-                    <div className="h-full bg-[#E74C3C] transition-all" style={{ width: `${redBar}%` }} />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="absolute inset-x-4 top-3 space-y-2">
-                <div>
-                  <div className="flex justify-between text-[10px] mb-0.5">
-                    <span className="text-[#E67E22]">{label}</span>
-                    <span className="text-[#E67E22]">{monsterHp}%</span>
-                  </div>
-                  <div className="h-2.5 rounded-full bg-black/50 overflow-hidden">
-                    <div className="h-full bg-[#E67E22] transition-all" style={{ width: `${monsterHp}%` }} />
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-0.5">
+                      <span className="text-[#E74C3C]">Enemigos</span>
+                      <span className="text-[#E74C3C]">{redBar}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-black/50 overflow-hidden">
+                      <div className="h-full bg-[#E74C3C] transition-all" style={{ width: `${redBar}%` }} />
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div className="flex justify-between text-[10px] mb-0.5">
-                    <span className="text-[#3498DB]">Tu equipo</span>
-                    <span className="text-[#3498DB]">{allyHp}%</span>
+              ) : (
+                <div className="absolute inset-x-4 top-3 space-y-2">
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-0.5">
+                      <span className="text-[#E67E22]">{label}</span>
+                      <span className="text-[#E67E22]">{monsterHp}%</span>
+                    </div>
+                    <div className="h-2.5 rounded-full bg-black/50 overflow-hidden">
+                      <div className="h-full bg-[#E67E22] transition-all" style={{ width: `${monsterHp}%` }} />
+                    </div>
                   </div>
-                  <div className="h-2 rounded-full bg-black/50 overflow-hidden">
-                    <div className="h-full bg-[#27AE60] transition-all" style={{ width: `${allyHp}%` }} />
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-0.5">
+                      <span className="text-[#3498DB]">Tu equipo</span>
+                      <span className="text-[#3498DB]">{allyHp}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-black/50 overflow-hidden">
+                      <div className="h-full bg-[#27AE60] transition-all" style={{ width: `${allyHp}%` }} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div className="absolute inset-x-0 top-[4.5rem] bottom-10 flex items-center justify-between px-5 sm:px-8 pointer-events-none">
-              <div className="flex flex-col gap-2 items-start">
-                {blueShown.map(c => (
-                  <Portrait key={c.instanceId} champ={c} side="blue" anim={blueAnim} />
-                ))}
+              <div className="absolute inset-x-0 top-[4.5rem] bottom-10 flex items-center justify-between px-5 sm:px-8 pointer-events-none">
+                <div className="flex flex-col gap-2 items-start">
+                  {blueShown.map(c => (
+                    <Portrait key={c.instanceId} champ={c} side="blue" anim={blueAnim} />
+                  ))}
+                </div>
+
+                <div className="flex flex-col items-center gap-1">
+                  {phase === 'skirmish' || !pending.objective ? (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">contra</span>
+                  ) : (
+                    <MonsterIcon obj={pending.objective} anim={monsterAnim} />
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2 items-end">
+                  {phase === 'skirmish'
+                    ? redShown.map(c => (
+                        <Portrait key={c.instanceId} champ={c} side="red" anim={redAnim} />
+                      ))
+                    : null}
+                </div>
               </div>
 
-              <div className="flex flex-col items-center gap-1">
-                {phase === 'skirmish' || !pending.objective ? (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">contra</span>
-                ) : (
-                  <MonsterIcon obj={pending.objective} anim={monsterAnim} />
-                )}
-              </div>
+              {zone && (
+                <button
+                  type="button"
+                  onClick={onZoneClick}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-[#F1C40F] bg-[#F1C40F]/25 animate-obj-zone z-10"
+                  style={{
+                    left: `${zone.x}%`,
+                    top: `${zone.y}%`,
+                    width: profile.zoneSizePx,
+                    height: profile.zoneSizePx,
+                  }}
+                  aria-label="Zona de acierto"
+                />
+              )}
 
-              <div className="flex flex-col gap-2 items-end">
-                {phase === 'skirmish'
-                  ? redShown.map(c => (
-                      <Portrait key={c.instanceId} champ={c} side="red" anim={redAnim} />
-                    ))
-                  : null}
-              </div>
+              <p className="absolute bottom-3 inset-x-0 text-center text-[10px] text-[#8B9BB4]">
+                Equipo atacante: {attackingTeam === 'blue' ? 'Azul (tú)' : 'Rojo'}
+                {loserFate === 'escaped' && skirmishWinner === 'blue' ? ' · el rival escapó' : ''}
+              </p>
             </div>
 
-            {zone && (
+            <div className="border-t border-[#2A3550] px-4 py-3">
               <button
                 type="button"
-                onClick={onZoneClick}
-                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-[#F1C40F] bg-[#F1C40F]/25 animate-obj-zone z-10"
-                style={{
-                  left: `${zone.x}%`,
-                  top: `${zone.y}%`,
-                  width: profile.zoneSizePx,
-                  height: profile.zoneSizePx,
-                }}
-                aria-label="Zona de acierto"
-              />
-            )}
-
-            <p className="absolute bottom-3 inset-x-0 text-center text-[10px] text-[#8B9BB4]">
-              Equipo atacante: {attackingTeam === 'blue' ? 'Azul (tú)' : 'Rojo'}
-              {loserFate === 'escaped' && skirmishWinner === 'blue' ? ' · el rival escapó' : ''}
-            </p>
-          </div>
+                onClick={simulatePhase}
+                className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/45 bg-[#C9A84C]/12 font-bold text-[#C9A84C] active:scale-[0.99]"
+              >
+                Simular
+              </button>
+            </div>
+          </>
         )}
       </div>
     </div>

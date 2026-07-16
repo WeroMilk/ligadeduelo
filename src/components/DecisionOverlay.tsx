@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { Ghost, TreePine } from 'lucide-react';
+import { Ghost, TreePine, Dices } from 'lucide-react';
 import type { Champion, LaneId } from '@/types/game';
 import { CHAMPIONS, ROLE_NAMES } from '@/lib/game-data';
 import { playDecideSound } from '@/lib/sounds';
@@ -20,6 +20,22 @@ type Props = {
   onPick: (payload: DecisionPayload) => void;
 };
 
+function simulateJunglePick(allowObjective: boolean): DecisionPayload {
+  const lanes: LaneId[] = [0, 1, 2];
+  const options: Array<LaneId | 'objective'> = [...lanes];
+  if (allowObjective) options.push('objective');
+  const target = options[Math.floor(Math.random() * options.length)];
+  return { kind: 'jungle', target };
+}
+
+function simulateAssistPick(assistOptions: Champion[]): DecisionPayload | null {
+  const alive = assistOptions.filter(c => c.isAlive && c.stats.hp > 0);
+  const pool = alive.length > 0 ? alive : assistOptions;
+  if (pool.length === 0) return null;
+  const champ = pool[Math.floor(Math.random() * pool.length)];
+  return { kind: 'assist', champId: champ.instanceId };
+}
+
 export default function DecisionOverlay({
   kind,
   objectiveLabel,
@@ -32,6 +48,17 @@ export default function DecisionOverlay({
     playDecideSound();
     onPick(payload);
   };
+
+  const simulate = () => {
+    if (kind === 'jungle') {
+      pick(simulateJunglePick(allowObjective));
+      return;
+    }
+    const assist = simulateAssistPick(assistOptions);
+    if (assist) pick(assist);
+  };
+
+  const canSimulate = kind === 'jungle' || assistOptions.length > 0;
 
   const body = (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center px-3 pb-6 sm:pb-0 bg-black/55">
@@ -124,6 +151,17 @@ export default function DecisionOverlay({
               <p className="text-center text-xs text-[#E74C3C]">No hay aliados vivos para ayudar.</p>
             )}
           </>
+        )}
+
+        {canSimulate && (
+          <button
+            type="button"
+            onClick={simulate}
+            className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/45 bg-[#C9A84C]/12 font-bold text-[#C9A84C] active:scale-[0.99]"
+          >
+            <Dices className="h-4 w-4" />
+            Simular
+          </button>
         )}
       </div>
     </div>

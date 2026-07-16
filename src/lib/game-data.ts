@@ -280,8 +280,8 @@ export const POINTS_KILL = 1;
 export const POINTS_TOWER = 0;
 export const POINTS_OBJECTIVE = 0;
 export const POINTS_NEXUS = 0;
-/** Extra siege stacks when a lane is left empty for objective help */
-export const FREE_LANE_SIEGE_BONUS = 0;
+/** Extra siege hits when a lane is left empty for objective help */
+export const FREE_LANE_SIEGE_BONUS = 2;
 
 /** Orgs eSports con roster explícito (selección de integrantes). */
 export interface FanOrgPlayer {

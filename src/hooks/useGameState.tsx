@@ -8,6 +8,13 @@ import {
   createTurnMatch, createTurnTeam, resolveRound, generateAIPlan, aiBuyItems, finishPendingObjective,
 } from '@/lib/turn-engine';
 import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats } from '@/lib/game-data';
+import {
+  beginPlayerRun,
+  finalizePlayerRun,
+  noteObjectiveFromResolution,
+  recordPlayerMatchEnd,
+  resetCurrentMatchObjectives,
+} from '@/lib/player-leaderboard';
 
 const emptyPlan = (): TeamPlan => ({ actions: {}, ultimates: [], bootsLane: {} });
 
@@ -398,6 +405,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'CONFIRM_TEAM': {
       if (state.selectedChampions.length !== 5 || state.selectedRoster.length !== 5) return state;
+      beginPlayerRun(
+        state.playerTeamName || 'Mi Equipo',
+        state.selectedRoster,
+        state.selectedChampions.map(c => c.defId),
+      );
       const playerTeam = createTeam(
         'player',
         state.playerTeamName || 'Mi Equipo',
@@ -421,6 +433,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const blue = createTurnTeam(match.teamA.id, match.teamA.name, 'blue', match.teamA.champions.map(c => c.defId));
       const red = createTurnTeam(match.teamB.id, match.teamB.name, 'red', match.teamB.champions.map(c => c.defId));
       const turnMatch = createTurnMatch(blue, red, null);
+      if (match.isPlayerMatch) resetCurrentMatchObjectives();
       return {
         ...state,
         currentMatch: match,
@@ -461,6 +474,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       aiBuyItems(tm.red);
       const redPlan = generateAIPlan(tm, 'red', action.plan);
       const resolved = resolveRound(tm, action.plan, redPlan);
+      if (state.currentMatch?.isPlayerMatch) {
+        noteObjectiveFromResolution(resolved.lastResolution);
+      }
       const next = {
         ...state,
         turnMatch: { ...resolved, pendingReward: false },
@@ -474,6 +490,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'RESOLVE_OBJECTIVE_QTE': {
       if (!state.turnMatch?.pendingObjective) return state;
       const resolved = finishPendingObjective(state.turnMatch, action.qte);
+      if (state.currentMatch?.isPlayerMatch) {
+        noteObjectiveFromResolution(resolved.lastResolution);
+      }
       return {
         ...state,
         turnMatch: { ...resolved, pendingReward: false },
@@ -482,6 +501,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'FINISH_LIVE_MATCH': {
       if (!state.turnMatch) return state;
+      if (state.currentMatch?.isPlayerMatch) {
+        const winner = resolveLiveWinner(state.turnMatch);
+        const opponent =
+          state.currentMatch.teamA.id === 'player'
+            ? state.currentMatch.teamB.name
+            : state.currentMatch.teamA.name;
+        recordPlayerMatchEnd(state.turnMatch, opponent, winner === 'blue');
+      }
       return applyMatchEnd(state, state.turnMatch);
     }
 
@@ -577,6 +604,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'EXIT_TO_MODE':
     case 'RESET_TOURNAMENT':
+      finalizePlayerRun();
       return { ...initialState, currentScreen: 'modeSelect' };
 
     default:

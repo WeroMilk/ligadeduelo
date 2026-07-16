@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom';
 import { useGame } from '@/hooks/useGameState';
 import type { GameMode } from '@/types/game';
 import { registerLogoTap, resetEasterEgg } from '@/lib/ad-easter-egg';
-import { Bot, Users, Hash, Swords, BookOpen, X } from 'lucide-react';
+import { Bot, Users, Hash, Swords, BookOpen, X, Trophy } from 'lucide-react';
 import { playClickSound } from '@/lib/sounds';
+import PlayerLeaderboardModal from '@/components/PlayerLeaderboardModal';
 
 const MODES: { id: GameMode; title: string; desc: string; icon: React.ReactNode; enabled: boolean }[] = [
   {
@@ -154,6 +155,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
 export default function ModeSelect() {
   const { dispatch } = useGame();
   const [showRules, setShowRules] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   useEffect(() => () => resetEasterEgg(), []);
 
@@ -279,6 +281,25 @@ export default function ModeSelect() {
             </button>
           ))}
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            playClickSound();
+            setShowLeaderboard(true);
+          }}
+          className="mt-3 flex w-full items-center gap-3 rounded-2xl border-2 border-[#C9A84C]/35 bg-[#0D1220]/82 p-3 text-left backdrop-blur-md transition-all hover:border-[#C9A84C] hover:bg-[#0D1220]/90 active:scale-[0.99] shadow-[0_12px_40px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.04)] md:mt-5 md:p-4"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#2A3550] bg-[#0A0E1A]/80 text-[#C9A84C] md:h-12 md:w-12">
+            <Trophy className="h-5 w-5 md:h-6 md:w-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-sm text-[#F0E6D2] md:text-base">Mejores jugadores</p>
+            <p className="mt-0.5 text-[10px] leading-snug text-[#C5D0E0]/90 md:text-xs">
+              Estadísticas de torneos jugados en este dispositivo.
+            </p>
+          </div>
+        </button>
       </div>
 
       <p className="relative z-10 shrink-0 px-4 pb-1 pt-2 text-center text-[9px] text-[#8B9BB4]/70 md:pb-3 md:pt-1 md:text-[11px]">
@@ -286,6 +307,7 @@ export default function ModeSelect() {
       </p>
 
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+      {showLeaderboard && <PlayerLeaderboardModal onClose={() => setShowLeaderboard(false)} />}
     </div>
   );
 }
