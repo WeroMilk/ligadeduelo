@@ -78,22 +78,30 @@ export default function ChampionSelect() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="shrink-0 z-30 bg-[#0A0E1A] border-b border-[#1E2740] px-4 py-2.5 safe-top safe-chrome-x">
-        <div className="flex items-center justify-between max-w-6xl mx-auto gap-2">
-          <div className="min-w-0">
-            <h2 className="text-[#F0E6D2] font-bold text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
+      <div className="relative shrink-0 z-30 border-b border-[#1E2740] bg-[#0A0E1A] px-4 py-1.5 select-screen-top safe-chrome-x md:py-2.5">
+        <div className="mx-auto flex max-w-6xl items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-bold text-[#F0E6D2] md:text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
               Campeón por integrante
             </h2>
-            <p className="text-xs text-[#C9A84C] truncate">
+            <p className="truncate text-[11px] text-[#C9A84C] md:text-xs">
               {memberName || state.playerTeamName || 'Tu equipo'} · {state.selectedChampions.length}/5
             </p>
           </div>
-          <span className={`text-sm font-bold shrink-0 ${canConfirm ? 'text-[#2ECC71]' : 'text-[#8B9BB4]'}`}>
-            {state.selectedChampions.length}/5
-          </span>
+          <div className="flex shrink-0 items-start gap-2">
+            <NameSearch
+              pinned
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Buscar campeón..."
+            />
+            <span className={`pt-0.5 text-sm font-bold ${canConfirm ? 'text-[#2ECC71]' : 'text-[#8B9BB4]'}`}>
+              {state.selectedChampions.length}/5
+            </span>
+          </div>
         </div>
 
-        <div className="flex gap-2 mt-2 max-w-6xl mx-auto overflow-x-auto pb-1 scrollbar-hide touch-pan-x md:overflow-visible md:flex-wrap">
+        <div className="mx-auto mt-1.5 flex max-w-6xl gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide touch-pan-x md:mt-2 md:gap-2 md:overflow-visible md:flex-wrap md:pb-1">
           {ROLES.map(role => {
             const isActive = activeRole === role;
             const isSelected = !!selectedByRole[role];
@@ -118,19 +126,13 @@ export default function ChampionSelect() {
       </div>
 
       {error && (
-        <div className="shrink-0 max-w-6xl mx-auto px-4 mt-2 w-full">
-          <p className="text-[#E74C3C] text-sm text-center bg-[#E74C3C]/10 rounded-lg py-2 px-3">{error}</p>
+        <div className="mx-auto mt-1 w-full max-w-6xl shrink-0 px-4 md:mt-2">
+          <p className="rounded-lg bg-[#E74C3C]/10 px-3 py-1.5 text-center text-sm text-[#E74C3C]">{error}</p>
         </div>
       )}
 
-      {/* Mobile: grid 2 cols; Desktop: fila arriba con scroll si no cabe */}
-      <div className="relative flex-1 min-h-0 max-w-6xl mx-auto w-full px-4 py-2 overflow-y-auto scrollbar-hide md:pt-3">
-        <NameSearch
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Buscar campeón..."
-        />
-        <div className="grid grid-cols-2 gap-2.5 pb-2 md:grid-cols-3 lg:grid-cols-6 md:gap-2 md:w-full md:content-start md:auto-rows-min">
+      <div className="mx-auto min-h-0 w-full max-w-6xl flex-1 overflow-y-auto px-4 py-1 scrollbar-hide md:pt-3">
+        <div className="grid auto-rows-min grid-cols-2 content-start gap-2 pb-1 md:grid-cols-3 md:gap-2 lg:grid-cols-6 md:w-full md:pb-2">
           {roleChampions.length === 0 ? (
             <p className="col-span-full pt-10 text-center text-sm text-[#8B9BB4]">
               Ningún campeón coincide con la búsqueda.
@@ -213,26 +215,26 @@ export default function ChampionSelect() {
         </div>
       </div>
 
-      <div className="shrink-0 bg-[#0A0E1A] border-t border-[#1E2740] px-4 pt-2.5 pb-2">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center md:gap-4">
-          <div className="flex justify-center md:justify-start gap-2 mb-2.5 md:mb-0 md:flex-1">
+      <div className="shrink-0 border-t border-[#1E2740] bg-[#0A0E1A] px-4 py-1.5 md:pt-2.5 md:pb-2">
+        <div className="mx-auto flex max-w-6xl items-center gap-2 md:gap-4">
+          <div className="flex min-w-0 flex-1 justify-start gap-1.5 md:gap-2">
             {state.selectedChampions.map(c => {
               const def = CHAMPIONS.find(ch => ch.id === c.defId);
               if (!def) return null;
               return (
-                <div key={c.defId} className="relative">
+                <div key={c.defId} className="relative shrink-0">
                   {def.image ? (
-                    <img src={def.image} alt={def.name} className="w-10 h-10 rounded-full border-2 border-[#C9A84C] object-cover" />
+                    <img src={def.image} alt={def.name} className="h-9 w-9 rounded-full border-2 border-[#C9A84C] object-cover md:h-10 md:w-10" />
                   ) : (
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white border-2 border-[#C9A84C]" style={{ backgroundColor: def.color }}>
-                      <User className="w-4 h-4" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-[#C9A84C] text-xs font-bold text-white md:h-10 md:w-10" style={{ backgroundColor: def.color }}>
+                      <User className="h-4 w-4" />
                     </div>
                   )}
                 </div>
               );
             })}
             {Array.from({ length: 5 - state.selectedChampions.length }).map((_, i) => (
-              <div key={`empty-${i}`} className="w-10 h-10 rounded-full border-2 border-dashed border-[#2A3550] bg-[#141B2D]" />
+              <div key={`empty-${i}`} className="h-9 w-9 shrink-0 rounded-full border-2 border-dashed border-[#2A3550] bg-[#141B2D] md:h-10 md:w-10" />
             ))}
           </div>
 
@@ -240,14 +242,15 @@ export default function ChampionSelect() {
             type="button"
             onClick={handleConfirm}
             disabled={!canConfirm}
-            className={`w-full md:w-auto md:min-w-[240px] min-h-12 py-3.5 px-6 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all ${
+            className={`min-h-11 shrink-0 rounded-xl px-4 py-2.5 text-sm font-bold transition-all md:min-h-12 md:min-w-[240px] md:px-6 md:py-3.5 md:text-base flex items-center justify-center gap-2 ${
               canConfirm
                 ? 'bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] shadow-[0_4px_20px_rgba(201,168,76,0.3)] active:scale-[0.98]'
                 : 'bg-[#1E2740] text-[#4A5570] cursor-not-allowed'
             }`}
           >
-            CONFIRMAR EQUIPO
-            <ChevronRight className="w-5 h-5" />
+            <span className="hidden sm:inline">CONFIRMAR EQUIPO</span>
+            <span className="sm:hidden">CONFIRMAR</span>
+            <ChevronRight className="h-5 w-5" />
           </button>
         </div>
       </div>

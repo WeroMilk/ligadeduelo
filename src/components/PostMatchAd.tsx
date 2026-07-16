@@ -3,10 +3,11 @@
  * No se puede cerrar; los clics no hacen nada.
  * No se muestra al ganar la final del torneo.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { useGame } from '@/hooks/useGameState';
 import { setAdHidden } from '@/lib/ad-visibility';
+import { getAdsDisabledForever, subscribeAdsDisabledForever } from '@/lib/ad-premium';
 
 export const POST_MATCH_AD_MS = 8000;
 const AD_IMG = '/ads/adios-anuncios.png';
@@ -29,6 +30,7 @@ function shouldShowPostMatchAd(
 export default function PostMatchAd() {
   const { state } = useGame();
   const [visible, setVisible] = useState(false);
+  const adsOff = useSyncExternalStore(subscribeAdsDisabledForever, getAdsDisabledForever, () => false);
 
   const screen = state.currentScreen;
   const round = state.tournament?.currentRound;
@@ -37,7 +39,7 @@ export default function PostMatchAd() {
   const matchKey = `${screen}:${state.currentMatch?.id ?? 'm'}:${result}:${round}`;
 
   useEffect(() => {
-    if (!shouldShowPostMatchAd(screen, round, roundsLen, result)) {
+    if (adsOff || !shouldShowPostMatchAd(screen, round, roundsLen, result)) {
       setVisible(false);
       return;
     }
@@ -53,7 +55,7 @@ export default function PostMatchAd() {
       window.clearTimeout(t);
       setAdHidden(false);
     };
-  }, [matchKey, screen, round, roundsLen, result]);
+  }, [matchKey, screen, round, roundsLen, result, adsOff]);
 
   if (!visible) return null;
 

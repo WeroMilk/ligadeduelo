@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useGame } from '@/hooks/useGameState';
 import type { GameMode } from '@/types/game';
+import { registerLogoTap, resetEasterEgg } from '@/lib/ad-easter-egg';
 import { Bot, Users, Hash, Swords, BookOpen, X } from 'lucide-react';
 import { playClickSound } from '@/lib/sounds';
 
@@ -152,6 +153,8 @@ export default function ModeSelect() {
   const { dispatch } = useGame();
   const [showRules, setShowRules] = useState(false);
 
+  useEffect(() => () => resetEasterEgg(), []);
+
   return (
     <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden bg-[#0A0E1A]">
       {/* Fondo full-bleed: móvil portrait; desktop cover sin recuadro visible */}
@@ -200,9 +203,14 @@ export default function ModeSelect() {
               className="absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#C9A84C]/25 blur-2xl md:h-24 md:w-24"
               aria-hidden
             />
-            <div className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[#C9A84C]/30 bg-gradient-to-br from-[#C9A84C] to-[#8B6914] shadow-[0_0_32px_rgba(201,168,76,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] md:h-[4.5rem] md:w-[4.5rem]">
+            <button
+              type="button"
+              onClick={() => registerLogoTap()}
+              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[#C9A84C]/30 bg-gradient-to-br from-[#C9A84C] to-[#8B6914] shadow-[0_0_32px_rgba(201,168,76,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] md:h-[4.5rem] md:w-[4.5rem]"
+              aria-label="Liga de Duelo"
+            >
               <Swords className="h-6 w-6 text-[#0A0E1A] md:h-8 md:w-8" />
-            </div>
+            </button>
           </div>
 
           <h1

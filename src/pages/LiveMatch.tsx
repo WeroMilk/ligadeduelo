@@ -141,7 +141,6 @@ export default function LiveMatch() {
   const [cinemaRes, setCinemaRes] = useState<RoundResolution | null>(null);
   const [activeFloats, setActiveFloats] = useState<CombatFloat[]>([]);
   const [announceBatch, setAnnounceBatch] = useState<{ items: AnnounceItem[]; nonce: number } | null>(null);
-  const [announceBusy, setAnnounceBusy] = useState(false);
   const pickQueue = useRef<DecisionKind[]>([]);
   const picksRef = useRef<DecisionPayload[]>([]);
   const cinemaTimers = useRef<number[]>([]);
@@ -599,7 +598,7 @@ export default function LiveMatch() {
   return (
     <div className={`flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden relative ${shake ? 'animate-screen-shake' : ''}`}>
       <CombatScreenFX signal={fx} />
-      <CombatAnnounceOverlay batch={announceBatch} onBusyChange={setAnnounceBusy} />
+      <CombatAnnounceOverlay batch={announceBatch} />
 
       <div className="shrink-0 px-3 py-2 safe-top safe-chrome-x border-b border-[#1E2740] max-w-lg md:max-w-6xl mx-auto w-full md:px-4 md:py-3">
         <p className="text-[#C9A84C] text-[10px] md:text-xs uppercase tracking-wider">Partida en vivo</p>

@@ -1427,7 +1427,8 @@ function reviveDead(state: TurnMatchState, log: CombatLogLine[]) {
 function onDeathSetRespawn(state: TurnMatchState) {
   for (const c of [...state.blue.champions, ...state.red.champions]) {
     if (!c.isAlive && c.stats.hp <= 0 && c.respawnTimer <= 0) {
-      c.respawnTimer = 1;
+      // 2 → 1 al cerrar la ronda: falta el próximo turno completo antes de revivir
+      c.respawnTimer = 2;
     }
   }
 }

@@ -5,10 +5,13 @@ export default function NameSearch({
   value,
   onChange,
   placeholder = 'Buscar...',
+  pinned = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** En cabecera fija: no se pierde al hacer scroll. */
+  pinned?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -23,9 +26,15 @@ export default function NameSearch({
   };
 
   return (
-    <div className="pointer-events-auto absolute right-3 top-2 z-20 flex items-center md:right-4">
+    <div
+      className={
+        pinned
+          ? 'pointer-events-auto relative z-30 shrink-0'
+          : 'pointer-events-auto absolute right-3 top-2 z-20 flex items-center md:right-4'
+      }
+    >
       {open ? (
-        <div className="flex items-center gap-1 rounded-lg border border-[#2A3550] bg-[#141B2D]/95 py-0.5 pl-2 pr-1 shadow-lg backdrop-blur-sm">
+        <div className={`flex items-center gap-1 rounded-lg border border-[#2A3550] bg-[#141B2D]/95 py-0.5 pl-2 pr-1 shadow-lg backdrop-blur-sm ${pinned ? 'absolute right-0 top-0 w-[min(calc(100vw-2rem),17rem)]' : ''}`}>
           <Search className="h-3.5 w-3.5 shrink-0 text-[#8B9BB4]" aria-hidden />
           <input
             ref={inputRef}

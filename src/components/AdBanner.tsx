@@ -3,13 +3,17 @@
  * En partida en vivo se oculta solo durante decisiones o popups.
  */
 import { useSyncExternalStore } from 'react';
+import { registerBannerTap } from '@/lib/ad-easter-egg';
+import { getAdsDisabledForever, subscribeAdsDisabledForever } from '@/lib/ad-premium';
 import { getAdHidden, subscribeAdHidden } from '@/lib/ad-visibility';
 
 const AD_IMG = '/ads/servipartz.png';
 
 export default function AdBanner() {
   const hidden = useSyncExternalStore(subscribeAdHidden, getAdHidden, () => false);
-  if (hidden) return null;
+  const adsOff = useSyncExternalStore(subscribeAdsDisabledForever, getAdsDisabledForever, () => false);
+
+  if (hidden || adsOff) return null;
 
   return (
     <div
@@ -18,23 +22,26 @@ export default function AdBanner() {
       role="complementary"
       aria-label="Publicidad"
     >
-      <div
-        className="relative mx-auto w-full max-w-[728px] overflow-hidden"
+      <button
+        type="button"
+        className="relative mx-auto block w-full max-w-[728px] overflow-hidden"
         style={{ userSelect: 'none' }}
+        onClick={() => registerBannerTap()}
+        aria-label="Banner publicitario"
       >
-        <span className="absolute right-1 top-1 z-10 rounded bg-black/65 px-1 py-0.5 text-[7px] font-bold uppercase tracking-[0.1em] text-white/85 md:text-[8px]">
+        <span className="pointer-events-none absolute right-1 top-1 z-10 rounded bg-black/65 px-1 py-0.5 text-[7px] font-bold uppercase tracking-[0.1em] text-white/85 md:text-[8px]">
           Publicidad
         </span>
 
         <img
           src={AD_IMG}
           alt="Servipartz · Dispensadores de agua"
-          className="block h-auto w-full"
+          className="pointer-events-none block h-auto w-full"
           loading="lazy"
           decoding="async"
           draggable={false}
         />
-      </div>
+      </button>
     </div>
   );
 }

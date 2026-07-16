@@ -150,16 +150,26 @@ export default function RosterSelect() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-[#1E2740] px-4 py-2.5 safe-top safe-chrome-x max-w-6xl mx-auto w-full">
-        <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Integrantes</p>
-        <h1 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-          Dream team · {state.playerTeamName}
-        </h1>
-        <p className="text-xs text-[#8B9BB4]">
-          Elige 1 por rol de cualquier equipo ({state.selectedRoster.length}/5)
-        </p>
+      <div className="relative shrink-0 border-b border-[#1E2740] px-4 py-1.5 select-screen-top safe-chrome-x max-w-6xl mx-auto w-full md:py-2.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Integrantes</p>
+            <h1 className="text-base font-bold text-[#F0E6D2] md:text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
+              Dream team · {state.playerTeamName}
+            </h1>
+            <p className="text-[11px] text-[#8B9BB4] md:text-xs">
+              Elige 1 por rol de cualquier equipo ({state.selectedRoster.length}/5)
+            </p>
+          </div>
+          <NameSearch
+            pinned
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Buscar integrante..."
+          />
+        </div>
 
-        <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide md:mt-2 md:pb-1">
           <button
             type="button"
             onClick={() => { setRegionFilter('all'); setOrgFilter('all'); }}
@@ -179,7 +189,7 @@ export default function RosterSelect() {
           ))}
         </div>
 
-        <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="mt-1 flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
           <button
             type="button"
             onClick={() => setOrgFilter('all')}
@@ -199,7 +209,7 @@ export default function RosterSelect() {
           ))}
         </div>
 
-        <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-1 scrollbar-hide md:overflow-visible">
+        <div className="mt-1 flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide md:overflow-visible">
           <button
             type="button"
             onClick={() => setRoleFilter('all')}
@@ -222,7 +232,7 @@ export default function RosterSelect() {
         </div>
 
         {state.selectedRoster.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
+          <div className="mt-1.5 flex flex-wrap gap-1.5 md:mt-2">
             {ROLES.map(r => {
               const m = state.selectedRoster.find(x => x.role === r);
               if (!m) return null;
@@ -241,12 +251,7 @@ export default function RosterSelect() {
         )}
       </div>
 
-      <div className="relative flex-1 min-h-0 px-4 py-2 max-w-6xl mx-auto w-full overflow-y-auto scrollbar-hide md:py-3">
-        <NameSearch
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Buscar integrante..."
-        />
+      <div className="flex-1 min-h-0 px-4 py-1 max-w-6xl mx-auto w-full overflow-y-auto scrollbar-hide md:py-3">
         {roleFilter === 'all' && teamRows ? (
           teamRows.length === 0 && searchQuery.trim() ? (
             <p className="pt-10 text-center text-sm text-[#8B9BB4]">Ningún integrante coincide con la búsqueda.</p>
@@ -318,12 +323,12 @@ export default function RosterSelect() {
         )}
       </div>
 
-      <div className="shrink-0 px-4 py-2.5 max-w-6xl mx-auto w-full border-t border-[#1E2740]">
+      <div className="shrink-0 px-4 py-1.5 max-w-6xl mx-auto w-full border-t border-[#1E2740] md:py-2.5">
         <button
           type="button"
           disabled={!canConfirm}
           onClick={() => dispatch({ type: 'CONFIRM_ROSTER' })}
-          className="w-full md:max-w-sm md:ml-auto min-h-12 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-40"
+          className="w-full md:max-w-sm md:ml-auto min-h-11 md:min-h-12 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-40"
           style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
         >
           ELEGIR CAMPEONES

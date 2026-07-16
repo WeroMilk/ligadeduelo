@@ -1,10 +1,12 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Component, type ErrorInfo, type ReactNode, useEffect, useSyncExternalStore, useState } from 'react';
 import { GameProvider, useGame } from '@/hooks/useGameState';
 import ExitGameButton from '@/components/ExitGameButton';
 import CoffeeTipButton from '@/components/CoffeeTipButton';
 import AdBanner from '@/components/AdBanner';
 import PostMatchAd from '@/components/PostMatchAd';
+import AdUnlockModal from '@/components/AdUnlockModal';
 import AudioBoot from '@/components/AudioBoot';
+import { getEasterEggSnapshot, subscribeEasterEgg } from '@/lib/ad-easter-egg';
 import ModeSelect from '@/pages/ModeSelect';
 import LobbyScreen from '@/pages/LobbyScreen';
 import Home from '@/pages/Home';
@@ -83,6 +85,14 @@ export default function App() {
 }
 
 function AppShell() {
+  const egg = useSyncExternalStore(subscribeEasterEgg, getEasterEggSnapshot, () => getEasterEggSnapshot());
+  const [promptDismissed, setPromptDismissed] = useState(false);
+  const showUnlockPrompt = egg.phase === 'prompt' && !promptDismissed;
+
+  useEffect(() => {
+    if (egg.phase === 'prompt') setPromptDismissed(false);
+  }, [egg.phase]);
+
   return (
     <div className="flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2] safe-x md:px-4 lg:px-6">
       <ExitGameButton />
@@ -95,6 +105,7 @@ function AppShell() {
       </main>
       <AdBanner />
       <PostMatchAd />
+      <AdUnlockModal open={showUnlockPrompt} onClose={() => setPromptDismissed(true)} />
     </div>
   );
 }

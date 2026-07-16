@@ -130,6 +130,10 @@
     padding-left: 3.25rem;
     padding-right: 3.25rem;
   }
+  /* Pantallas de selección: menos aire vertical en móvil */
+  .select-screen-top {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 2.75rem);
+  }
   /* Desktop: respiración mínima respecto a bordes del viewport */
   @media (min-width: 768px) {
     .h-app {
@@ -141,6 +145,9 @@
     .safe-chrome-x {
       padding-left: 1rem;
       padding-right: 3.5rem;
+    }
+    .select-screen-top {
+      padding-top: max(1rem, calc(env(safe-area-inset-top, 0px) + 1rem));
     }
   }
   .h-app {
