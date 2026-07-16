@@ -132,7 +132,7 @@ function MonsterIcon({ obj, anim }: { obj: ObjectiveType; anim: FighterAnim }) {
 const SKIRMISH_GOAL = 100;
 const MONSTER_HP = 100;
 
-type Phase = 'skirmish' | 'monster' | 'fate-player' | 'escape-popup';
+type Phase = 'skirmish' | 'monster' | 'escape-popup';
 
 export default function ObjectiveMinigame({
   pending,
@@ -322,10 +322,10 @@ export default function ObjectiveMinigame({
         continueAfterFate('blue', 'killed');
       }
     } else if (redBar >= SKIRMISH_GOAL) {
+      // El jugador no puede escapar: solo la IA tiene esa opción.
       finishedRef.current = true;
       setZone(null);
-      setPhase('fate-player');
-      setLog('Vas perdiendo · ¿escapas o caen tus campeones?');
+      continueAfterFate('red', 'killed');
     }
   }, [blueBar, redBar, phase, continueAfterFate]);
 
@@ -412,62 +412,32 @@ export default function ObjectiveMinigame({
           <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
             {isGank
               ? 'Choque de junglas'
-              : phase === 'skirmish' || phase === 'fate-player' || phase === 'escape-popup'
+              : phase === 'skirmish' || phase === 'escape-popup'
                 ? 'Pelea por el objetivo'
                 : `Derrota al ${label}`}
           </h2>
           <p className="text-xs text-[#8B9BB4] mt-1">{log}</p>
         </div>
 
-        {(phase === 'fate-player' || phase === 'escape-popup') ? (
+        {phase === 'escape-popup' ? (
           <div className="px-5 py-8 text-center space-y-4">
-            {phase === 'escape-popup' ? (
-              <>
-                <p
-                  className="text-2xl font-bold text-[#F1C40F]"
-                  style={{ fontFamily: 'Cinzel, serif' }}
-                >
-                  El enemigo escapó
-                </p>
-                <p className="text-sm text-[#8B9BB4]">
-                  Sus campeones sobreviven, pero pierden el próximo turno.
-                </p>
-                <button
-                  type="button"
-                  className="w-full rounded-xl py-3 font-bold"
-                  style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
-                  onClick={() => continueAfterFate('blue', 'escaped')}
-                >
-                  Continuar
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="text-lg font-bold text-[#E74C3C]" style={{ fontFamily: 'Cinzel, serif' }}>
-                  ¡Vas perdiendo!
-                </p>
-                <p className="text-sm text-[#8B9BB4] leading-snug">
-                  Si caes, mueren tus campeones de esta pelea.
-                  Si escapas, sobreviven pero pierden el próximo turno.
-                </p>
-                <div className="flex flex-col gap-2 pt-1">
-                  <button
-                    type="button"
-                    className="w-full rounded-xl py-3 font-bold border-2 border-[#F1C40F] text-[#F1C40F] bg-[#F1C40F]/10"
-                    onClick={() => continueAfterFate('red', 'escaped')}
-                  >
-                    Escapar
-                  </button>
-                  <button
-                    type="button"
-                    className="w-full rounded-xl py-3 font-bold bg-[#E74C3C] text-[#0A0E1A]"
-                    onClick={() => continueAfterFate('red', 'killed')}
-                  >
-                    Resistir (caen)
-                  </button>
-                </div>
-              </>
-            )}
+            <p
+              className="text-2xl font-bold text-[#F1C40F]"
+              style={{ fontFamily: 'Cinzel, serif' }}
+            >
+              El enemigo escapó
+            </p>
+            <p className="text-sm text-[#8B9BB4]">
+              Sus campeones sobreviven, pero pierden el próximo turno.
+            </p>
+            <button
+              type="button"
+              className="w-full rounded-xl py-3 font-bold"
+              style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
+              onClick={() => continueAfterFate('blue', 'escaped')}
+            >
+              Continuar
+            </button>
           </div>
         ) : (
           <div
