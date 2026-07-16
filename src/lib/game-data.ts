@@ -236,7 +236,7 @@ export const ITEMS: ItemDef[] = [
     image: '/items/boots.png',
     cost: 80,
     statBonus: { moveSpeed: 15 },
-    description: 'Puedes rotar de línea al planificar (emboscada)',
+    description: 'Puedes rotar de línea al planificar (gank)',
   },
   {
     id: 'cloth_armor',

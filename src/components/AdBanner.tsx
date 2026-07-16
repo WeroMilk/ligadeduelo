@@ -1,4 +1,4 @@
-/** Banner publicitario permanente, sin recortes negros y adaptable al viewport. */
+/** Banner publicitario permanente. Móvil intacto; desktop más ancho y alto. */
 import { useSyncExternalStore } from 'react';
 import { registerBannerTap } from '@/lib/ad-easter-egg';
 import { getAdsDisabledForever, subscribeAdsDisabledForever } from '@/lib/ad-premium';
@@ -14,14 +14,14 @@ export default function AdBanner() {
 
   return (
     <div
-      className="relative z-[40] w-full shrink-0 border-t border-white/10 bg-[linear-gradient(90deg,#07111d,#183247_50%,#07111d)] px-2 py-1.5 shadow-[0_-8px_30px_rgba(0,0,0,0.28)] md:px-4 md:py-2"
+      className="relative z-[40] w-full shrink-0 border-t border-white/10 bg-[linear-gradient(90deg,#07111d,#183247_50%,#07111d)] px-2 py-1.5 shadow-[0_-8px_30px_rgba(0,0,0,0.28)] md:px-6 md:py-2.5 lg:px-8"
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.375rem)' }}
       role="complementary"
       aria-label="Publicidad"
     >
       <button
         type="button"
-        className="group relative mx-auto block h-[72px] w-full max-w-3xl overflow-hidden rounded-md border border-white/15 bg-[#4f9bc4] shadow-[0_3px_18px_rgba(0,0,0,0.42)] md:h-[96px]"
+        className="group relative mx-auto block h-[72px] w-full max-w-3xl overflow-hidden rounded-md border border-white/15 bg-[#4f9bc4] shadow-[0_3px_18px_rgba(0,0,0,0.42)] md:h-[120px] md:max-w-6xl md:rounded-lg lg:h-[132px] lg:max-w-7xl"
         style={{ userSelect: 'none' }}
         onClick={() => registerBannerTap()}
         aria-label="Banner publicitario Servipartz"
@@ -46,13 +46,13 @@ export default function AdBanner() {
         <img
           src={AD_IMG}
           alt="Servipartz · Dispensadores de agua · Contáctanos +52 662 404 9965"
-          className="pointer-events-none relative z-[1] h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.015]"
+          className="pointer-events-none relative z-[1] h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.015] md:object-contain"
           loading="lazy"
           decoding="async"
           draggable={false}
         />
 
-        <span className="pointer-events-none absolute right-1.5 top-1.5 z-10 rounded bg-[#07111d]/75 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-[0.14em] text-white/90 shadow-sm backdrop-blur-sm md:right-2 md:text-[8px]">
+        <span className="pointer-events-none absolute right-1.5 top-1.5 z-10 rounded bg-[#07111d]/75 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-[0.14em] text-white/90 shadow-sm backdrop-blur-sm md:right-2.5 md:top-2 md:text-[9px]">
           Publicidad
         </span>
       </button>

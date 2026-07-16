@@ -407,7 +407,7 @@ export default function ObjectiveMinigame({
       <div className="relative w-full max-w-lg rounded-2xl border-2 border-[#E67E22] bg-[#0D1220] overflow-hidden shadow-[0_0_50px_rgba(230,126,34,0.35)]">
         <div className="px-4 pt-4 pb-2 text-center border-b border-[#2A3550]">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#E67E22]">
-            {isGank ? 'Emboscada disputada' : phase === 'skirmish' ? 'Pelea 2 contra 2' : `Asalto · ${label}`}
+            {isGank ? 'Gank disputado' : phase === 'skirmish' ? 'Pelea 2 contra 2' : `Asalto · ${label}`}
           </p>
           <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
             {isGank

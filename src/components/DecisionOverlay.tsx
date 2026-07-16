@@ -44,16 +44,16 @@ export default function DecisionOverlay({
         {kind === 'jungle' && (
           <>
             <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-              Jungla: ¿emboscada u objetivo?
+              Jungla: ¿gank u objetivo?
             </h2>
             <p className="text-xs text-[#8B9BB4]">
-              Solo una opción: emboscar una línea o ir al objetivo.
+              Solo una opción: gankear una línea o ir al objetivo.
             </p>
             <div className="grid grid-cols-2 gap-2">
               {([
-                { id: 0 as LaneId, label: 'Emboscada Superior' },
-                { id: 1 as LaneId, label: 'Emboscada Central' },
-                { id: 2 as LaneId, label: 'Emboscada Inferior' },
+                { id: 0 as LaneId, label: 'Gank Superior' },
+                { id: 1 as LaneId, label: 'Gank Central' },
+                { id: 2 as LaneId, label: 'Gank Inferior' },
               ]).map(l => (
                 <button
                   key={l.id}
