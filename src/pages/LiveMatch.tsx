@@ -332,8 +332,16 @@ export default function LiveMatch() {
         fireFx('kill', totalKills > 1 ? `¡${totalKills} BAJAS!` : '¡BAJA!', killerSide);
       }
       const towers = (res.towersTakenBlue ?? 0) + (res.towersTakenRed ?? 0);
-      if (towers > 0) {
+      if (towers > 0 && !res.autoNexus) {
         fireFx('tower', '¡Torre caída!', (res.towersTakenBlue ?? 0) > 0 ? 'blue' : 'red');
+      }
+      if (res.autoNexus) {
+        const playerWon = res.winner === 'blue';
+        fireFx(
+          'tower',
+          playerWon ? '¡NEXO ENEMIGO DESTRUIDO!' : '¡TU NEXO FUE DESTRUIDO!',
+          playerWon ? 'blue' : 'red',
+        );
       }
     }, Math.max(900, t - 800));
 
@@ -348,13 +356,13 @@ export default function LiveMatch() {
         return;
       }
       if (res.pendingObjectiveQte && !live?.pendingObjective) {
-        endCinemaAfterDelay(res);
+        endCinemaAfterDelay(res, res.autoNexus ? 2200 : 0);
         return;
       }
       if (res.objective || res.objectiveWinner || res.objectiveBonus) {
         playObjectiveClaim(res);
       } else {
-        endCinemaAfterDelay(res);
+        endCinemaAfterDelay(res, res.autoNexus ? 2200 : 0);
       }
     }, t + 400);
   };

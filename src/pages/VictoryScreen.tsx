@@ -1,11 +1,19 @@
 import { useGame } from '@/hooks/useGameState';
-import { Trophy, ChevronRight, User } from 'lucide-react';
+import { Trophy, ChevronRight, User, Landmark } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { playVictorySound, playClickSound } from '@/lib/sounds';
 import { CHAMPIONS, ROLE_NAMES } from '@/lib/game-data';
 import type { Role } from '@/types/game';
 
 const ROLE_ORDER: Role[] = ['top', 'jungle', 'mid', 'adc', 'support'];
+
+function endedByNexus(tm: ReturnType<typeof useGame>['state']['turnMatch']): boolean {
+  if (!tm) return false;
+  if (tm.lastResolution?.autoNexus) return true;
+  const blue = tm.structures.find(s => s.id === 'nexus_blue');
+  const red = tm.structures.find(s => s.id === 'nexus_red');
+  return !!(blue?.isDestroyed || red?.isDestroyed);
+}
 
 export default function VictoryScreen() {
   const { state, dispatch } = useGame();
@@ -15,7 +23,6 @@ export default function VictoryScreen() {
   const lastRoundIdx = (state.tournament?.rounds.length ?? 4) - 1;
   const isTournamentFinal = roundIdx >= lastRoundIdx;
 
-  // Final del torneo: ir directo a la pantalla de campeón (sin interstitial)
   useEffect(() => {
     if (!isTournamentFinal) return;
     dispatch({ type: 'ADVANCE_BRACKET' });
@@ -38,6 +45,11 @@ export default function VictoryScreen() {
   if (isTournamentFinal) {
     return <div className="screen-center bg-[#0A0E1A]" aria-hidden />;
   }
+
+  const nexusWin = endedByNexus(tm);
+  const myKills = tm?.blue.kills ?? 0;
+  const theirKills = tm?.red.kills ?? 0;
+  const behindOnKills = myKills < theirKills;
 
   const teamLines = ROLE_ORDER.map(role => {
     const member = state.selectedRoster.find(r => r.role === role);
@@ -64,22 +76,51 @@ export default function VictoryScreen() {
         ))}
       </div>
       <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-4 md:gap-6 pb-4">
-        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#8B6914] flex items-center justify-center shadow-[0_0_60px_rgba(201,168,76,0.4)] shrink-0">
-          <Trophy className="w-10 h-10 md:w-12 md:h-12 text-[#0A0E1A]" />
+        <div
+          className={`w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center shrink-0 ${
+            nexusWin
+              ? 'bg-gradient-to-br from-[#3498DB] to-[#1A5276] shadow-[0_0_60px_rgba(52,152,219,0.45)]'
+              : 'bg-gradient-to-br from-[#C9A84C] to-[#8B6914] shadow-[0_0_60px_rgba(201,168,76,0.4)]'
+          }`}
+        >
+          {nexusWin ? (
+            <Landmark className="w-10 h-10 md:w-12 md:h-12 text-[#0A0E1A]" />
+          ) : (
+            <Trophy className="w-10 h-10 md:w-12 md:h-12 text-[#0A0E1A]" />
+          )}
         </div>
         <div className="text-center shrink-0">
-          <h1 className="text-3xl md:text-4xl font-bold text-[#C9A84C]" style={{ fontFamily: 'Cinzel, serif' }}>¡VICTORIA!</h1>
+          <h1
+            className={`text-3xl md:text-4xl font-bold ${nexusWin ? 'text-[#3498DB]' : 'text-[#C9A84C]'}`}
+            style={{ fontFamily: 'Cinzel, serif' }}
+          >
+            {nexusWin ? '¡NEXO DESTRUIDO!' : '¡VICTORIA!'}
+          </h1>
           <p className="text-[#8B9BB4] mt-1 md:mt-2 text-sm">
-            {state.playerTeamName || 'Tu equipo'} · Victoria en la grieta
+            {nexusWin
+              ? 'Tumbaron la base enemiga · victoria por nexo'
+              : `${state.playerTeamName || 'Tu equipo'} · Victoria en la grieta`}
           </p>
         </div>
+
+        {nexusWin && (
+          <div className="w-full rounded-xl border-2 border-[#3498DB]/45 bg-[#3498DB]/10 px-3 py-3 text-center space-y-1">
+            <p className="text-sm font-bold text-[#85C1E9]">La partida terminó al caer su nexo</p>
+            <p className="text-[11px] text-[#8B9BB4] leading-snug">
+              {behindOnKills
+                ? `Ibas ${myKills}–${theirKills} en bajas, pero su base cayó primero. Las bajas ya no importan.`
+                : `Marcador ${myKills}–${theirKills}. Igual: el nexo decide, no solo las bajas.`}
+            </p>
+          </div>
+        )}
+
         <div className="w-full bg-[#141B2D] rounded-xl border border-[#1E2740] p-4 grid grid-cols-2 gap-3 text-center shrink-0">
           <div>
-            <p className="text-2xl font-bold text-[#C9A84C]">{tm?.blue.kills ?? 0}</p>
+            <p className="text-2xl font-bold text-[#C9A84C]">{myKills}</p>
             <p className="text-[#8B9BB4] text-xs">Tus bajas</p>
           </div>
           <div>
-            <p className="text-2xl font-bold text-[#E74C3C]">{tm?.red.kills ?? 0}</p>
+            <p className="text-2xl font-bold text-[#E74C3C]">{theirKills}</p>
             <p className="text-[#8B9BB4] text-xs">Bajas rival</p>
           </div>
         </div>

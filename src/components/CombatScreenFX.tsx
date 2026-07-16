@@ -37,7 +37,7 @@ export default function CombatScreenFX({ signal }: Props) {
       team: signal.team ?? 'neutral',
     };
     setEvents(prev => [...prev.slice(-4), ev]);
-    const ms = signal.kind === 'kill' ? 1200 : signal.kind === 'objective' ? 1000 : 450;
+    const ms = signal.kind === 'kill' ? 1200 : signal.kind === 'objective' ? 1000 : signal.kind === 'tower' && signal.label && /NEXO/i.test(signal.label) ? 1800 : 450;
     const t = window.setTimeout(() => {
       setEvents(prev => prev.filter(e => e.id !== id));
     }, ms);
@@ -98,11 +98,32 @@ export default function CombatScreenFX({ signal }: Props) {
         }
 
         if (ev.kind === 'tower') {
+          const isNexus = !!ev.label && /NEXO/i.test(ev.label);
           return (
-            <div key={ev.id} className="absolute inset-0 animate-hit-flash bg-[radial-gradient(circle,rgba(52,152,219,0.25),transparent_60%)]">
+            <div
+              key={ev.id}
+              className={`absolute inset-0 animate-hit-flash ${
+                isNexus
+                  ? ev.team === 'blue'
+                    ? 'bg-[radial-gradient(circle,rgba(52,152,219,0.45),transparent_62%)]'
+                    : 'bg-[radial-gradient(circle,rgba(231,76,60,0.5),transparent_62%)]'
+                  : 'bg-[radial-gradient(circle,rgba(52,152,219,0.25),transparent_60%)]'
+              }`}
+            >
               {ev.label && (
-                <div className="absolute inset-x-0 top-[32%] flex justify-center">
-                  <p className="animate-kill-banner text-[#85C1E9] text-xl font-bold drop-shadow-lg">{ev.label}</p>
+                <div className="absolute inset-x-0 top-[30%] flex justify-center px-4">
+                  <p
+                    className={`animate-kill-banner font-black text-center drop-shadow-[0_2px_14px_rgba(0,0,0,0.9)] ${
+                      isNexus
+                        ? ev.team === 'red'
+                          ? 'text-2xl sm:text-3xl text-[#FF6B6B]'
+                          : 'text-2xl sm:text-3xl text-[#85C1E9]'
+                        : 'text-[#85C1E9] text-xl font-bold'
+                    }`}
+                    style={isNexus ? { fontFamily: 'Cinzel, serif' } : undefined}
+                  >
+                    {ev.label}
+                  </p>
                 </div>
               )}
             </div>
