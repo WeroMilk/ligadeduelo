@@ -947,7 +947,19 @@ export function finishPendingObjective(
   state: TurnMatchState,
   qte: { skirmishWinner: TeamColor | null; attackingTeam: TeamColor; monsterTaken: boolean },
 ): TurnMatchState {
-  if (!state.pendingObjective || !state.deferredBluePlan || !state.deferredRedPlan) return state;
+  if (!state.pendingObjective) return state;
+  // Sin planes diferidos: limpiar para no dejar el partido colgado
+  if (!state.deferredBluePlan || !state.deferredRedPlan) {
+    return {
+      ...state,
+      pendingObjective: null,
+      deferredBluePlan: null,
+      deferredRedPlan: null,
+      lastResolution: state.lastResolution
+        ? { ...state.lastResolution, pendingObjectiveQte: false, objectiveWinner: null }
+        : null,
+    };
+  }
   const next = {
     ...state,
     blue: deepCloneTeam(state.blue),

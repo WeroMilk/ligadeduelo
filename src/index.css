@@ -230,6 +230,67 @@
   animation: obj-zone 0.7s ease-in-out infinite;
 }
 
+@keyframes obj-lunge-right {
+  0% { transform: translateX(0) scale(1); }
+  45% { transform: translateX(18px) scale(1.08); }
+  100% { transform: translateX(0) scale(1); }
+}
+
+@keyframes obj-lunge-left {
+  0% { transform: translateX(0) scale(1); }
+  45% { transform: translateX(-18px) scale(1.08); }
+  100% { transform: translateX(0) scale(1); }
+}
+
+.animate-obj-lunge-right {
+  animation: obj-lunge-right 0.42s ease-out;
+}
+
+.animate-obj-lunge-left {
+  animation: obj-lunge-left 0.42s ease-out;
+}
+
+@keyframes obj-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px) rotate(-4deg); }
+  40% { transform: translateX(5px) rotate(4deg); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+.animate-obj-shake {
+  animation: obj-shake 0.4s ease-in-out;
+}
+
+@keyframes obj-counter {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.18); filter: brightness(1.3); }
+  100% { transform: scale(1); }
+}
+
+.animate-obj-counter {
+  animation: obj-counter 0.4s ease-out;
+}
+
+@keyframes obj-monster-idle {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+.animate-obj-monster-idle {
+  animation: obj-monster-idle 1.6s ease-in-out infinite;
+}
+
+@keyframes obj-monster-hit {
+  0% { transform: scale(1); }
+  30% { transform: scale(0.88) rotate(-6deg); filter: brightness(1.4); }
+  100% { transform: scale(1); }
+}
+
+.animate-obj-monster-hit {
+  animation: obj-monster-hit 0.4s ease-out;
+}
+
 @keyframes pulse-slow {
   0%, 100% {
     box-shadow: 0 0 60px rgba(201, 168, 76, 0.3);

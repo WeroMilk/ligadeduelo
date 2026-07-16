@@ -125,9 +125,18 @@ export default function LiveMatch() {
   const cinemaTimers = useRef<number[]>([]);
   const promptsForRound = useRef<number | null>(null);
   const cinemaForKey = useRef<string | null>(null);
+  const postQteClaim = useRef(false);
   const awaitingCinema = useRef(false);
   const awaitingQte = useRef(false);
+  const phaseRef = useRef<Phase | null>(null);
   const fxNonce = useRef(0);
+
+  phaseRef.current = phase;
+
+  const resetCinemaGuards = () => {
+    cinemaForKey.current = null;
+    postQteClaim.current = false;
+  };
 
   const fireFx = (kind: ScreenFxKind, label?: string, team?: FxSignal['team']) => {
     fxNonce.current += 1;
@@ -151,6 +160,7 @@ export default function LiveMatch() {
   const endCinemaAndContinue = (res: RoundResolution) => {
     awaitingCinema.current = false;
     awaitingQte.current = false;
+    resetCinemaGuards();
     setActiveFloats([]);
     setCinemaRes(null);
     setPhase({ t: 'idle' });
@@ -237,6 +247,11 @@ export default function LiveMatch() {
         setActiveFloats([]);
         return;
       }
+      // QTE marcado pero sin pending → no colgar
+      if (res.pendingObjectiveQte && !tm.pendingObjective) {
+        endCinemaAndContinue(res);
+        return;
+      }
       if (res.objective && res.objectiveWinner) {
         playObjectiveClaim(res);
       } else if (res.objective) {
@@ -262,6 +277,7 @@ export default function LiveMatch() {
     if (!cinemaForKey.current?.includes('qte-pending')) return;
     const key = `claim-${res.round}-${res.objectiveWinner}`;
     if (cinemaForKey.current === key) return;
+    postQteClaim.current = true;
     cinemaForKey.current = key;
     playObjectiveClaim(res);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -278,6 +294,7 @@ export default function LiveMatch() {
 
   const beginPrompts = (round: number) => {
     if (!tm || tm.isComplete) return;
+    resetCinemaGuards();
     promptsForRound.current = round;
     const queue: DecisionKind[] = ['jungle'];
     if (round % 2 === 0) queue.push('siege');
@@ -305,14 +322,42 @@ export default function LiveMatch() {
     const res = tm?.lastResolution;
     if (!res || !awaitingCinema.current) return;
     if (awaitingQte.current) return;
-    // No re-lanzar cine si ya estamos en claim post-QTE
-    if (cinemaForKey.current?.startsWith('claim-')) return;
+    // Un solo tick tras QTE: no relanzar cine de líneas
+    if (postQteClaim.current) return;
     const key = `lanes-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}-${res.pendingObjectiveQte ? 'qte' : 'ok'}`;
     if (cinemaForKey.current === key || cinemaForKey.current === `${key}-qte-pending`) return;
     cinemaForKey.current = res.pendingObjectiveQte ? `${key}-qte-pending` : key;
     playCinema(res);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tm?.lastResolution]);
+
+  // QTE fantasma: fase qte sin pending → recuperar
+  useEffect(() => {
+    if (phase?.t !== 'qte') return;
+    if (tm?.pendingObjective) return;
+    awaitingQte.current = false;
+    setPhase({ t: 'idle' });
+    if (tm?.lastResolution && awaitingCinema.current) {
+      endCinemaAndContinue(tm.lastResolution);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, tm?.pendingObjective, tm?.lastResolution]);
+
+  // Watchdog: awaitingCinema atascado en idle ~12s
+  useEffect(() => {
+    if (!tm || tm.isComplete) return;
+    const id = window.setInterval(() => {
+      if (!awaitingCinema.current || awaitingQte.current) return;
+      const p = phaseRef.current;
+      if (p && (p.t === 'lane' || p.t === 'objective' || p.t === 'qte')) return;
+      const res = tm.lastResolution;
+      if (!res) return;
+      clearCinema();
+      endCinemaAndContinue(res);
+    }, 12000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tm?.round, tm?.lastResolution, tm?.isComplete]);
 
   useEffect(() => {
     if (!phase || phase.t !== 'prompt') return;
@@ -425,7 +470,7 @@ export default function LiveMatch() {
           </div>
         </div>
 
-        <div className="w-full grid grid-cols-2 gap-2 text-[11px] md:w-64 md:grid-cols-1 shrink-0 md:gap-3">
+        <div className="w-full grid grid-cols-2 gap-2 text-[11px] mt-4 md:mt-0 md:w-64 md:grid-cols-1 shrink-0 md:gap-3">
           <div className="rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1.5 md:py-4 md:px-3">
             <p className="text-[#8B9BB4]">Azul</p>
             <p className="font-bold text-[#F0E6D2] truncate md:text-sm">{tm.blue.name}</p>
@@ -450,7 +495,12 @@ export default function LiveMatch() {
       )}
 
       {phase?.t === 'qte' && tm.pendingObjective && (
-        <ObjectiveMinigame pending={tm.pendingObjective} onComplete={onQteComplete} />
+        <ObjectiveMinigame
+          pending={tm.pendingObjective}
+          blueChampions={tm.blue.champions}
+          redChampions={tm.red.champions}
+          onComplete={onQteComplete}
+        />
       )}
     </div>
   );

@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import type { PendingObjective, TeamColor } from '@/types/game';
-import { objectiveName } from '@/lib/game-data';
+import type { Champion, ObjectiveType, PendingObjective, TeamColor } from '@/types/game';
+import { CHAMPIONS, objectiveName } from '@/lib/game-data';
 
 export type ObjectiveQtePayload = {
   skirmishWinner: TeamColor | null;
@@ -9,19 +9,113 @@ export type ObjectiveQtePayload = {
   monsterTaken: boolean;
 };
 
-type Zone = { id: number; x: number; y: number; expires: number };
+type Zone = { id: number; x: number; y: number };
 
 type Props = {
   pending: PendingObjective;
+  blueChampions: Champion[];
+  redChampions: Champion[];
   onComplete: (result: ObjectiveQtePayload) => void;
 };
 
-const ZONE_MS = 1200;
+type QteProfile = {
+  zoneMs: number;
+  zoneSizePx: number;
+  spawnGapMs: number;
+  hitDmg: number;
+  missPenalty: number;
+};
+
+function profileFor(obj: ObjectiveType): QteProfile {
+  if (obj === 'baron' || obj === 'dragon_ancestral') {
+    return { zoneMs: 700, zoneSizePx: 32, spawnGapMs: 1050, hitDmg: 14, missPenalty: 20 };
+  }
+  if (obj === 'dragon_fire') {
+    return { zoneMs: 780, zoneSizePx: 34, spawnGapMs: 1100, hitDmg: 15, missPenalty: 18 };
+  }
+  return { zoneMs: 850, zoneSizePx: 36, spawnGapMs: 1150, hitDmg: 16, missPenalty: 17 };
+}
+
+function monsterColor(obj: ObjectiveType): string {
+  if (obj === 'dragon_water') return '#3498DB';
+  if (obj === 'dragon_fire') return '#E67E22';
+  if (obj === 'baron') return '#9B59B6';
+  return '#F1C40F';
+}
+
+type FighterAnim = 'idle' | 'lunge' | 'shake' | 'counter';
+
+function Portrait({
+  champ,
+  side,
+  anim,
+}: {
+  champ: Champion | undefined;
+  side: 'blue' | 'red' | 'monster';
+  anim: FighterAnim;
+}) {
+  const def = champ ? CHAMPIONS.find(c => c.id === champ.defId) : undefined;
+  const [imgOk, setImgOk] = useState(!!def?.image);
+  const ring =
+    side === 'blue' ? 'border-[#3498DB]' :
+    side === 'red' ? 'border-[#E74C3C]' :
+    'border-[#E67E22]';
+  const animCls =
+    anim === 'lunge' ? (side === 'blue' ? 'animate-obj-lunge-right' : 'animate-obj-lunge-left') :
+    anim === 'shake' ? 'animate-obj-shake' :
+    anim === 'counter' ? 'animate-obj-counter' :
+    '';
+
+  return (
+    <div
+      className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 overflow-hidden shrink-0 ${ring} ${animCls}`}
+      style={{ backgroundColor: def?.color || '#1A2238' }}
+    >
+      {def?.image && imgOk ? (
+        <img
+          src={def.image}
+          alt={def.name}
+          className="w-full h-full object-cover"
+          onError={() => setImgOk(false)}
+        />
+      ) : (
+        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-[#F0E6D2]">
+          {def?.initials || '?'}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function MonsterIcon({ obj, anim }: { obj: ObjectiveType; anim: FighterAnim }) {
+  const color = monsterColor(obj);
+  const animCls =
+    anim === 'shake' || anim === 'counter' ? 'animate-obj-monster-hit' :
+    anim === 'lunge' ? 'animate-obj-counter' :
+    'animate-obj-monster-idle';
+  return (
+    <div
+      className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 flex items-center justify-center shrink-0 ${animCls}`}
+      style={{ borderColor: color, backgroundColor: `${color}33`, boxShadow: `0 0 24px ${color}55` }}
+    >
+      <span className="text-2xl sm:text-3xl font-bold" style={{ color, fontFamily: 'Cinzel, serif' }}>
+        {obj === 'baron' ? 'B' : 'D'}
+      </span>
+    </div>
+  );
+}
+
 const SKIRMISH_GOAL = 100;
 const MONSTER_HP = 100;
 
-export default function ObjectiveMinigame({ pending, onComplete }: Props) {
+export default function ObjectiveMinigame({
+  pending,
+  blueChampions,
+  redChampions,
+  onComplete,
+}: Props) {
   const contested = pending.contested;
+  const profile = useMemo(() => profileFor(pending.objective), [pending.objective]);
   const [phase, setPhase] = useState<'skirmish' | 'monster'>(contested ? 'skirmish' : 'monster');
   const [blueBar, setBlueBar] = useState(0);
   const [redBar, setRedBar] = useState(0);
@@ -31,46 +125,78 @@ export default function ObjectiveMinigame({ pending, onComplete }: Props) {
   const [zone, setZone] = useState<Zone | null>(null);
   const [flash, setFlash] = useState<'hit' | 'miss' | null>(null);
   const [log, setLog] = useState<string>('¡Toca las zonas a tiempo!');
+  const [blueAnim, setBlueAnim] = useState<FighterAnim>('idle');
+  const [redAnim, setRedAnim] = useState<FighterAnim>('idle');
+  const [monsterAnim, setMonsterAnim] = useState<FighterAnim>('idle');
+
+  const blueFighters = useMemo(
+    () => pending.blueIds
+      .map(id => blueChampions.find(c => c.instanceId === id))
+      .filter(Boolean)
+      .slice(0, 2) as Champion[],
+    [pending.blueIds, blueChampions],
+  );
+  const redFighters = useMemo(
+    () => pending.redIds
+      .map(id => redChampions.find(c => c.instanceId === id))
+      .filter(Boolean)
+      .slice(0, 2) as Champion[],
+    [pending.redIds, redChampions],
+  );
+
+  // Fallback si no hay IDs: jungla / mid vivos
+  const blueShown = blueFighters.length > 0
+    ? blueFighters
+    : blueChampions.filter(c => c.isAlive).slice(0, 2);
+  const redShown = redFighters.length > 0
+    ? redFighters
+    : redChampions.filter(c => c.isAlive).slice(0, 2);
 
   const attackingTeam: TeamColor =
     phase === 'monster' && skirmishWinner
       ? skirmishWinner
       : 'blue';
 
+  const pulseAnim = (setter: (a: FighterAnim) => void, anim: FighterAnim, ms = 420) => {
+    setter(anim);
+    window.setTimeout(() => setter('idle'), ms);
+  };
+
   const spawnZone = useCallback(() => {
     setZone({
       id: Date.now(),
       x: 18 + Math.random() * 64,
-      y: 22 + Math.random() * 50,
-      expires: Date.now() + ZONE_MS,
+      y: 28 + Math.random() * 48,
     });
   }, []);
 
   useEffect(() => {
     spawnZone();
-    const iv = window.setInterval(spawnZone, ZONE_MS + 200);
+    const iv = window.setInterval(spawnZone, profile.spawnGapMs);
     return () => window.clearInterval(iv);
-  }, [phase, spawnZone]);
+  }, [phase, spawnZone, profile.spawnGapMs]);
 
   useEffect(() => {
     if (!zone) return;
     const t = window.setTimeout(() => {
-      // Zona expiró = fallo
       setFlash('miss');
       if (phase === 'skirmish') {
-        setRedBar(v => Math.min(SKIRMISH_GOAL, v + 14));
+        setRedBar(v => Math.min(SKIRMISH_GOAL, v + profile.missPenalty));
         setLog('Fallaste · el rival golpea');
+        pulseAnim(setBlueAnim, 'shake');
+        pulseAnim(setRedAnim, 'lunge');
       } else {
-        setAllyHp(v => Math.max(0, v - 16));
+        setAllyHp(v => Math.max(0, v - profile.missPenalty));
         setLog('El objetivo te golpea');
+        pulseAnim(setBlueAnim, 'shake');
+        pulseAnim(setMonsterAnim, 'lunge');
       }
       setZone(null);
       window.setTimeout(() => setFlash(null), 280);
-    }, ZONE_MS);
+    }, profile.zoneMs);
     return () => window.clearTimeout(t);
-  }, [zone, phase]);
+  }, [zone, phase, profile.zoneMs, profile.missPenalty]);
 
-  // Fin escaramuza
   useEffect(() => {
     if (phase !== 'skirmish') return;
     if (blueBar >= SKIRMISH_GOAL) {
@@ -82,7 +208,6 @@ export default function ObjectiveMinigame({ pending, onComplete }: Props) {
     } else if (redBar >= SKIRMISH_GOAL) {
       setSkirmishWinner('red');
       setLog('El rival gana la escaramuza · ellos pelean al monstruo');
-      // Auto-result: rival pelea monstruo sin QTE del jugador
       window.setTimeout(() => {
         onComplete({
           skirmishWinner: 'red',
@@ -93,7 +218,6 @@ export default function ObjectiveMinigame({ pending, onComplete }: Props) {
     }
   }, [blueBar, redBar, phase, onComplete]);
 
-  // Fin monstruo (jugador atacando)
   useEffect(() => {
     if (phase !== 'monster' || skirmishWinner === 'red') return;
     if (monsterHp <= 0) {
@@ -122,15 +246,19 @@ export default function ObjectiveMinigame({ pending, onComplete }: Props) {
     if (!zone) return;
     setFlash('hit');
     if (phase === 'skirmish') {
-      setBlueBar(v => Math.min(SKIRMISH_GOAL, v + 18));
+      setBlueBar(v => Math.min(SKIRMISH_GOAL, v + profile.hitDmg));
       setLog('¡Acierto! Aliados golpean');
+      pulseAnim(setBlueAnim, 'lunge');
+      pulseAnim(setRedAnim, 'shake');
     } else {
-      setMonsterHp(v => Math.max(0, v - 18));
+      setMonsterHp(v => Math.max(0, v - profile.hitDmg));
       setLog('¡Acierto! Aliados dañan al objetivo');
+      pulseAnim(setBlueAnim, 'lunge');
+      pulseAnim(setMonsterAnim, 'shake');
     }
     setZone(null);
     window.setTimeout(() => setFlash(null), 280);
-    window.setTimeout(spawnZone, 180);
+    window.setTimeout(spawnZone, 280);
   };
 
   const label = objectiveName(pending.objective);
@@ -149,7 +277,7 @@ export default function ObjectiveMinigame({ pending, onComplete }: Props) {
         </div>
 
         <div
-          className={`relative h-64 sm:h-72 bg-[#141B2D] ${
+          className={`relative h-72 sm:h-80 bg-[#141B2D] ${
             flash === 'hit' ? 'ring-2 ring-[#2ECC71]' : flash === 'miss' ? 'ring-2 ring-[#E74C3C]' : ''
           }`}
         >
@@ -197,12 +325,42 @@ export default function ObjectiveMinigame({ pending, onComplete }: Props) {
             </div>
           )}
 
+          {/* Arena de combate animada */}
+          <div className="absolute inset-x-0 top-[4.5rem] bottom-10 flex items-center justify-between px-5 sm:px-8 pointer-events-none">
+            <div className="flex flex-col gap-2 items-start">
+              {blueShown.map(c => (
+                <Portrait key={c.instanceId} champ={c} side="blue" anim={blueAnim} />
+              ))}
+            </div>
+
+            <div className="flex flex-col items-center gap-1">
+              {phase === 'skirmish' ? (
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">VS</span>
+              ) : (
+                <MonsterIcon obj={pending.objective} anim={monsterAnim} />
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2 items-end">
+              {phase === 'skirmish'
+                ? redShown.map(c => (
+                    <Portrait key={c.instanceId} champ={c} side="red" anim={redAnim} />
+                  ))
+                : null}
+            </div>
+          </div>
+
           {zone && (
             <button
               type="button"
               onClick={onZoneClick}
-              className="absolute -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full border-4 border-[#F1C40F] bg-[#F1C40F]/25 animate-obj-zone"
-              style={{ left: `${zone.x}%`, top: `${zone.y}%` }}
+              className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-[#F1C40F] bg-[#F1C40F]/25 animate-obj-zone z-10"
+              style={{
+                left: `${zone.x}%`,
+                top: `${zone.y}%`,
+                width: profile.zoneSizePx,
+                height: profile.zoneSizePx,
+              }}
               aria-label="Zona de acierto"
             />
           )}
