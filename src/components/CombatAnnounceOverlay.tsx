@@ -65,32 +65,35 @@ export default function CombatAnnounceOverlay({ batch, onBusyChange }: Props) {
 
   if (!current) return null;
 
+  const wrapClass =
+    'pointer-events-none fixed inset-x-0 top-0 z-[120] flex justify-center px-3 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)]';
+
   const body =
     current.kind === 'kill' ? (
-      <div className="pointer-events-none fixed inset-0 z-[120] flex items-start justify-center pt-[16%] px-4" aria-live="polite">
+      <div className={wrapClass} aria-live="polite">
         <div
-          className="w-full max-w-md rounded-2xl border-2 bg-[#0D1220] px-5 py-4 text-center shadow-[0_0_40px_rgba(0,0,0,0.6)] animate-kill-banner"
+          className="w-full max-w-md rounded-xl border-2 bg-[#0D1220]/95 px-4 py-2 text-center shadow-[0_6px_28px_rgba(0,0,0,0.55)] backdrop-blur-sm animate-kill-banner"
           style={{ borderColor: teamColor(current.data.team) }}
         >
           {multiLabel(current.data.multi) && (
-            <p className="text-sm font-black uppercase tracking-[0.2em] text-[#F1C40F] mb-1">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#F1C40F]">
               {multiLabel(current.data.multi)}
             </p>
           )}
-          <p className="text-lg sm:text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+          <p className="text-sm sm:text-base font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
             {killTitle(current.data)}
           </p>
         </div>
       </div>
     ) : (
-      <div className="pointer-events-none fixed inset-0 z-[120] flex items-start justify-center pt-[16%] px-4" aria-live="polite">
-        <div className="w-full max-w-md rounded-2xl border-2 border-[#F1C40F] bg-[#0D1220] px-5 py-4 text-center shadow-[0_0_40px_rgba(241,196,15,0.35)] animate-kill-banner">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[#F1C40F] mb-1">Bonus de objetivo</p>
-          <p className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+      <div className={wrapClass} aria-live="polite">
+        <div className="w-full max-w-md rounded-xl border-2 border-[#F1C40F] bg-[#0D1220]/95 px-4 py-2 text-center shadow-[0_6px_28px_rgba(241,196,15,0.3)] backdrop-blur-sm animate-kill-banner">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-[#F1C40F]">Bonus de objetivo</p>
+          <p className="text-sm sm:text-base font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
             {current.data.title}
           </p>
-          <p className="text-sm text-[#C9A84C] mt-2 leading-snug">{current.data.bonusText}</p>
-          <p className="text-xs text-[#8B9BB4] mt-2">
+          <p className="text-xs text-[#C9A84C] mt-0.5 leading-snug">{current.data.bonusText}</p>
+          <p className="text-[10px] text-[#8B9BB4] mt-0.5">
             Reciben ({current.data.teamName}):{' '}
             {current.data.recipients.length > 0 ? current.data.recipients.join(', ') : 'ninguno vivo'}
           </p>
