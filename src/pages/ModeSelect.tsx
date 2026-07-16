@@ -60,7 +60,7 @@ export default function ModeSelect() {
       </div>
 
       <p className="shrink-0 text-[11px] text-center text-[#4A5570] pb-4 px-4">
-        Partidas ~2 min · Torneo completo ≤ ~8 min si llegas a la final
+        16 equipos · combate 100% simulado · HOMEBOYS PROD.
       </p>
     </div>
   );
