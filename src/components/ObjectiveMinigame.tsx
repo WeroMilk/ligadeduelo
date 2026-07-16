@@ -29,9 +29,9 @@ type QteProfile = {
 };
 
 const ENEMY_ESCAPE_CHANCE = 0.42;
+const SIM_HIT_CHANCE = 0.5;
 
 function profileFor(obj: ObjectiveType, isGank = false): QteProfile {
-  // Más difícil: zonas más rápidas y fallos más castigan
   if (isGank) {
     return { zoneMs: 580, zoneSizePx: 30, spawnGapMs: 920, hitDmg: 11, missPenalty: 24 };
   }
@@ -161,14 +161,29 @@ export default function ObjectiveMinigame({
   const [blueAnim, setBlueAnim] = useState<FighterAnim>('idle');
   const [redAnim, setRedAnim] = useState<FighterAnim>('idle');
   const [monsterAnim, setMonsterAnim] = useState<FighterAnim>('idle');
+  const [simulating, setSimulating] = useState(false);
   const completedRef = useRef(false);
   const finishedRef = useRef(false);
   const loserFateRef = useRef<'killed' | 'escaped'>('killed');
+  const simulatingRef = useRef(false);
+  const phaseRef = useRef(phase);
+  const blueBarRef = useRef(blueBar);
+  const redBarRef = useRef(redBar);
+  const monsterHpRef = useRef(monsterHp);
+  const allyHpRef = useRef(allyHp);
+
+  phaseRef.current = phase;
+  blueBarRef.current = blueBar;
+  redBarRef.current = redBar;
+  monsterHpRef.current = monsterHp;
+  allyHpRef.current = allyHp;
 
   const finishOnce = useCallback((result: ObjectiveQtePayload) => {
     if (completedRef.current) return;
     completedRef.current = true;
     finishedRef.current = true;
+    simulatingRef.current = false;
+    setSimulating(false);
     setZone(null);
     onComplete(result);
   }, [onComplete]);
@@ -204,6 +219,23 @@ export default function ObjectiveMinigame({
     setter(anim);
     window.setTimeout(() => setter('idle'), ms);
   };
+
+  const spawnZone = useCallback(() => {
+    if (completedRef.current || finishedRef.current) {
+      setZone(null);
+      return;
+    }
+    const p = phaseRef.current;
+    if (p !== 'skirmish' && p !== 'monster') {
+      setZone(null);
+      return;
+    }
+    setZone({
+      id: Date.now(),
+      x: 18 + Math.random() * 64,
+      y: 28 + Math.random() * 48,
+    });
+  }, []);
 
   const continueAfterFate = useCallback((winner: TeamColor, fate: 'killed' | 'escaped') => {
     loserFateRef.current = fate;
@@ -248,21 +280,45 @@ export default function ObjectiveMinigame({
     }
   }, [finishOnce, isGank]);
 
-  const spawnZone = useCallback(() => {
-    if (completedRef.current || finishedRef.current) {
-      setZone(null);
-      return;
+  const applyHit = useCallback(() => {
+    if (completedRef.current || finishedRef.current) return;
+    const p = phaseRef.current;
+    if (p === 'skirmish' && (blueBarRef.current >= SKIRMISH_GOAL || redBarRef.current >= SKIRMISH_GOAL)) return;
+    if (p === 'monster' && (monsterHpRef.current <= 0 || allyHpRef.current <= 0)) return;
+
+    setFlash('hit');
+    playZoneHitSound();
+    if (p === 'skirmish') {
+      setBlueBar(v => {
+        const next = Math.min(SKIRMISH_GOAL, v + profile.hitDmg);
+        if (next >= SKIRMISH_GOAL) {
+          finishedRef.current = true;
+          setZone(null);
+        }
+        return next;
+      });
+      setLog(simulatingRef.current ? 'Simulado · acierto' : '¡Bien! Tus aliados golpean');
+      pulseAnim(setBlueAnim, 'lunge');
+      pulseAnim(setRedAnim, 'shake');
+    } else if (p === 'monster') {
+      setMonsterHp(v => {
+        const next = Math.max(0, v - profile.hitDmg);
+        if (next <= 0) {
+          finishedRef.current = true;
+          setZone(null);
+        }
+        return next;
+      });
+      setLog(simulatingRef.current ? 'Simulado · acierto' : '¡Bien! Dañas al objetivo');
+      pulseAnim(setBlueAnim, 'lunge');
+      pulseAnim(setMonsterAnim, 'shake');
     }
-    if (phase !== 'skirmish' && phase !== 'monster') {
-      setZone(null);
-      return;
-    }
-    setZone({
-      id: Date.now(),
-      x: 18 + Math.random() * 64,
-      y: 28 + Math.random() * 48,
-    });
-  }, [phase]);
+    setZone(null);
+    window.setTimeout(() => setFlash(null), 280);
+    window.setTimeout(() => {
+      if (!completedRef.current && !finishedRef.current) spawnZone();
+    }, 280);
+  }, [profile.hitDmg, spawnZone]);
 
   useEffect(() => {
     if (phase !== 'skirmish' && phase !== 'monster') return;
@@ -294,12 +350,12 @@ export default function ObjectiveMinigame({
       playZoneMissSound();
       if (phase === 'skirmish') {
         setRedBar(v => Math.min(SKIRMISH_GOAL, v + profile.missPenalty));
-        setLog('Fallaste · el rival golpea');
+        setLog(simulatingRef.current ? 'Simulado · fallo' : 'Fallaste · el rival golpea');
         pulseAnim(setBlueAnim, 'shake');
         pulseAnim(setRedAnim, 'lunge');
       } else if (phase === 'monster') {
         setAllyHp(v => Math.max(0, v - profile.missPenalty));
-        setLog('El objetivo te golpea');
+        setLog(simulatingRef.current ? 'Simulado · fallo' : 'El objetivo te golpea');
         pulseAnim(setBlueAnim, 'shake');
         pulseAnim(setMonsterAnim, 'lunge');
       }
@@ -309,12 +365,36 @@ export default function ObjectiveMinigame({
     return () => window.clearTimeout(t);
   }, [zone, phase, profile.zoneMs, profile.missPenalty]);
 
+  // Auto-simulación: 50% acierto por bolita; si falla, el timeout de la zona cuenta miss
+  useEffect(() => {
+    if (!zone || !simulating) return;
+    if (completedRef.current || finishedRef.current) return;
+    if (phase !== 'skirmish' && phase !== 'monster') return;
+
+    const delay = 180 + Math.random() * 220;
+    const t = window.setTimeout(() => {
+      if (!simulatingRef.current || completedRef.current || finishedRef.current) return;
+      if (Math.random() < SIM_HIT_CHANCE) {
+        applyHit();
+      }
+    }, delay);
+    return () => window.clearTimeout(t);
+  }, [zone, simulating, phase, applyHit]);
+
+  useEffect(() => {
+    if (phase !== 'escape-popup' || !simulating) return;
+    const t = window.setTimeout(() => {
+      if (!simulatingRef.current) return;
+      continueAfterFate('blue', 'escaped');
+    }, 900);
+    return () => window.clearTimeout(t);
+  }, [phase, simulating, continueAfterFate]);
+
   useEffect(() => {
     if (phase !== 'skirmish') return;
     if (blueBar >= SKIRMISH_GOAL) {
       finishedRef.current = true;
       setZone(null);
-      // El enemigo puede escapar justo antes de morir
       if (Math.random() < ENEMY_ESCAPE_CHANCE) {
         setPhase('escape-popup');
         setLog('El enemigo escapó');
@@ -323,7 +403,6 @@ export default function ObjectiveMinigame({
         continueAfterFate('blue', 'killed');
       }
     } else if (redBar >= SKIRMISH_GOAL) {
-      // El jugador no puede escapar: solo la IA tiene esa opción.
       finishedRef.current = true;
       setZone(null);
       continueAfterFate('red', 'killed');
@@ -361,82 +440,17 @@ export default function ObjectiveMinigame({
 
   const onZoneClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (simulatingRef.current) return;
     if (!zone || completedRef.current || finishedRef.current) return;
-    if (phase === 'skirmish' && (blueBar >= SKIRMISH_GOAL || redBar >= SKIRMISH_GOAL)) return;
-    if (phase === 'monster' && (monsterHp <= 0 || allyHp <= 0)) return;
-
-    setFlash('hit');
-    playZoneHitSound();
-    if (phase === 'skirmish') {
-      setBlueBar(v => {
-        const next = Math.min(SKIRMISH_GOAL, v + profile.hitDmg);
-        if (next >= SKIRMISH_GOAL) {
-          finishedRef.current = true;
-          setZone(null);
-        }
-        return next;
-      });
-      setLog('¡Bien! Tus aliados golpean');
-      pulseAnim(setBlueAnim, 'lunge');
-      pulseAnim(setRedAnim, 'shake');
-    } else if (phase === 'monster') {
-      setMonsterHp(v => {
-        const next = Math.max(0, v - profile.hitDmg);
-        if (next <= 0) {
-          finishedRef.current = true;
-          setZone(null);
-        }
-        return next;
-      });
-      setLog('¡Bien! Dañas al objetivo');
-      pulseAnim(setBlueAnim, 'lunge');
-      pulseAnim(setMonsterAnim, 'shake');
-    }
-    setZone(null);
-    window.setTimeout(() => setFlash(null), 280);
-    window.setTimeout(() => {
-      if (!completedRef.current && !finishedRef.current) spawnZone();
-    }, 280);
+    applyHit();
   };
 
-  /** Simula solo la fase actual (escaramuza o monstruo). No toca barras para no re-disparar effects. */
-  const simulatePhase = () => {
-    if (completedRef.current || finishedRef.current) return;
+  const startAutoSimulate = () => {
+    if (completedRef.current || finishedRef.current || simulatingRef.current) return;
     if (phase === 'escape-popup') return;
-
-    finishedRef.current = true;
-    setZone(null);
-
-    if (phase === 'skirmish') {
-      const playerWins = Math.random() < 0.55;
-      if (playerWins) {
-        setLog('Simulado · ganaste el choque');
-        if (Math.random() < ENEMY_ESCAPE_CHANCE) {
-          setPhase('escape-popup');
-          setLog('Simulado · el enemigo escapó');
-          finishedRef.current = false;
-        } else {
-          continueAfterFate('blue', 'killed');
-        }
-      } else {
-        setLog('Simulado · el rival gana el choque');
-        continueAfterFate('red', 'killed');
-      }
-      return;
-    }
-
-    if (phase === 'monster') {
-      const taken = Math.random() < 0.68;
-      setLog(taken ? 'Simulado · objetivo conquistado' : 'Simulado · fallaste el objetivo');
-      window.setTimeout(() => {
-        finishOnce({
-          skirmishWinner: contested ? 'blue' : null,
-          attackingTeam: 'blue',
-          monsterTaken: taken,
-          loserFate: contested ? loserFateRef.current : undefined,
-        });
-      }, 450);
-    }
+    simulatingRef.current = true;
+    setSimulating(true);
+    setLog('Simulando… 50% de acierto');
   };
 
   const label = isGank
@@ -471,14 +485,16 @@ export default function ObjectiveMinigame({
             <p className="text-sm text-[#8B9BB4]">
               Sus campeones sobreviven, pero pierden el próximo turno.
             </p>
-            <button
-              type="button"
-              className="w-full rounded-xl py-3 font-bold"
-              style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
-              onClick={() => continueAfterFate('blue', 'escaped')}
-            >
-              Continuar
-            </button>
+            {!simulating && (
+              <button
+                type="button"
+                className="w-full rounded-xl py-3 font-bold"
+                style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
+                onClick={() => continueAfterFate('blue', 'escaped')}
+              >
+                Continuar
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -555,7 +571,7 @@ export default function ObjectiveMinigame({
                 </div>
               </div>
 
-              {zone && (
+              {zone && !simulating && (
                 <button
                   type="button"
                   onClick={onZoneClick}
@@ -570,6 +586,19 @@ export default function ObjectiveMinigame({
                 />
               )}
 
+              {zone && simulating && (
+                <div
+                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-[#F1C40F] bg-[#F1C40F]/25 animate-obj-zone z-10"
+                  style={{
+                    left: `${zone.x}%`,
+                    top: `${zone.y}%`,
+                    width: profile.zoneSizePx,
+                    height: profile.zoneSizePx,
+                  }}
+                  aria-hidden
+                />
+              )}
+
               <p className="absolute bottom-3 inset-x-0 text-center text-[10px] text-[#8B9BB4]">
                 Equipo atacante: {attackingTeam === 'blue' ? 'Azul (tú)' : 'Rojo'}
                 {loserFate === 'escaped' && skirmishWinner === 'blue' ? ' · el rival escapó' : ''}
@@ -579,10 +608,11 @@ export default function ObjectiveMinigame({
             <div className="border-t border-[#2A3550] px-4 py-3">
               <button
                 type="button"
-                onClick={simulatePhase}
-                className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/45 bg-[#C9A84C]/12 font-bold text-[#C9A84C] active:scale-[0.99]"
+                onClick={startAutoSimulate}
+                disabled={simulating}
+                className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/45 bg-[#C9A84C]/12 font-bold text-[#C9A84C] active:scale-[0.99] disabled:opacity-60"
               >
-                Simular
+                {simulating ? 'Simulando…' : 'Simular'}
               </button>
             </div>
           </>
