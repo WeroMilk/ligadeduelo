@@ -110,6 +110,8 @@ export interface Champion {
   burnPending: number;
   ultimateUsed: boolean;
   siegeStacks: number;
+  /** Robo de vida acumulado (0–1), p.ej. Dragón Ancestral. */
+  lifeSteal: number;
   revealedAction?: CombatAction | null;
 }
 
@@ -175,6 +177,8 @@ export interface DuelSummary {
   blue?: DuelFighterSummary;
   red?: DuelFighterSummary;
   summary: string;
+  /** Torre o nexo asediado (solo kind === 'siege'). */
+  siegeTargetId?: string;
 }
 
 export interface CombatFloat {
@@ -207,6 +211,25 @@ export interface ObjectiveQteResult {
   monsterTaken: boolean;
 }
 
+export interface KillAnnounce {
+  id: string;
+  killerName: string;
+  victimNames: string[];
+  /** 1 = kill simple; 2–5 = multi-kill del mismo campeón. */
+  multi: number;
+  team: TeamColor;
+}
+
+export interface ObjectiveBonusAnnounce {
+  id: string;
+  objective: NonNullable<ObjectiveType>;
+  title: string;
+  bonusText: string;
+  recipients: string[];
+  team: TeamColor;
+  teamName: string;
+}
+
 export interface RoundResolution {
   round: number;
   log: CombatLogLine[];
@@ -225,6 +248,8 @@ export interface RoundResolution {
   ancestralGranted?: boolean;
   /** Necesita QTE del jugador antes de cerrar la ronda. */
   pendingObjectiveQte?: boolean;
+  killAnnounces?: KillAnnounce[];
+  objectiveBonus?: ObjectiveBonusAnnounce | null;
   matchOver: boolean;
   winner: TeamColor | null;
   autoNexus: boolean;

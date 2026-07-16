@@ -71,22 +71,27 @@ function Portrait({
     '';
 
   return (
-    <div
-      className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 overflow-hidden shrink-0 ${ring} ${animCls}`}
-      style={{ backgroundColor: def?.color || '#1A2238' }}
-    >
-      {def?.image && imgOk ? (
-        <img
-          src={def.image}
-          alt={def.name}
-          className="w-full h-full object-cover"
-          onError={() => setImgOk(false)}
-        />
-      ) : (
-        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-[#F0E6D2]">
-          {def?.initials || '?'}
-        </span>
-      )}
+    <div className={`flex flex-col items-center gap-1 ${animCls}`}>
+      <div
+        className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 overflow-hidden shrink-0 ${ring}`}
+        style={{ backgroundColor: def?.color || '#1A2238' }}
+      >
+        {def?.image && imgOk ? (
+          <img
+            src={def.image}
+            alt={def.name}
+            className="w-full h-full object-cover"
+            onError={() => setImgOk(false)}
+          />
+        ) : (
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-[#F0E6D2]">
+            {def?.initials || '?'}
+          </span>
+        )}
+      </div>
+      <span className="text-[10px] sm:text-[11px] font-bold text-[#F0E6D2] leading-none truncate max-w-[4.5rem] text-center">
+        {def?.name || '???'}
+      </span>
     </div>
   );
 }
@@ -150,10 +155,13 @@ export default function ObjectiveMinigame({
   const [redAnim, setRedAnim] = useState<FighterAnim>('idle');
   const [monsterAnim, setMonsterAnim] = useState<FighterAnim>('idle');
   const completedRef = useRef(false);
+  const finishedRef = useRef(false);
 
   const finishOnce = useCallback((result: ObjectiveQtePayload) => {
     if (completedRef.current) return;
     completedRef.current = true;
+    finishedRef.current = true;
+    setZone(null);
     onComplete(result);
   }, [onComplete]);
 
@@ -191,6 +199,10 @@ export default function ObjectiveMinigame({
   };
 
   const spawnZone = useCallback(() => {
+    if (completedRef.current || finishedRef.current) {
+      setZone(null);
+      return;
+    }
     setZone({
       id: Date.now(),
       x: 18 + Math.random() * 64,
@@ -199,14 +211,30 @@ export default function ObjectiveMinigame({
   }, []);
 
   useEffect(() => {
+    finishedRef.current = false;
+    completedRef.current = false;
     spawnZone();
-    const iv = window.setInterval(spawnZone, profile.spawnGapMs);
+    const iv = window.setInterval(() => {
+      if (completedRef.current || finishedRef.current) {
+        setZone(null);
+        return;
+      }
+      spawnZone();
+    }, profile.spawnGapMs);
     return () => window.clearInterval(iv);
   }, [phase, spawnZone, profile.spawnGapMs]);
 
   useEffect(() => {
     if (!zone) return;
+    if (completedRef.current || finishedRef.current) {
+      setZone(null);
+      return;
+    }
     const t = window.setTimeout(() => {
+      if (completedRef.current || finishedRef.current) {
+        setZone(null);
+        return;
+      }
       setFlash('miss');
       playZoneMissSound();
       if (phase === 'skirmish') {
@@ -229,6 +257,8 @@ export default function ObjectiveMinigame({
   useEffect(() => {
     if (phase !== 'skirmish') return;
     if (blueBar >= SKIRMISH_GOAL) {
+      finishedRef.current = true;
+      setZone(null);
       setSkirmishWinner('blue');
       if (isGank) {
         setLog('¡Ganáis el choque de junglas!');
@@ -244,8 +274,11 @@ export default function ObjectiveMinigame({
         setPhase('monster');
         setMonsterHp(MONSTER_HP);
         setAllyHp(100);
+        finishedRef.current = false;
       }
     } else if (redBar >= SKIRMISH_GOAL) {
+      finishedRef.current = true;
+      setZone(null);
       setSkirmishWinner('red');
       setLog(isGank
         ? 'El rival gana el choque de junglas'
@@ -263,6 +296,8 @@ export default function ObjectiveMinigame({
   useEffect(() => {
     if (phase !== 'monster' || skirmishWinner === 'red') return;
     if (monsterHp <= 0) {
+      finishedRef.current = true;
+      setZone(null);
       setLog('¡Objetivo conquistado!');
       window.setTimeout(() => {
         finishOnce({
@@ -272,6 +307,8 @@ export default function ObjectiveMinigame({
         });
       }, 600);
     } else if (allyHp <= 0) {
+      finishedRef.current = true;
+      setZone(null);
       setLog('Vuestro equipo cae ante el monstruo');
       window.setTimeout(() => {
         finishOnce({
@@ -285,23 +322,42 @@ export default function ObjectiveMinigame({
 
   const onZoneClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!zone) return;
+    if (!zone || completedRef.current || finishedRef.current) return;
+    if (phase === 'skirmish' && (blueBar >= SKIRMISH_GOAL || redBar >= SKIRMISH_GOAL)) return;
+    if (phase === 'monster' && (monsterHp <= 0 || allyHp <= 0)) return;
+
     setFlash('hit');
     playZoneHitSound();
     if (phase === 'skirmish') {
-      setBlueBar(v => Math.min(SKIRMISH_GOAL, v + profile.hitDmg));
+      setBlueBar(v => {
+        const next = Math.min(SKIRMISH_GOAL, v + profile.hitDmg);
+        if (next >= SKIRMISH_GOAL) {
+          finishedRef.current = true;
+          setZone(null);
+        }
+        return next;
+      });
       setLog('¡Acierto! Aliados golpean');
       pulseAnim(setBlueAnim, 'lunge');
       pulseAnim(setRedAnim, 'shake');
     } else {
-      setMonsterHp(v => Math.max(0, v - profile.hitDmg));
+      setMonsterHp(v => {
+        const next = Math.max(0, v - profile.hitDmg);
+        if (next <= 0) {
+          finishedRef.current = true;
+          setZone(null);
+        }
+        return next;
+      });
       setLog('¡Acierto! Aliados dañan al objetivo');
       pulseAnim(setBlueAnim, 'lunge');
       pulseAnim(setMonsterAnim, 'shake');
     }
     setZone(null);
     window.setTimeout(() => setFlash(null), 280);
-    window.setTimeout(spawnZone, 280);
+    window.setTimeout(() => {
+      if (!completedRef.current && !finishedRef.current) spawnZone();
+    }, 280);
   };
 
   const label = isGank

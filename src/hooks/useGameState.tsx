@@ -365,6 +365,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         burnPending: 0,
         ultimateUsed: false,
         siegeStacks: 0,
+        lifeSteal: 0,
       };
       const champToRoster = { ...state.champToRoster };
       Object.keys(champToRoster).forEach(k => {

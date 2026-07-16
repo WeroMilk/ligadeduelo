@@ -19,7 +19,7 @@ export default function Home() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 py-8 safe-top safe-bottom">
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-start px-4 pt-16 pb-8 safe-top safe-bottom sm:pt-20 md:justify-center md:pt-8">
         <div className="w-full max-w-md space-y-6 text-center">
           <div>
             <h1

@@ -6,7 +6,11 @@ import { Swords, Shield, Sparkles } from 'lucide-react';
 
 export type ObjectiveAnimPhase = 'none' | 'pulse' | 'clash' | 'claim';
 
-export type AttackBeam = { blueId: string; redId: string };
+export type AttackBeam = {
+  fromId: string;
+  toId: string;
+  toKind: 'champ' | 'structure';
+};
 
 type MinimapProps = {
   blueChampions: Champion[];
@@ -185,6 +189,10 @@ export default function Minimap({
     const plan = c.team === 'blue' ? bluePlan : redPlan;
     posById.set(c.instanceId, champMapPos(c, plan, objective, cinemaApproach, focusLane));
   }
+  for (const s of structures) {
+    if (s.isDestroyed) continue;
+    posById.set(s.id, structurePos(s));
+  }
 
   const laneHighlight =
     focusLane === 0 ? TOP_PATH : focusLane === 1 ? MID_PATH : focusLane === 2 ? BOT_PATH : null;
@@ -287,25 +295,43 @@ export default function Minimap({
           ))}
 
           {attackBeams.map((beam, i) => {
-            const a = posById.get(beam.blueId);
-            const b = posById.get(beam.redId);
+            const a = posById.get(beam.fromId);
+            const b = posById.get(beam.toId);
             if (!a || !b) return null;
+            const midX = (a.x + b.x) * 50;
+            const midY = (a.y + b.y) * 50;
             return (
-              <line
-                key={`beam-${i}`}
-                x1={a.x * 100}
-                y1={a.y * 100}
-                x2={b.x * 100}
-                y2={b.y * 100}
-                stroke="#F1C40F"
-                strokeWidth="1.4"
-                strokeOpacity="0.9"
-                strokeLinecap="round"
-                style={{
-                  filter: 'drop-shadow(0 0 2px #F1C40F)',
-                  animation: 'minimap-beam 0.7s ease-in-out infinite alternate',
-                }}
-              />
+              <g key={`beam-${i}`}>
+                <line
+                  x1={a.x * 100}
+                  y1={a.y * 100}
+                  x2={b.x * 100}
+                  y2={b.y * 100}
+                  stroke="#F1C40F"
+                  strokeWidth={beam.toKind === 'structure' ? 2.2 : 1.8}
+                  strokeOpacity="0.95"
+                  strokeLinecap="round"
+                  style={{
+                    filter: 'drop-shadow(0 0 3px #F1C40F)',
+                    animation: 'minimap-beam 0.55s ease-in-out infinite alternate',
+                  }}
+                />
+                {/* Flecha hacia el objetivo */}
+                <circle
+                  cx={b.x * 100}
+                  cy={b.y * 100}
+                  r={beam.toKind === 'structure' ? 2.2 : 1.6}
+                  fill="#F1C40F"
+                  opacity="0.95"
+                />
+                <circle
+                  cx={midX}
+                  cy={midY}
+                  r="1.1"
+                  fill="#FFF3A0"
+                  opacity="0.9"
+                />
+              </g>
             );
           })}
         </svg>

@@ -2,6 +2,7 @@ import type {
   Champion, TeamData, TeamPlan, CombatAction, LaneId, TeamColor,
   TurnMatchState, RoundResolution, CombatLogLine, Structure,
   DuelSummary, DuelFighterSummary, CombatFloat, ObjectiveType,
+  KillAnnounce, ObjectiveBonusAnnounce,
 } from '@/types/game';
 import { CHAMPIONS, getChampionBaseStats, ITEMS, ITEM_PRIORITY_BY_ROLE, MAX_MATCH_ROUNDS, GOLD_PER_ROUND, GOLD_PER_KILL, POINTS_KILL, POINTS_TOWER, POINTS_OBJECTIVE, POINTS_NEXUS, FREE_LANE_SIEGE_BONUS, objectiveForRound, objectiveName } from './game-data';
 import { applyBuffToStats, type BuffId } from './buffs';
@@ -12,6 +13,51 @@ function uid(prefix = 'c') { return `${prefix}${++idCounter}`; }
 function logId() { return `l${++idCounter}`; }
 function duelId() { return `d${++idCounter}`; }
 function floatId() { return `f${++idCounter}`; }
+function announceId() { return `a${++idCounter}`; }
+
+type RawKill = {
+  killerId: string;
+  killerName: string;
+  victimName: string;
+  team: TeamColor;
+};
+
+function pushKill(
+  kills: RawKill[],
+  killer: Champion,
+  victim: Champion,
+) {
+  kills.push({
+    killerId: killer.instanceId,
+    killerName: champDef(killer).name,
+    victimName: champDef(victim).name,
+    team: killer.team,
+  });
+}
+
+function aggregateKillAnnounces(raw: RawKill[]): KillAnnounce[] {
+  const order: string[] = [];
+  const map = new Map<string, { killerName: string; team: TeamColor; victims: string[] }>();
+  for (const k of raw) {
+    let g = map.get(k.killerId);
+    if (!g) {
+      g = { killerName: k.killerName, team: k.team, victims: [] };
+      map.set(k.killerId, g);
+      order.push(k.killerId);
+    }
+    g.victims.push(k.victimName);
+  }
+  return order.map(id => {
+    const g = map.get(id)!;
+    return {
+      id: announceId(),
+      killerName: g.killerName,
+      victimNames: g.victims,
+      multi: Math.min(5, g.victims.length),
+      team: g.team,
+    };
+  });
+}
 
 const TOWER_MAX_HP = 1400;
 const NEXUS_MAX_HP = 2200;
@@ -76,6 +122,7 @@ export function createTurnChampion(defId: string, team: TeamColor): Champion {
     burnPending: 0,
     ultimateUsed: false,
     siegeStacks: 0,
+    lifeSteal: 0,
   };
 }
 
@@ -172,7 +219,7 @@ function applyBurn(champs: Champion[], log: CombatLogLine[]) {
   }
 }
 
-function dealDamage(_attacker: Champion, defender: Champion, raw: number, magic: boolean): number {
+function dealDamage(attacker: Champion, defender: Champion, raw: number, magic: boolean): number {
   let dmg = raw;
   if (magic && hasItem(defender, 'null_magic')) dmg = Math.max(5, dmg - 40);
   const mit = magic
@@ -180,6 +227,12 @@ function dealDamage(_attacker: Champion, defender: Champion, raw: number, magic:
     : defender.stats.armor / (defender.stats.armor + 100);
   dmg = Math.max(8, Math.floor(dmg * (1 - mit)));
   defender.stats.hp = Math.max(0, defender.stats.hp - dmg);
+  if (attacker.lifeSteal > 0 && dmg > 0 && attacker.isAlive) {
+    const heal = Math.floor(dmg * attacker.lifeSteal);
+    if (heal > 0) {
+      attacker.stats.hp = Math.min(attacker.stats.maxHp, attacker.stats.hp + heal);
+    }
+  }
   return dmg;
 }
 
@@ -222,6 +275,7 @@ function resolveDuel(
   duels: DuelSummary[],
   floats: CombatFloat[],
   lane: LaneId,
+  killEvents: RawKill[],
 ): { blueKill: boolean; redKill: boolean } {
   let blueKill = false;
   let redKill = false;
@@ -371,6 +425,7 @@ function resolveDuel(
       }
       pushLog(log, `¡${champDef(atk.champ).name} elimina a ${champDef(def.champ).name}! (+1 kill)`, 'kill');
       notes.push(`${champDef(def.champ).name} KO`);
+      pushKill(killEvents, atk.champ, def.champ);
 
       if (atk.ult && atk.champ.defId === 'darius') {
         atk.champ.stats.hp = Math.min(atk.champ.stats.maxHp, atk.champ.stats.hp + 80);
@@ -405,6 +460,7 @@ function resolveDuel(
         else { state.red.kills++; state.red.score += POINTS_KILL; redKill = true; }
         pushLog(log, `${champDef(def.champ).name} cae por la marca`, 'kill');
         notes.push(`${champDef(def.champ).name} KO`);
+        pushKill(killEvents, atk.champ, def.champ);
       }
     }
   }
@@ -472,6 +528,7 @@ function resolveLaneGroup(
   duels: DuelSummary[],
   floats: CombatFloat[],
   towerStats: { blue: number; red: number },
+  killEvents: RawKill[],
   skipJungles = false,
 ) {
   const { blue, red } = fightersInLane(state, lane, bluePlan, redPlan, skipJungles);
@@ -528,7 +585,7 @@ function resolveLaneGroup(
     if (enemy && enemy.champ.isAlive) {
       fought.add(bf.champ.instanceId);
       fought.add(enemy.champ.instanceId);
-      resolveDuel(bf, enemy, state, log, duels, floats, lane);
+      resolveDuel(bf, enemy, state, log, duels, floats, lane, killEvents);
     } else if (bf.action !== 'defend') {
       siegeTower(state, 'red', lane, bf.champ, log, duels, floats, towerStats);
     }
@@ -588,6 +645,7 @@ function siegeTower(
         blue: sieger.team === 'blue' ? siegerSnap : undefined,
         red: sieger.team === 'red' ? siegerSnap : undefined,
         summary: `${champDef(sieger).name} asedia el Nexo (−${dmg})`,
+        siegeTargetId: nexus.id,
       });
       if (nexus.hp <= 0) {
         nexus.isDestroyed = true;
@@ -634,6 +692,7 @@ function siegeTower(
     blue: sieger.team === 'blue' ? siegerSnap : undefined,
     red: sieger.team === 'red' ? siegerSnap : undefined,
     summary,
+    siegeTargetId: tower.id,
   });
 }
 
@@ -652,22 +711,57 @@ function grantObjectiveRewards(
   winner: TeamColor,
   obj: NonNullable<ObjectiveType>,
   log: CombatLogLine[],
-): { freeItem: boolean; ancestral: boolean } {
+): { freeItem: boolean; ancestral: boolean; bonus: ObjectiveBonusAnnounce } {
   const name = objectiveName(obj);
   const wTeam = winner === 'blue' ? state.blue : state.red;
   wTeam.score += POINTS_OBJECTIVE;
-  wTeam.damageBuff += obj === 'dragon_fire' ? 8 : obj === 'dragon_water' ? 6 : obj === 'baron' ? 10 : 12;
-  pushLog(log, `${wTeam.name} conquista el ${name}!`, 'objective');
+  const recipients = living(wTeam);
+  const recipientNames = recipients.map(c => champDef(c).name);
+
+  let bonusText = '';
+  if (obj === 'dragon_water') {
+    bonusText = '+15% de Maná a todos los campeones aliados vivos';
+    for (const c of recipients) {
+      const bonus = Math.max(1, Math.floor(c.stats.maxMana * 0.15));
+      c.stats.maxMana += bonus;
+      c.stats.mana = Math.min(c.stats.maxMana, c.stats.mana + bonus);
+    }
+  } else if (obj === 'dragon_fire') {
+    bonusText = '+15% de vida a todos los campeones aliados vivos';
+    for (const c of recipients) {
+      const bonus = Math.max(1, Math.floor(c.stats.maxHp * 0.15));
+      c.stats.maxHp += bonus;
+      c.stats.hp = Math.min(c.stats.maxHp, c.stats.hp + bonus);
+    }
+  } else if (obj === 'baron') {
+    bonusText = '+10% de daño físico y +10% de daño mágico a campeones aliados vivos';
+    for (const c of recipients) {
+      c.stats.ad = Math.max(1, Math.floor(c.stats.ad * 1.1));
+      c.stats.ap = Math.max(1, Math.floor(c.stats.ap * 1.1));
+    }
+  } else {
+    bonusText = '+15% de robo de vida a todos los campeones aliados vivos (15% del daño a enemigos se cura)';
+    for (const c of recipients) {
+      c.lifeSteal = Math.min(0.6, (c.lifeSteal || 0) + 0.15);
+    }
+  }
+
+  pushLog(log, `${wTeam.name} conquista el ${name}! ${bonusText}`, 'objective');
   grantFreeItemToTeam(wTeam, log);
-  let ancestral = false;
-  if (obj === 'dragon_ancestral') {
-    applyAncestralBonus(wTeam, log);
-    ancestral = true;
-  }
-  if (winner === 'red') {
-    applyRandomTeamBuff(wTeam, log);
-  }
-  return { freeItem: true, ancestral };
+
+  return {
+    freeItem: true,
+    ancestral: obj === 'dragon_ancestral',
+    bonus: {
+      id: announceId(),
+      objective: obj,
+      title: name,
+      bonusText,
+      recipients: recipientNames,
+      team: winner,
+      teamName: wTeam.name,
+    },
+  };
 }
 
 /** Aplica objetivo con resultado del QTE (o auto). */
@@ -681,6 +775,7 @@ export function applyObjectiveWithQte(
   contested: boolean;
   freeItem: boolean;
   ancestral: boolean;
+  bonus: ObjectiveBonusAnnounce | null;
   log: CombatLogLine[];
   duels: DuelSummary[];
   floats: CombatFloat[];
@@ -689,7 +784,7 @@ export function applyObjectiveWithQte(
   const duels: DuelSummary[] = [];
   const floats: CombatFloat[] = [];
   if (!state.objective) {
-    return { winner: null, contested: false, freeItem: false, ancestral: false, log, duels, floats };
+    return { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null, log, duels, floats };
   }
   const obj = state.objective;
   const name = objectiveName(obj);
@@ -699,7 +794,7 @@ export function applyObjectiveWithQte(
 
   if (blueP.length === 0 && redP.length === 0) {
     pushLog(log, `${name}: nadie lo contestó esta ronda`);
-    return { winner: null, contested: false, freeItem: false, ancestral: false, log, duels, floats };
+    return { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null, log, duels, floats };
   }
 
   const contested = blueP.length > 0 && redP.length > 0;
@@ -735,28 +830,29 @@ export function applyObjectiveWithQte(
     if (blueP.length > 0 && redP.length === 0) {
       if (bp < objHp * 0.35) {
         pushLog(log, `El equipo azul falla el ${name} (poco daño)`);
-        return { winner: null, contested: false, freeItem: false, ancestral: false, log, duels, floats };
+        return { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null, log, duels, floats };
       }
       winner = 'blue';
     } else if (redP.length > 0 && blueP.length === 0) {
       if (rp < objHp * 0.35) {
         pushLog(log, `El equipo rojo falla el ${name} (poco daño)`);
-        return { winner: null, contested: false, freeItem: false, ancestral: false, log, duels, floats };
+        return { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null, log, duels, floats };
       }
       winner = 'red';
     } else {
+      const objKills: RawKill[] = [];
       if (blueP[0] && redP[0]) {
         resolveDuel(
           { champ: blueP[0], action: bluePlan.actions[blueP[0].instanceId] || 'attack', ult: bluePlan.ultimates.includes(blueP[0].instanceId), lane: 1 },
           { champ: redP[0], action: redPlan.actions[redP[0].instanceId] || 'attack', ult: redPlan.ultimates.includes(redP[0].instanceId), lane: 1 },
-          state, log, duels, floats, 1,
+          state, log, duels, floats, 1, objKills,
         );
       }
       if (blueP[1] && redP[1] && blueP[1].isAlive && redP[1].isAlive) {
         resolveDuel(
           { champ: blueP[1], action: bluePlan.actions[blueP[1].instanceId] || 'attack', ult: bluePlan.ultimates.includes(blueP[1].instanceId), lane: 1 },
           { champ: redP[1], action: redPlan.actions[redP[1].instanceId] || 'attack', ult: redPlan.ultimates.includes(redP[1].instanceId), lane: 1 },
-          state, log, duels, floats, 1,
+          state, log, duels, floats, 1, objKills,
         );
       }
       bp = power(blueP.filter(c => c.isAlive));
@@ -770,10 +866,19 @@ export function applyObjectiveWithQte(
   }
 
   if (!winner) {
-    return { winner: null, contested, freeItem: false, ancestral: false, log, duels, floats };
+    return { winner: null, contested, freeItem: false, ancestral: false, bonus: null, log, duels, floats };
   }
   const rewards = grantObjectiveRewards(state, winner, obj, log);
-  return { winner, contested, freeItem: rewards.freeItem, ancestral: rewards.ancestral, log, duels, floats };
+  return {
+    winner,
+    contested,
+    freeItem: rewards.freeItem,
+    ancestral: rewards.ancestral,
+    bonus: rewards.bonus,
+    log,
+    duels,
+    floats,
+  };
 }
 
 function resolveObjective(
@@ -783,7 +888,7 @@ function resolveObjective(
   log: CombatLogLine[],
   duels: DuelSummary[],
   floats: CombatFloat[],
-): { winner: TeamColor | null; contested: boolean; freeItem: boolean; ancestral: boolean } {
+): { winner: TeamColor | null; contested: boolean; freeItem: boolean; ancestral: boolean; bonus: ObjectiveBonusAnnounce | null } {
   const r = applyObjectiveWithQte(state, bluePlan, redPlan, null);
   log.push(...r.log);
   duels.push(...r.duels);
@@ -793,6 +898,7 @@ function resolveObjective(
     contested: r.contested,
     freeItem: r.freeItem,
     ancestral: r.ancestral,
+    bonus: r.bonus,
   };
 }
 
@@ -806,8 +912,15 @@ function finalizeRoundBookkeeping(
   towerStats: { blue: number; red: number },
   duels: DuelSummary[],
   floats: CombatFloat[],
-  objResult: { winner: TeamColor | null; contested: boolean; freeItem: boolean; ancestral: boolean },
+  objResult: {
+    winner: TeamColor | null;
+    contested: boolean;
+    freeItem: boolean;
+    ancestral: boolean;
+    bonus?: ObjectiveBonusAnnounce | null;
+  },
   pendingQte: boolean,
+  killEvents: RawKill[] = [],
 ): TurnMatchState {
   if (!pendingQte) {
     onDeathSetRespawn(next);
@@ -873,6 +986,8 @@ function finalizeRoundBookkeeping(
     awardedFreeItem: objResult.freeItem,
     ancestralGranted: objResult.ancestral,
     pendingObjectiveQte: pendingQte,
+    killAnnounces: aggregateKillAnnounces(killEvents),
+    objectiveBonus: objResult.bonus ?? null,
     matchOver,
     winner,
     autoNexus,
@@ -910,6 +1025,7 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
   const log: CombatLogLine[] = [];
   const duels: DuelSummary[] = [];
   const floats: CombatFloat[] = [];
+  const killEvents: RawKill[] = [];
   const towerStats = { blue: 0, red: 0 };
   const scoreBeforeB = next.blue.score;
   const scoreBeforeR = next.red.score;
@@ -938,7 +1054,7 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
 
   for (const lane of [0, 1, 2] as LaneId[]) {
     resolveLaneGroup(
-      next, lane, bluePlan, redPlan, log, duels, floats, towerStats,
+      next, lane, bluePlan, redPlan, log, duels, floats, towerStats, killEvents,
       contestedGankLane === lane,
     );
   }
@@ -989,8 +1105,9 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
       return finalizeRoundBookkeeping(
         next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
         towerStats, duels, floats,
-        { winner: null, contested: true, freeItem: false, ancestral: false },
+        { winner: null, contested: true, freeItem: false, ancestral: false, bonus: null },
         true,
+        killEvents,
       );
     }
   }
@@ -1005,8 +1122,9 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
       return finalizeRoundBookkeeping(
         next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
         towerStats, duels, floats,
-        { winner: null, contested: false, freeItem: false, ancestral: false },
+        { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null },
         false,
+        killEvents,
       );
     }
     const blueP = objectiveParticipants(next.blue, bluePlan);
@@ -1023,15 +1141,16 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
     return finalizeRoundBookkeeping(
       next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
       towerStats, duels, floats,
-      { winner: null, contested: !!next.pendingObjective.contested, freeItem: false, ancestral: false },
+      { winner: null, contested: !!next.pendingObjective.contested, freeItem: false, ancestral: false, bonus: null },
       true,
+      killEvents,
     );
   }
 
   const objResult = resolveObjective(next, bluePlan, redPlan, log, duels, floats);
   return finalizeRoundBookkeeping(
     next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
-    towerStats, duels, floats, objResult, false,
+    towerStats, duels, floats, objResult, false, killEvents,
   );
 }
 
@@ -1063,8 +1182,9 @@ export function finishPendingObjective(
       { blue: prev?.towersTakenBlue || 0, red: prev?.towersTakenRed || 0 },
       [...(prev?.duels || [])],
       [...(prev?.floats || [])],
-      { winner: null, contested: false, freeItem: false, ancestral: false },
+      { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null },
       false,
+      [],
     );
   }
   const next = {
@@ -1077,6 +1197,7 @@ export function finishPendingObjective(
   const log: CombatLogLine[] = [...(prev?.log || [])];
   const duels: DuelSummary[] = [...(prev?.duels || [])];
   const floats: CombatFloat[] = [...(prev?.floats || [])];
+  const killEvents: RawKill[] = [];
   const scoreBeforeB = next.blue.score - (prev?.blueScoreDelta || 0);
   const scoreBeforeR = next.red.score - (prev?.redScoreDelta || 0);
   const killsBeforeB = next.blue.kills - (prev?.blueKillsDelta || 0);
@@ -1116,7 +1237,10 @@ export function finishPendingObjective(
         lane,
       });
       pushLog(log, `${wJg ? champDef(wJg).name : wTeam.name} elimina a ${champDef(lJg).name} en el gank`, 'kill');
-      if (wJg) wJg.gold += GOLD_PER_KILL;
+      if (wJg) {
+        wJg.gold += GOLD_PER_KILL;
+        pushKill(killEvents, wJg, lJg);
+      }
       duels.push({
         id: duelId(),
         lane,
@@ -1138,8 +1262,9 @@ export function finishPendingObjective(
     return finalizeRoundBookkeeping(
       next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
       towerStats, duels, floats,
-      { winner: null, contested: true, freeItem: false, ancestral: false },
+      { winner: null, contested: true, freeItem: false, ancestral: false, bonus: null },
       false,
+      killEvents,
     );
   }
 
@@ -1155,18 +1280,10 @@ export function finishPendingObjective(
   return finalizeRoundBookkeeping(
     next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
     towerStats, duels, floats,
-    { winner: r.winner, contested: r.contested, freeItem: r.freeItem, ancestral: r.ancestral },
+    { winner: r.winner, contested: r.contested, freeItem: r.freeItem, ancestral: r.ancestral, bonus: r.bonus },
     false,
+    killEvents,
   );
-}
-
-function applyRandomTeamBuff(team: TeamData, log: CombatLogLine[]) {
-  const ids: Array<'fury' | 'iron' | 'vital' | 'greed'> = ['fury', 'iron', 'vital', 'greed'];
-  const id = ids[Math.floor(Math.random() * ids.length)];
-  for (const c of living(team)) {
-    c.stats = applyBuffToStats(c.stats, id);
-  }
-  pushLog(log, `${team.name} obtiene una ventaja de objetivo`, 'objective');
 }
 
 function grantFreeItemToTeam(team: TeamData, log: CombatLogLine[]) {
@@ -1210,17 +1327,6 @@ export function grantFreeItem(champ: Champion, itemId: string): boolean {
   if (item.statBonus.mr) champ.stats.mr += item.statBonus.mr;
   if (item.statBonus.moveSpeed) champ.stats.moveSpeed += item.statBonus.moveSpeed;
   return true;
-}
-
-function applyAncestralBonus(team: TeamData, log: CombatLogLine[]) {
-  team.damageBuff += 15;
-  for (const c of living(team)) {
-    c.stats.maxHp += 80;
-    c.stats.hp += 80;
-    c.stats.ad += 8;
-    c.stats.ap += 8;
-  }
-  pushLog(log, `${team.name} recibe la bendición del Dragón Ancestral`, 'ulti');
 }
 
 /** Enemy gets free siege when ally left their home lane for objective. */

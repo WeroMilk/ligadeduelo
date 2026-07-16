@@ -92,10 +92,10 @@ function RulesModal({ onClose }: { onClose: () => void }) {
           <section className="space-y-1.5">
             <h3 className="font-bold text-[#F0E6D2]">4. Objetivos</h3>
             <ul className="list-disc space-y-1 pl-5 text-[#8B9BB4]">
-              <li>Turno 2: Dragón de Agua</li>
-              <li>Turno 4: Dragón de Fuego</li>
-              <li>Turno 6: Barón Nashor</li>
-              <li>Turno 8: Dragón Ancestral</li>
+              <li>Turno 2: Dragón de Agua · +15% Maná a aliados vivos</li>
+              <li>Turno 4: Dragón de Fuego · +15% vida a aliados vivos</li>
+              <li>Turno 6: Barón Nashor · +10% daño físico y mágico</li>
+              <li>Turno 8: Dragón Ancestral · +15% robo de vida</li>
             </ul>
             <p>Si mandas a la jungla al objetivo, juegas un minijuego: toca las zonas amarillas a tiempo.</p>
           </section>
@@ -147,7 +147,7 @@ export default function ModeSelect() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-y-auto">
-      <div className="shrink-0 px-4 pt-10 pb-2 safe-top text-center sm:pt-12 md:pt-8">
+      <div className="shrink-0 px-4 pt-16 pb-2 safe-top text-center sm:pt-20 md:pt-14">
         <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#8B6914] flex items-center justify-center mb-3">
           <Swords className="w-8 h-8 text-[#0A0E1A]" />
         </div>
@@ -168,7 +168,7 @@ export default function ModeSelect() {
         </button>
       </div>
 
-      <div className="min-h-0 px-4 py-3 max-w-5xl mx-auto w-full md:flex md:items-center md:flex-1 md:pb-4">
+      <div className="min-h-0 px-4 py-3 pt-5 max-w-5xl mx-auto w-full md:flex md:items-start md:flex-1 md:pb-4 md:pt-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full md:gap-4">
           {MODES.map(m => (
             <button

@@ -1,12 +1,13 @@
 /**
- * Banner publicitario permanente (excepto durante partida en vivo).
- * No se puede cerrar ni ocultar fuera de liveMatch.
+ * Banner publicitario permanente.
+ * En partida en vivo se oculta solo durante decisiones o popups.
  */
-import { useGame } from '@/hooks/useGameState';
+import { useSyncExternalStore } from 'react';
+import { getAdHidden, subscribeAdHidden } from '@/lib/ad-visibility';
 
 export default function AdBanner() {
-  const { state } = useGame();
-  if (state.currentScreen === 'liveMatch') return null;
+  const hidden = useSyncExternalStore(subscribeAdHidden, getAdHidden, () => false);
+  if (hidden) return null;
 
   return (
     <div

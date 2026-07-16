@@ -3,8 +3,10 @@ import { useGame } from '@/hooks/useGameState';
 import Minimap, { type AttackBeam, type ObjectiveAnimPhase } from '@/components/Minimap';
 import DecisionOverlay, { type DecisionKind, type DecisionPayload } from '@/components/DecisionOverlay';
 import CombatScreenFX, { type ScreenFxKind } from '@/components/CombatScreenFX';
+import CombatAnnounceOverlay, { type AnnounceItem } from '@/components/CombatAnnounceOverlay';
 import ObjectiveMinigame, { type ObjectiveQtePayload } from '@/components/ObjectiveMinigame';
 import { generateAIPlan, champDef } from '@/lib/turn-engine';
+import { setAdHidden } from '@/lib/ad-visibility';
 import { objectiveName } from '@/lib/game-data';
 import type { CombatFloat, LaneId, RoundResolution, Structure, TeamPlan } from '@/types/game';
 
@@ -122,6 +124,8 @@ export default function LiveMatch() {
   const [shake, setShake] = useState(false);
   const [cinemaRes, setCinemaRes] = useState<RoundResolution | null>(null);
   const [activeFloats, setActiveFloats] = useState<CombatFloat[]>([]);
+  const [announceBatch, setAnnounceBatch] = useState<{ items: AnnounceItem[]; nonce: number } | null>(null);
+  const [announceBusy, setAnnounceBusy] = useState(false);
   const pickQueue = useRef<DecisionKind[]>([]);
   const picksRef = useRef<DecisionPayload[]>([]);
   const cinemaTimers = useRef<number[]>([]);
@@ -135,9 +139,40 @@ export default function LiveMatch() {
   const tmRef = useRef(tm);
   const phaseStartedAt = useRef(Date.now());
   const fxNonce = useRef(0);
+  const announceNonce = useRef(0);
+  const announcedKeys = useRef<Set<string>>(new Set());
 
   phaseRef.current = phase;
   tmRef.current = tm;
+
+  // Banner: visible al esperar; oculto en decisiones, QTE y popups
+  useEffect(() => {
+    const hide =
+      phase?.t === 'prompt' ||
+      phase?.t === 'qte' ||
+      announceBusy;
+    setAdHidden(hide);
+    return () => setAdHidden(false);
+  }, [phase, announceBusy]);
+
+  const enqueueAnnounces = (items: AnnounceItem[], key: string) => {
+    if (items.length === 0) return;
+    if (announcedKeys.current.has(key)) return;
+    announcedKeys.current.add(key);
+    announceNonce.current += 1;
+    setAnnounceBatch({ items, nonce: announceNonce.current });
+  };
+
+  const announcesFromRes = (res: RoundResolution): AnnounceItem[] => {
+    const items: AnnounceItem[] = [];
+    for (const k of res.killAnnounces || []) {
+      items.push({ kind: 'kill', data: k });
+    }
+    if (res.objectiveBonus) {
+      items.push({ kind: 'objective', data: res.objectiveBonus });
+    }
+    return items;
+  };
 
   const resetCinemaGuards = () => {
     cinemaForKey.current = null;
@@ -189,6 +224,7 @@ export default function LiveMatch() {
     markPhaseStart();
     setCinemaRes(res);
     setScale(1.12);
+    enqueueAnnounces(announcesFromRes(res), `obj-${res.round}-${res.objectiveWinner}-${res.objectiveBonus?.id || 'x'}`);
     const schedule = (fn: () => void, ms: number) => {
       cinemaTimers.current.push(window.setTimeout(fn, ms));
     };
@@ -218,8 +254,23 @@ export default function LiveMatch() {
     markPhaseStart();
     setCinemaRes(res);
     setScale(1.08);
-    setPhase({ t: 'lane', lane: 0, fight: false });
     setActiveFloats([]);
+
+    // Kills de líneas al empezar el cine
+    const laneKills = (res.killAnnounces || []).map(k => ({ kind: 'kill' as const, data: k }));
+    if (laneKills.length > 0) {
+      enqueueAnnounces(laneKills, `kills-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}`);
+    }
+
+    // Choque de junglas: QTE al instante (sin esperar el cine de líneas)
+    if (res.pendingObjectiveQte && current.pendingObjective?.kind === 'gank') {
+      awaitingQte.current = true;
+      needsPostQteClaim.current = true;
+      setPhase({ t: 'qte' });
+      return;
+    }
+
+    setPhase({ t: 'lane', lane: 0, fight: false });
 
     const schedule = (fn: () => void, ms: number) => {
       cinemaTimers.current.push(window.setTimeout(fn, ms));
@@ -285,18 +336,25 @@ export default function LiveMatch() {
     dispatch({ type: 'RESOLVE_OBJECTIVE_QTE', qte });
   };
 
-  // Tras QTE: resolución final sin pending → animación claim
+  // Tras QTE: resolución final sin pending → animación claim (solo objetivos)
   useEffect(() => {
     const res = tm?.lastResolution;
     if (!res || !awaitingCinema.current) return;
     if (res.pendingObjectiveQte) return;
     if (!needsPostQteClaim.current && !cinemaForKey.current?.includes('qte-pending')) return;
     const key = `claim-${res.round}-${res.objectiveWinner}`;
-    if (cinemaForKey.current === key) return;
+    if (cinemaForKey.current === key || cinemaForKey.current === `gank-done-${res.round}`) return;
     needsPostQteClaim.current = false;
-    postQteClaim.current = true;
-    cinemaForKey.current = key;
-    playObjectiveClaim(res);
+    if (res.objective || res.objectiveWinner) {
+      postQteClaim.current = true;
+      cinemaForKey.current = key;
+      playObjectiveClaim(res);
+    } else {
+      // Choque de junglas: sin claim de monstruo
+      cinemaForKey.current = `gank-done-${res.round}`;
+      enqueueAnnounces(announcesFromRes(res), `gank-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}`);
+      endCinemaAndContinue(res);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tm?.lastResolution, tm?.pendingObjective]);
 
@@ -456,9 +514,19 @@ export default function LiveMatch() {
   const cinemaApproach = phase?.t === 'lane';
   const attackBeams: AttackBeam[] = (() => {
     if (phase?.t !== 'lane' || !phase.fight || !cinemaRes) return [];
-    return cinemaRes.duels
-      .filter(d => d.kind === 'duel' && d.lane === phase.lane && d.blue && d.red)
-      .map(d => ({ blueId: d.blue!.instanceId, redId: d.red!.instanceId }));
+    const beams: AttackBeam[] = [];
+    for (const d of cinemaRes.duels) {
+      if (d.lane !== phase.lane) continue;
+      if (d.kind === 'duel' && d.blue && d.red) {
+        beams.push({ fromId: d.blue.instanceId, toId: d.red.instanceId, toKind: 'champ' });
+      } else if (d.kind === 'siege' && d.siegeTargetId) {
+        const attacker = d.blue || d.red;
+        if (attacker) {
+          beams.push({ fromId: attacker.instanceId, toId: d.siegeTargetId, toKind: 'structure' });
+        }
+      }
+    }
+    return beams;
   })();
 
   const capsule =
@@ -475,6 +543,7 @@ export default function LiveMatch() {
   return (
     <div className={`flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden relative ${shake ? 'animate-screen-shake' : ''}`}>
       <CombatScreenFX signal={fx} />
+      <CombatAnnounceOverlay batch={announceBatch} onBusyChange={setAnnounceBusy} />
 
       <div className="shrink-0 px-4 py-3 safe-top border-b border-[#1E2740] max-w-lg md:max-w-6xl mx-auto w-full pr-14">
         <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Partida en vivo</p>

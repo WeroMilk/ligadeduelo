@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { GameProvider, useGame } from '@/hooks/useGameState';
 import ExitGameButton from '@/components/ExitGameButton';
+import CoffeeTipButton from '@/components/CoffeeTipButton';
 import AdBanner from '@/components/AdBanner';
 import AudioBoot from '@/components/AudioBoot';
 import ModeSelect from '@/pages/ModeSelect';
@@ -81,19 +82,17 @@ export default function App() {
 }
 
 function AppShell() {
-  const { state } = useGame();
-  const hideAd = state.currentScreen === 'liveMatch';
-
   return (
     <div className="flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2] safe-x md:px-4 lg:px-6">
       <ExitGameButton />
+      <CoffeeTipButton />
       <AudioBoot />
       <main className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
         <div className="flex h-full min-h-0 w-full flex-col">
           <GameRouter />
         </div>
       </main>
-      {!hideAd && <AdBanner />}
+      <AdBanner />
     </div>
   );
 }
