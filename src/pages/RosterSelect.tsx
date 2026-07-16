@@ -4,6 +4,7 @@ import { FAN_ORGS, fanOrgDisplayName, ROLE_COLORS, ROLE_NAMES } from '@/lib/game
 import { buildAllRosters } from '@/lib/rosters';
 import type { Role, RosterMember } from '@/types/game';
 import { Check, ChevronRight, User } from 'lucide-react';
+import NameSearch, { matchesNameQuery } from '@/components/NameSearch';
 
 const ROLES: Role[] = ['top', 'jungle', 'mid', 'adc', 'support'];
 const REGIONS = ['LEC', 'LCK', 'LPL', 'LCS', 'PCS/LJL'] as const;
@@ -66,6 +67,7 @@ export default function RosterSelect() {
   const [roleFilter, setRoleFilter] = useState<Role | 'all'>('all');
   const [regionFilter, setRegionFilter] = useState<(typeof REGIONS)[number] | 'all'>('all');
   const [orgFilter, setOrgFilter] = useState<string | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const selectedByRole = state.selectedRoster.reduce((acc, m) => {
     acc[m.role] = m.id;
@@ -87,12 +89,13 @@ export default function RosterSelect() {
     }
     if (orgFilter !== 'all') pool = pool.filter(m => m.orgId === orgFilter);
     if (roleFilter !== 'all') pool = pool.filter(m => m.role === roleFilter);
+    if (searchQuery.trim()) pool = pool.filter(m => matchesNameQuery(m.name, searchQuery));
     return [...pool].sort((a, b) => {
       const roleDiff = ROLE_INDEX[a.role] - ROLE_INDEX[b.role];
       if (roleDiff !== 0) return roleDiff;
       return a.orgName.localeCompare(b.orgName) || a.name.localeCompare(b.name);
     });
-  }, [allMembers, regionFilter, orgFilter, roleFilter, orgsInRegion]);
+  }, [allMembers, regionFilter, orgFilter, roleFilter, orgsInRegion, searchQuery]);
 
   /** Filas por equipo con columnas fijas por rol (evita desalineación con rosters incompletos). */
   const teamRows = useMemo(() => {
@@ -111,7 +114,9 @@ export default function RosterSelect() {
           Role,
           RosterMember[]
         >;
-        for (const m of members) byRole[m.role].push(m);
+        for (const m of members) {
+          if (matchesNameQuery(m.name, searchQuery)) byRole[m.role].push(m);
+        }
         return {
           orgId: org.id,
           orgName: fanOrgDisplayName(org),
@@ -119,7 +124,7 @@ export default function RosterSelect() {
         };
       })
       .filter((row): row is NonNullable<typeof row> => row !== null);
-  }, [roleFilter, orgFilter, orgsInRegion, list]);
+  }, [roleFilter, orgFilter, orgsInRegion, list, searchQuery]);
 
   const canConfirm = state.selectedRoster.length === 5 && ROLES.every(r => selectedByRole[r]);
 
@@ -236,8 +241,16 @@ export default function RosterSelect() {
         )}
       </div>
 
-      <div className="flex-1 min-h-0 px-4 py-2 max-w-6xl mx-auto w-full overflow-y-auto scrollbar-hide md:py-3">
+      <div className="relative flex-1 min-h-0 px-4 py-2 max-w-6xl mx-auto w-full overflow-y-auto scrollbar-hide md:py-3">
+        <NameSearch
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Buscar integrante..."
+        />
         {roleFilter === 'all' && teamRows ? (
+          teamRows.length === 0 && searchQuery.trim() ? (
+            <p className="pt-10 text-center text-sm text-[#8B9BB4]">Ningún integrante coincide con la búsqueda.</p>
+          ) : (
           <div className="space-y-2 pb-2">
             <div className="hidden md:grid grid-cols-5 gap-2 px-0.5">
               {ROLES.map(r => (
@@ -285,6 +298,9 @@ export default function RosterSelect() {
               </div>
             ))}
           </div>
+          )
+        ) : list.length === 0 ? (
+          <p className="pt-10 text-center text-sm text-[#8B9BB4]">Ningún integrante coincide con la búsqueda.</p>
         ) : (
           <div className="grid grid-cols-1 gap-2 pb-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {list.map(m => {

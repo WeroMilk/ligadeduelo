@@ -5,6 +5,7 @@ import { getUltimate } from '@/lib/ultimates';
 import { preloadChampionImages } from '@/lib/preload-images';
 import type { Role } from '@/types/game';
 import { Shield, TreePine, Zap, Crosshair, Heart, Check, ChevronRight, User } from 'lucide-react';
+import NameSearch, { matchesNameQuery } from '@/components/NameSearch';
 
 const ROLE_ICONS: Record<Role, React.ReactNode> = {
   top: <Shield className="w-4 h-4" />,
@@ -20,6 +21,7 @@ export default function ChampionSelect() {
   const { state, dispatch } = useGame();
   const [activeRole, setActiveRole] = useState<Role>('top');
   const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     preloadChampionImages();
@@ -68,7 +70,9 @@ export default function ChampionSelect() {
     dispatch({ type: 'CONFIRM_TEAM' });
   };
 
-  const roleChampions = CHAMPIONS.filter(c => c.role === activeRole);
+  const roleChampions = CHAMPIONS.filter(
+    c => c.role === activeRole && matchesNameQuery(c.name, searchQuery),
+  );
   const canConfirm = state.selectedChampions.length === 5 && state.selectedRoster.length === 5;
   const memberName = state.selectedRoster.find(r => r.role === activeRole)?.name;
 
@@ -120,9 +124,18 @@ export default function ChampionSelect() {
       )}
 
       {/* Mobile: grid 2 cols; Desktop: fila arriba con scroll si no cabe */}
-      <div className="flex-1 min-h-0 max-w-6xl mx-auto w-full px-4 py-2 overflow-y-auto scrollbar-hide md:pt-3">
+      <div className="relative flex-1 min-h-0 max-w-6xl mx-auto w-full px-4 py-2 overflow-y-auto scrollbar-hide md:pt-3">
+        <NameSearch
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Buscar campeón..."
+        />
         <div className="grid grid-cols-2 gap-2.5 pb-2 md:grid-cols-3 lg:grid-cols-6 md:gap-2 md:w-full md:content-start md:auto-rows-min">
-          {roleChampions.map(champ => {
+          {roleChampions.length === 0 ? (
+            <p className="col-span-full pt-10 text-center text-sm text-[#8B9BB4]">
+              Ningún campeón coincide con la búsqueda.
+            </p>
+          ) : roleChampions.map(champ => {
             const isSelected = selectedIds.includes(champ.id);
             const ult = getUltimate(champ.id);
             return (
