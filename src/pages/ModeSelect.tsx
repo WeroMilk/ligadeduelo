@@ -149,9 +149,12 @@ export default function ModeSelect() {
   const [showRules, setShowRules] = useState(false);
 
   return (
-    <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden bg-[#05080f]">
-      {/* Fondo: móvil full-bleed; desktop con relleno difuminado + arte nítido centrado */}
-      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-[#05080f]" aria-hidden>
+    <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden bg-[#0A0E1A]">
+      {/* Fondo full-bleed: móvil portrait; desktop cover sin recuadro visible */}
+      <div
+        className="pointer-events-none absolute inset-0 z-0 left-1/2 w-screen max-w-none -translate-x-1/2 overflow-hidden bg-[#0A0E1A]"
+        aria-hidden
+      >
         <img
           src="/backgrounds/rift-portrait.png"
           alt=""
@@ -159,66 +162,77 @@ export default function ModeSelect() {
           draggable={false}
         />
 
-        <div className="absolute inset-0 hidden md:block overflow-hidden">
-          {/* Relleno ambiental: borra los bordes duros del arte */}
-          <img
-            src="/backgrounds/rift-landscape.png"
-            alt=""
-            className="absolute left-1/2 top-[42%] h-[min(70vh,620px)] w-[min(120vw,1400px)] -translate-x-1/2 -translate-y-1/2 scale-110 object-cover opacity-35 blur-3xl saturate-125"
-            draggable={false}
-          />
-          <div className="absolute inset-0 flex items-center justify-center px-6">
-            <img
-              src="/backgrounds/rift-landscape.png"
-              alt=""
-              className="max-h-[min(54vh,500px)] w-full max-w-[min(88vw,1040px)] object-contain object-center opacity-90"
-              draggable={false}
-            />
-          </div>
-        </div>
+        <img
+          src="/backgrounds/rift-landscape.png"
+          alt=""
+          className="absolute inset-0 hidden h-full w-full object-cover object-[center_42%] md:block"
+          style={{ transform: 'scale(1.06)' }}
+          draggable={false}
+        />
 
-        {/* Velo + viñeta negra: funde el arte con el UI */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#05080f]/65 via-[#05080f]/25 to-[#05080f]/88 md:from-[#05080f]/82 md:via-[#05080f]/45 md:to-[#05080f]/92" />
+        {/* Grado de color + viñeta cinematográfica */}
+        <div className="absolute inset-0 bg-[#0A0E1A]/35 md:bg-[#0A0E1A]/28" />
         <div
-          className="absolute inset-0 hidden md:block"
+          className="absolute inset-0"
           style={{
             background: [
-              'radial-gradient(ellipse 68% 58% at 50% 40%, transparent 0%, rgba(5,8,15,0.55) 62%, rgba(5,8,15,0.98) 100%)',
-              'linear-gradient(90deg, rgba(5,8,15,0.95) 0%, transparent 22%, transparent 78%, rgba(5,8,15,0.95) 100%)',
-              'linear-gradient(180deg, rgba(5,8,15,0.88) 0%, transparent 28%, transparent 72%, rgba(5,8,15,0.95) 100%)',
+              'radial-gradient(ellipse 90% 75% at 50% 36%, transparent 0%, rgba(10,14,26,0.35) 58%, rgba(10,14,26,0.98) 100%)',
+              'linear-gradient(180deg, rgba(10,14,26,0.94) 0%, rgba(10,14,26,0.12) 32%, rgba(10,14,26,0.18) 68%, rgba(10,14,26,0.97) 100%)',
+              'linear-gradient(90deg, rgba(10,14,26,0.88) 0%, transparent 16%, transparent 84%, rgba(10,14,26,0.88) 100%)',
             ].join(', '),
           }}
         />
       </div>
 
-      <div className="relative z-10 shrink-0 px-4 safe-top safe-chrome-x pb-2 text-center md:pb-2">
-        <div className="mx-auto w-12 h-12 md:w-16 md:h-16 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#8B6914] flex items-center justify-center mb-2 md:mb-3 shadow-[0_0_28px_rgba(201,168,76,0.35)]">
-          <Swords className="w-6 h-6 md:w-8 md:h-8 text-[#0A0E1A]" />
+      {/* Hero / banner superior */}
+      <div className="relative z-10 shrink-0 safe-top safe-chrome-x">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-44 md:h-52 bg-gradient-to-b from-[#0A0E1A]/98 via-[#0A0E1A]/72 to-transparent"
+          aria-hidden
+        />
+        <div className="relative mx-auto max-w-4xl px-4 pb-4 pt-1 text-center md:pb-6 md:pt-2">
+          <div className="relative mx-auto mb-3 w-fit md:mb-4">
+            <div
+              className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#C9A84C]/25 blur-2xl md:h-24 md:w-24"
+              aria-hidden
+            />
+            <div className="relative flex h-14 w-14 items-center justify-center rounded-full border border-[#C9A84C]/30 bg-gradient-to-br from-[#C9A84C] to-[#8B6914] shadow-[0_0_32px_rgba(201,168,76,0.35),inset_0_1px_0_rgba(255,255,255,0.25)] md:h-[4.5rem] md:w-[4.5rem]">
+              <Swords className="h-7 w-7 text-[#0A0E1A] md:h-8 md:w-8" />
+            </div>
+          </div>
+
+          <h1
+            className="text-2xl font-bold leading-tight text-[#C9A84C] drop-shadow-[0_2px_16px_rgba(0,0,0,0.9)] md:text-[2rem] md:tracking-[0.06em]"
+            style={{ fontFamily: 'Cinzel, serif' }}
+          >
+            LIGA DE DUELO
+          </h1>
+          <p className="mt-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-[#B8C4D8] drop-shadow-[0_1px_8px_rgba(0,0,0,0.9)] md:mt-2 md:text-xs md:tracking-[0.28em]">
+            Elige cómo quieres jugar
+          </p>
+
+          <div className="mx-auto mt-3 flex items-center justify-center gap-2.5 md:mt-4" aria-hidden>
+            <span className="h-px w-10 bg-gradient-to-r from-transparent to-[#C9A84C]/45 md:w-14" />
+            <span className="h-1 w-1 rounded-full bg-[#C9A84C]/55" />
+            <span className="h-px w-10 bg-gradient-to-l from-transparent to-[#C9A84C]/45 md:w-14" />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              playClickSound();
+              setShowRules(true);
+            }}
+            className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#C9A84C]/35 bg-[#0A0E1A]/65 px-3.5 py-1.5 text-xs text-[#C9A84C] backdrop-blur-sm transition-colors hover:border-[#C9A84C]/70 hover:bg-[#0A0E1A]/85 md:mt-4 md:px-4 md:py-2 md:text-sm"
+          >
+            <BookOpen className="h-4 w-4 shrink-0" />
+            Reglas
+          </button>
         </div>
-        <h1
-          className="text-2xl md:text-3xl font-bold text-[#C9A84C] leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)]"
-          style={{ fontFamily: 'Cinzel, serif' }}
-        >
-          LIGA DE DUELO
-        </h1>
-        <p className="text-[#E8EEF8] text-xs md:text-sm mt-1 md:mt-2 tracking-wide uppercase drop-shadow-[0_1px_8px_rgba(0,0,0,0.9)]">
-          Elige cómo quieres jugar
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            playClickSound();
-            setShowRules(true);
-          }}
-          className="mt-2 md:mt-3 inline-flex items-center gap-2 rounded-lg border border-[#C9A84C]/45 bg-[#0A0E1A]/55 backdrop-blur-sm px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm text-[#C9A84C] hover:border-[#C9A84C]/80 hover:bg-[#0A0E1A]/75 transition-colors"
-        >
-          <BookOpen className="w-4 h-4 shrink-0" />
-          Reglas
-        </button>
       </div>
 
-      <div className="relative z-10 min-h-0 flex-1 overflow-hidden px-4 py-2 max-w-5xl mx-auto w-full flex flex-col md:overflow-y-auto md:scrollbar-hide md:pb-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4 w-full flex-1 min-h-0 md:flex-none md:auto-rows-min">
+      <div className="relative z-10 mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-hidden px-4 py-2 md:overflow-y-auto md:scrollbar-hide md:px-6 md:py-4 lg:max-w-6xl">
+        <div className="grid min-h-0 w-full flex-1 grid-cols-1 gap-2.5 md:auto-rows-min md:grid-cols-3 md:gap-5 md:flex-none">
           {MODES.map(m => (
             <button
               key={m.id}
@@ -229,10 +243,10 @@ export default function ModeSelect() {
                 playClickSound();
                 dispatch({ type: 'SET_GAME_MODE', mode: m.id });
               }}
-              className={`relative w-full text-left rounded-2xl border-2 p-3 md:p-6 flex md:flex-col gap-3 md:gap-4 transition-all min-h-0 md:min-h-[220px] backdrop-blur-md ${
+              className={`relative flex w-full min-h-0 gap-3 rounded-2xl border-2 p-3 text-left backdrop-blur-md transition-all md:min-h-[228px] md:flex-col md:gap-4 md:p-6 ${
                 m.enabled
-                  ? 'border-[#C9A84C]/35 bg-[#0D1220]/78 hover:border-[#C9A84C] hover:bg-[#0D1220]/88 active:scale-[0.99] shadow-[0_8px_32px_rgba(0,0,0,0.45)]'
-                  : 'border-[#2A3550]/60 bg-[#0A0E1A]/55 opacity-60 cursor-not-allowed'
+                  ? 'border-[#C9A84C]/40 bg-[#0D1220]/82 hover:border-[#C9A84C] hover:bg-[#0D1220]/90 active:scale-[0.99] shadow-[0_12px_40px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.04)]'
+                  : 'border-[#2A3550]/55 bg-[#0A0E1A]/58 opacity-55 cursor-not-allowed'
               }`}
               aria-disabled={!m.enabled}
             >
@@ -253,7 +267,7 @@ export default function ModeSelect() {
         </div>
       </div>
 
-      <p className="relative z-10 shrink-0 text-[10px] md:text-[11px] text-center text-[#A8B4C8]/80 px-4 pt-1 pb-2 md:pb-3 drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)]">
+      <p className="relative z-10 shrink-0 px-4 pb-2 pt-1 text-center text-[10px] text-[#8B9BB4]/75 drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)] md:pb-3 md:text-[11px]">
         Todos los derechos reservados · HOMEBOYS PROD ® 2026
       </p>
 

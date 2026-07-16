@@ -65,6 +65,12 @@ const NEXUS_MAX_HP = 2200;
 const SIEGE_TOWER_DMG = 280;
 const SIEGE_NEXUS_DMG = 400;
 
+/** Ritmo de combate: menos intercambios y daño → partidas con pocas kills. */
+const DUEL_MAX_EXCHANGES = 3;
+const COMBAT_DAMAGE_MULT = 0.82;
+const DEFEND_DAMAGE_MULT = 0.52;
+const BURN_ARMOR_DMG = 12;
+
 function pushFloat(
   floats: CombatFloat[],
   partial: Omit<CombatFloat, 'id'>,
@@ -239,13 +245,13 @@ function dealDamage(attacker: Champion, defender: Champion, raw: number, magic: 
 function actionDamage(c: Champion, action: CombatAction, teamBuff: number, tearDouble: boolean): { dmg: number; magic: boolean } {
   if (action === 'defend') return { dmg: 0, magic: false };
   if (action === 'attack') {
-    let dmg = Math.floor(c.stats.ad * 1.35) + 55 + teamBuff;
-    if (hasItem(c, 'long_sword')) dmg += 45;
+    let dmg = Math.floor(c.stats.ad * 1.15 * COMBAT_DAMAGE_MULT) + Math.floor(40 * COMBAT_DAMAGE_MULT) + teamBuff;
+    if (hasItem(c, 'long_sword')) dmg += Math.floor(45 * COMBAT_DAMAGE_MULT);
     return { dmg, magic: false };
   }
   // ability
-  let dmg = Math.floor(c.stats.ap * 1.55) + 65 + teamBuff;
-  if (hasItem(c, 'blasting_wand')) dmg += 55;
+  let dmg = Math.floor(c.stats.ap * 1.35 * COMBAT_DAMAGE_MULT) + Math.floor(50 * COMBAT_DAMAGE_MULT) + teamBuff;
+  if (hasItem(c, 'blasting_wand')) dmg += Math.floor(55 * COMBAT_DAMAGE_MULT);
   if (tearDouble) dmg *= 2;
   return { dmg, magic: true };
 }
@@ -296,7 +302,7 @@ function resolveDuel(
 
   const order = [a, b].sort((x, y) => priority(y.champ, y.action, y.ult) - priority(x.champ, x.action, x.ult));
 
-  for (let exchange = 0; exchange < 5; exchange++) {
+  for (let exchange = 0; exchange < DUEL_MAX_EXCHANGES; exchange++) {
     if (!a.champ.isAlive || a.champ.stats.hp <= 0 || !b.champ.isAlive || b.champ.stats.hp <= 0) break;
 
   for (const atk of order) {
@@ -332,7 +338,7 @@ function resolveDuel(
     }
     if (atk.ult && atk.champ.defId === 'generic') dmg += 25;
 
-    if (champDef(atk.champ).passive.id === 'execute' && def.champ.stats.hp / def.champ.stats.maxHp < 0.2) {
+    if (champDef(atk.champ).passive.id === 'execute' && def.champ.stats.hp / def.champ.stats.maxHp < 0.12) {
       dmg = def.champ.stats.hp;
       pushLog(log, `${champDef(atk.champ).name} ejecuta`, 'kill');
     }
@@ -355,7 +361,7 @@ function resolveDuel(
         mitigated = 0;
         pushLog(log, `${champDef(def.champ).name} anula el golpe (Inquebrantable)`, 'ulti');
       } else {
-        mitigated = Math.floor(dmg * 0.65);
+        mitigated = Math.floor(dmg * DEFEND_DAMAGE_MULT);
         pushLog(log, `${champDef(def.champ).name} Defiende y reduce el golpe a ${mitigated}`);
       }
     }
@@ -390,7 +396,7 @@ function resolveDuel(
     );
 
     if (effectiveAction === 'attack' && hasItem(atk.champ, 'cloth_armor')) {
-      def.champ.burnPending += 25;
+      def.champ.burnPending += BURN_ARMOR_DMG;
     }
 
     if (atk.ult && atk.champ.defId === 'yasuo' && effectiveAction === 'attack' && def.champ.isAlive && def.champ.stats.hp > 0) {
@@ -1226,24 +1232,32 @@ export function finishPendingObjective(
     pushLog(log, `Choque de junglas en ${laneLabel(lane)} · gana ${wTeam.name}`, 'kill');
 
     if (lJg && lJg.isAlive) {
-      const overkill = Math.max(lJg.stats.hp, 1);
-      lJg.stats.hp = 0;
-      lJg.isAlive = false;
-      wTeam.kills += 1;
-      wTeam.score += POINTS_KILL;
-      if (wJg) wJg.kills = (wJg.kills || 0) + 1;
+      const wound = Math.floor(lJg.stats.maxHp * 0.62);
+      lJg.stats.hp = Math.max(0, lJg.stats.hp - wound);
       pushFloat(floats, {
         kind: 'damage',
-        amount: overkill,
+        amount: wound,
         targetType: 'champ',
         targetId: lJg.instanceId,
         sourceName: wJg ? champDef(wJg).name : wTeam.name,
         lane,
       });
-      pushLog(log, `${wJg ? champDef(wJg).name : wTeam.name} elimina a ${champDef(lJg).name} en el gank`, 'kill');
-      if (wJg) {
-        wJg.gold += GOLD_PER_KILL;
-        pushKill(killEvents, wJg, lJg);
+
+      if (lJg.stats.hp <= 0) {
+        lJg.isAlive = false;
+        wTeam.kills += 1;
+        wTeam.score += POINTS_KILL;
+        if (wJg) wJg.kills = (wJg.kills || 0) + 1;
+        pushLog(log, `${wJg ? champDef(wJg).name : wTeam.name} elimina a ${champDef(lJg).name} en el gank`, 'kill');
+        if (wJg) {
+          wJg.gold += GOLD_PER_KILL;
+          pushKill(killEvents, wJg, lJg);
+        }
+      } else {
+        pushLog(
+          log,
+          `${wJg ? champDef(wJg).name : wTeam.name} hiere a ${champDef(lJg).name} en el gank (${lJg.stats.hp}/${lJg.stats.maxHp})`,
+        );
       }
       duels.push({
         id: duelId(),
@@ -1442,7 +1456,7 @@ export function generateAIPlan(
     const def = champDef(c);
     const hpPct = c.stats.hp / c.stats.maxHp;
     let action: CombatAction = 'attack';
-    if (hpPct < 0.38) action = 'defend';
+    if (hpPct < 0.45) action = 'defend';
     else if (defendLane !== null && c.position.lane === defendLane && hpPct < 0.7) action = 'defend';
     else if (def.baseStats.ap >= def.baseStats.ad) action = Math.random() < 0.55 ? 'ability' : 'attack';
     else action = Math.random() < 0.65 ? 'attack' : (Math.random() < 0.45 ? 'ability' : 'defend');
