@@ -69,7 +69,7 @@ export default function CombatAnnounceOverlay({ batch, onBusyChange }: Props) {
     current.kind === 'kill' ? (
       <div className="pointer-events-none fixed inset-0 z-[120] flex items-start justify-center pt-[16%] px-4" aria-live="polite">
         <div
-          className="w-full max-w-md rounded-2xl border-2 bg-[#0D1220]/96 px-5 py-4 text-center shadow-[0_0_40px_rgba(0,0,0,0.6)] animate-kill-banner"
+          className="w-full max-w-md rounded-2xl border-2 bg-[#0D1220] px-5 py-4 text-center shadow-[0_0_40px_rgba(0,0,0,0.6)] animate-kill-banner"
           style={{ borderColor: teamColor(current.data.team) }}
         >
           {multiLabel(current.data.multi) && (
@@ -84,7 +84,7 @@ export default function CombatAnnounceOverlay({ batch, onBusyChange }: Props) {
       </div>
     ) : (
       <div className="pointer-events-none fixed inset-0 z-[120] flex items-start justify-center pt-[16%] px-4" aria-live="polite">
-        <div className="w-full max-w-md rounded-2xl border-2 border-[#F1C40F] bg-[#0D1220]/96 px-5 py-4 text-center shadow-[0_0_40px_rgba(241,196,15,0.35)] animate-kill-banner">
+        <div className="w-full max-w-md rounded-2xl border-2 border-[#F1C40F] bg-[#0D1220] px-5 py-4 text-center shadow-[0_0_40px_rgba(241,196,15,0.35)] animate-kill-banner">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#F1C40F] mb-1">Bonus de objetivo</p>
           <p className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
             {current.data.title}
