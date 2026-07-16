@@ -1202,19 +1202,6 @@ export function finishPendingObjective(
   const duels: DuelSummary[] = [...(prev?.duels || [])];
   const floats: CombatFloat[] = [...(prev?.floats || [])];
   const killEvents: RawKill[] = [];
-  // Rehidratar kills de líneas de la resolución previa para no perderlos al completar QTE
-  if (prev?.killAnnounces) {
-    for (const a of prev.killAnnounces) {
-      for (const victimName of a.victimNames) {
-        killEvents.push({
-          killerId: `prev-${a.team}-${a.killerName}`,
-          killerName: a.killerName,
-          victimName,
-          team: a.team,
-        });
-      }
-    }
-  }
   const scoreBeforeB = next.blue.score - (prev?.blueScoreDelta || 0);
   const scoreBeforeR = next.red.score - (prev?.redScoreDelta || 0);
   const killsBeforeB = next.blue.kills - (prev?.blueKillsDelta || 0);

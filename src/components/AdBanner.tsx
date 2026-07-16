@@ -19,7 +19,7 @@ export default function AdBanner() {
       aria-label="Publicidad"
     >
       <div
-        className="relative mx-auto h-[52px] w-full max-w-2xl overflow-hidden rounded-md border border-[#2A3550]/80 bg-[#0E121C] shadow-[0_2px_12px_rgba(0,0,0,0.35)] sm:h-[60px] md:h-[72px] lg:max-w-3xl lg:h-[80px]"
+        className="relative mx-auto flex h-[52px] w-full max-w-2xl items-center justify-center overflow-hidden rounded-md border border-[#2A3550]/80 bg-[#0E121C] shadow-[0_2px_12px_rgba(0,0,0,0.35)] sm:h-[60px] md:h-[72px] lg:max-w-3xl lg:h-[80px]"
         style={{ userSelect: 'none' }}
       >
         <span className="absolute right-1 top-1 z-10 rounded bg-black/55 px-1 py-0.5 text-[8px] font-bold uppercase tracking-[0.14em] text-white/90">
@@ -29,7 +29,7 @@ export default function AdBanner() {
         <img
           src={AD_IMG}
           alt="Servipartz · Dispensadores de agua"
-          className="absolute inset-0 h-full w-full object-cover object-center"
+          className="max-h-full max-w-full object-contain"
           loading="lazy"
           decoding="async"
           draggable={false}

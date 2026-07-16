@@ -150,7 +150,7 @@ export default function ModeSelect() {
 
   return (
     <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden bg-[#05080f]">
-      {/* Fondo: móvil full-bleed; desktop arte centrado sin estirar */}
+      {/* Fondo: móvil full-bleed; desktop con relleno difuminado + arte nítido centrado */}
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-[#05080f]" aria-hidden>
         <img
           src="/backgrounds/rift-portrait.png"
@@ -158,21 +158,35 @@ export default function ModeSelect() {
           className="absolute inset-0 h-full w-full object-cover object-center md:hidden"
           draggable={false}
         />
-        <div className="absolute inset-0 hidden md:flex items-center justify-center">
+
+        <div className="absolute inset-0 hidden md:block overflow-hidden">
+          {/* Relleno ambiental: borra los bordes duros del arte */}
           <img
             src="/backgrounds/rift-landscape.png"
             alt=""
-            className="h-full w-full max-h-[min(58vh,540px)] max-w-[min(96vw,1100px)] object-contain object-center opacity-95"
+            className="absolute left-1/2 top-[42%] h-[min(70vh,620px)] w-[min(120vw,1400px)] -translate-x-1/2 -translate-y-1/2 scale-110 object-cover opacity-35 blur-3xl saturate-125"
             draggable={false}
           />
+          <div className="absolute inset-0 flex items-center justify-center px-6">
+            <img
+              src="/backgrounds/rift-landscape.png"
+              alt=""
+              className="max-h-[min(54vh,500px)] w-full max-w-[min(88vw,1040px)] object-contain object-center opacity-90"
+              draggable={false}
+            />
+          </div>
         </div>
-        {/* Velo + viñeta: integra el arte con el UI */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#05080f]/60 via-[#05080f]/30 to-[#05080f]/80 md:from-[#05080f]/70 md:via-transparent md:to-[#05080f]/85" />
+
+        {/* Velo + viñeta negra: funde el arte con el UI */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#05080f]/65 via-[#05080f]/25 to-[#05080f]/88 md:from-[#05080f]/82 md:via-[#05080f]/45 md:to-[#05080f]/92" />
         <div
           className="absolute inset-0 hidden md:block"
           style={{
-            background:
-              'radial-gradient(ellipse 75% 65% at 50% 42%, transparent 0%, rgba(5,8,15,0.35) 55%, rgba(5,8,15,0.92) 100%)',
+            background: [
+              'radial-gradient(ellipse 68% 58% at 50% 40%, transparent 0%, rgba(5,8,15,0.55) 62%, rgba(5,8,15,0.98) 100%)',
+              'linear-gradient(90deg, rgba(5,8,15,0.95) 0%, transparent 22%, transparent 78%, rgba(5,8,15,0.95) 100%)',
+              'linear-gradient(180deg, rgba(5,8,15,0.88) 0%, transparent 28%, transparent 72%, rgba(5,8,15,0.95) 100%)',
+            ].join(', '),
           }}
         />
       </div>

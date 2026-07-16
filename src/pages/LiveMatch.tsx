@@ -180,16 +180,8 @@ export default function LiveMatch() {
     return items.length;
   };
 
-  const announcesFromRes = (res: RoundResolution): AnnounceItem[] => {
-    const items: AnnounceItem[] = [];
-    for (const k of res.killAnnounces || []) {
-      items.push({ kind: 'kill', data: k });
-    }
-    if (res.objectiveBonus) {
-      items.push({ kind: 'objective', data: res.objectiveBonus });
-    }
-    return items;
-  };
+  const killAnnouncesToItems = (announces: RoundResolution['killAnnounces']): AnnounceItem[] =>
+    (announces || []).map(k => ({ kind: 'kill' as const, data: k }));
 
   /** Avanza el cine tras la animación mínima; los popups siguen en paralelo. */
   const endCinemaAfterDelay = (res: RoundResolution, minWaitMs = 0) => {
@@ -244,7 +236,7 @@ export default function LiveMatch() {
     if (current) beginPrompts(current.round);
   };
 
-  const playObjectiveClaim = (res: RoundResolution) => {
+  const playObjectiveClaim = (res: RoundResolution, announceQteKills = false) => {
     clearCinema();
     markPhaseStart();
     setCinemaRes(res);
@@ -252,10 +244,15 @@ export default function LiveMatch() {
     const objItems: AnnounceItem[] = res.objectiveBonus
       ? [{ kind: 'objective', data: res.objectiveBonus }]
       : [];
-    // Kills ya se anunciaron al inicio del cine; aquí solo el bonus del objetivo
+    // Tras QTE: solo kills nuevas del objetivo; sin QTE ya se anunciaron al inicio del cine
+    const items = announceQteKills
+      ? [...killAnnouncesToItems(res.killAnnounces), ...objItems]
+      : objItems;
     enqueueAnnounces(
-      objItems,
-      `obj-${res.round}-${res.objectiveWinner}-${res.objectiveBonus?.id || 'x'}`,
+      items,
+      announceQteKills
+        ? `obj-qte-${res.round}-${res.objectiveWinner}-${res.objectiveBonus?.id || 'x'}`
+        : `obj-${res.round}-${res.objectiveWinner}-${res.objectiveBonus?.id || 'x'}`,
     );
     const schedule = (fn: () => void, ms: number) => {
       cinemaTimers.current.push(window.setTimeout(fn, ms));
@@ -381,12 +378,18 @@ export default function LiveMatch() {
     if (res.objective || res.objectiveWinner) {
       postQteClaim.current = true;
       cinemaForKey.current = key;
-      playObjectiveClaim(res);
+      playObjectiveClaim(res, true);
     } else {
-      // Choque de junglas: sin claim de monstruo
+      // Choque de junglas: sin claim de monstruo; kills de línea ya se anunciaron en playCinema
       cinemaForKey.current = `gank-done-${res.round}`;
       postQteClaim.current = true;
-      enqueueAnnounces(announcesFromRes(res), `gank-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}`);
+      const gankKills = killAnnouncesToItems(res.killAnnounces);
+      if (gankKills.length > 0) {
+        enqueueAnnounces(
+          gankKills,
+          `gank-kills-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}`,
+        );
+      }
       endCinemaAfterDelay(res);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

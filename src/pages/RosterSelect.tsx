@@ -2,11 +2,63 @@ import { useMemo, useState } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import { FAN_ORGS, fanOrgDisplayName, ROLE_COLORS, ROLE_NAMES } from '@/lib/game-data';
 import { buildAllRosters } from '@/lib/rosters';
-import type { Role } from '@/types/game';
+import type { Role, RosterMember } from '@/types/game';
 import { Check, ChevronRight, User } from 'lucide-react';
 
 const ROLES: Role[] = ['top', 'jungle', 'mid', 'adc', 'support'];
 const REGIONS = ['LEC', 'LCK', 'LPL', 'LCS', 'PCS/LJL'] as const;
+const ROLE_INDEX: Record<Role, number> = {
+  top: 0,
+  jungle: 1,
+  mid: 2,
+  adc: 3,
+  support: 4,
+};
+
+function MemberCard({
+  member,
+  active,
+  onToggle,
+}: {
+  member: RosterMember;
+  active: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`relative w-full h-full min-h-[4.5rem] flex items-center gap-2.5 rounded-xl border-2 px-2.5 py-2 text-left transition-all ${
+        active ? 'border-[#C9A84C] bg-[#C9A84C]/10' : 'border-[#1E2740] bg-[#141B2D]'
+      }`}
+    >
+      <div
+        className="w-10 h-10 rounded-full overflow-hidden border-2 flex items-center justify-center shrink-0"
+        style={{ borderColor: ROLE_COLORS[member.role], backgroundColor: '#0A0E1A' }}
+      >
+        <img
+          src={member.image}
+          alt={member.name}
+          className="w-full h-full object-cover"
+          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+        <User className="w-5 h-5 text-[#8B9BB4]" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-bold text-[#F0E6D2] truncate text-sm">{member.name}</p>
+        <p className="text-[10px] font-bold uppercase" style={{ color: ROLE_COLORS[member.role] }}>
+          {ROLE_NAMES[member.role]}
+        </p>
+        <p className="text-[10px] text-[#8B9BB4] truncate">{member.orgName}</p>
+      </div>
+      {active && (
+        <span className="w-6 h-6 rounded-full bg-[#C9A84C] flex items-center justify-center shrink-0">
+          <Check className="w-3.5 h-3.5 text-[#0A0E1A]" />
+        </span>
+      )}
+    </button>
+  );
+}
 
 export default function RosterSelect() {
   const { state, dispatch } = useGame();
@@ -35,10 +87,46 @@ export default function RosterSelect() {
     }
     if (orgFilter !== 'all') pool = pool.filter(m => m.orgId === orgFilter);
     if (roleFilter !== 'all') pool = pool.filter(m => m.role === roleFilter);
-    return pool;
+    return [...pool].sort((a, b) => {
+      const roleDiff = ROLE_INDEX[a.role] - ROLE_INDEX[b.role];
+      if (roleDiff !== 0) return roleDiff;
+      return a.orgName.localeCompare(b.orgName) || a.name.localeCompare(b.name);
+    });
   }, [allMembers, regionFilter, orgFilter, roleFilter, orgsInRegion]);
 
+  /** Filas por equipo con columnas fijas por rol (evita desalineación con rosters incompletos). */
+  const teamRows = useMemo(() => {
+    if (roleFilter !== 'all') return null;
+
+    const orgOrder =
+      orgFilter !== 'all'
+        ? orgsInRegion.filter(o => o.id === orgFilter)
+        : orgsInRegion;
+
+    return orgOrder
+      .map(org => {
+        const members = list.filter(m => m.orgId === org.id);
+        if (members.length === 0) return null;
+        const byRole = Object.fromEntries(ROLES.map(r => [r, [] as RosterMember[]])) as Record<
+          Role,
+          RosterMember[]
+        >;
+        for (const m of members) byRole[m.role].push(m);
+        return {
+          orgId: org.id,
+          orgName: fanOrgDisplayName(org),
+          byRole,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+  }, [roleFilter, orgFilter, orgsInRegion, list]);
+
   const canConfirm = state.selectedRoster.length === 5 && ROLES.every(r => selectedByRole[r]);
+
+  const toggleMember = (member: RosterMember, active: boolean) => {
+    if (active) dispatch({ type: 'DESELECT_ROSTER', memberId: member.id });
+    else dispatch({ type: 'SELECT_ROSTER', member });
+  };
 
   if (!state.playerTeamName) {
     return (
@@ -149,49 +237,69 @@ export default function RosterSelect() {
       </div>
 
       <div className="flex-1 min-h-0 px-4 py-2 max-w-6xl mx-auto w-full overflow-y-auto scrollbar-hide md:py-3">
-        <div className="grid grid-cols-1 gap-2 pb-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {list.map(m => {
-            const active = state.selectedRoster.some(x => x.id === m.id);
-            return (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => {
-                  if (active) dispatch({ type: 'DESELECT_ROSTER', memberId: m.id });
-                  else dispatch({ type: 'SELECT_ROSTER', member: m });
-                }}
-                className={`relative w-full flex items-center gap-3 rounded-xl border-2 px-3 py-2.5 text-left transition-all ${
-                  active ? 'border-[#C9A84C] bg-[#C9A84C]/10' : 'border-[#1E2740] bg-[#141B2D]'
-                }`}
-              >
-                <div
-                  className="w-11 h-11 rounded-full overflow-hidden border-2 flex items-center justify-center shrink-0"
-                  style={{ borderColor: ROLE_COLORS[m.role], backgroundColor: '#0A0E1A' }}
+        {roleFilter === 'all' && teamRows ? (
+          <div className="space-y-2 pb-2">
+            <div className="hidden md:grid grid-cols-5 gap-2 px-0.5">
+              {ROLES.map(r => (
+                <p
+                  key={r}
+                  className="text-[10px] font-bold uppercase tracking-wider text-center"
+                  style={{ color: ROLE_COLORS[r] }}
                 >
-                  <img
-                    src={m.image}
-                    alt={m.name}
-                    className="w-full h-full object-cover"
-                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                  <User className="w-5 h-5 text-[#8B9BB4]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-[#F0E6D2] truncate">{m.name}</p>
-                  <p className="text-[10px] font-bold uppercase" style={{ color: ROLE_COLORS[m.role] }}>
-                    {ROLE_NAMES[m.role]}
-                  </p>
-                  <p className="text-[10px] text-[#8B9BB4] truncate">{m.orgName}</p>
-                </div>
-                {active && (
-                  <span className="w-7 h-7 rounded-full bg-[#C9A84C] flex items-center justify-center shrink-0">
-                    <Check className="w-4 h-4 text-[#0A0E1A]" />
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+                  {ROLE_NAMES[r]}
+                </p>
+              ))}
+            </div>
+            {teamRows.map(row => (
+              <div
+                key={row.orgId}
+                className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-5"
+              >
+                {ROLES.map(role => {
+                  const members = row.byRole[role];
+                  if (members.length === 0) {
+                    return (
+                      <div
+                        key={`${row.orgId}-${role}`}
+                        className="hidden md:block min-h-[4.5rem] rounded-xl border border-dashed border-[#1E2740]/80"
+                        aria-hidden
+                      />
+                    );
+                  }
+                  return (
+                    <div key={`${row.orgId}-${role}`} className="flex flex-col gap-2">
+                      {members.map(m => {
+                        const active = state.selectedRoster.some(x => x.id === m.id);
+                        return (
+                          <MemberCard
+                            key={m.id}
+                            member={m}
+                            active={active}
+                            onToggle={() => toggleMember(m, active)}
+                          />
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 pb-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {list.map(m => {
+              const active = state.selectedRoster.some(x => x.id === m.id);
+              return (
+                <MemberCard
+                  key={m.id}
+                  member={m}
+                  active={active}
+                  onToggle={() => toggleMember(m, active)}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="shrink-0 px-4 py-2.5 max-w-6xl mx-auto w-full border-t border-[#1E2740]">

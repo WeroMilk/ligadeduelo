@@ -72,6 +72,49 @@ export default function PostMatchAd() {
         e.stopPropagation();
       }}
     >
+      {/* Temporizador: línea blanca superior que se agota en 8s */}
+      <div
+        className="absolute left-0 top-0 z-10 w-full"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+        aria-hidden
+      >
+        <div className="relative h-[3px] w-full overflow-hidden bg-white/10">
+          <div
+            key={matchKey}
+            className="postmatch-timer-bar h-full w-full origin-left"
+          />
+        </div>
+      </div>
+
+      <style>{`
+        .postmatch-timer-bar {
+          background: linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.98) 0%,
+            rgba(255, 255, 255, 0.88) 72%,
+            rgba(255, 255, 255, 0.35) 100%
+          );
+          box-shadow:
+            0 0 14px rgba(255, 255, 255, 0.40),
+            0 0 2px rgba(255, 255, 255, 0.85);
+          transform-origin: left center;
+          animation: postmatch-timer-shrink ${POST_MATCH_AD_MS}ms linear forwards;
+        }
+
+        @keyframes postmatch-timer-shrink {
+          from { transform: scaleX(1); opacity: 1; }
+          to { transform: scaleX(0); opacity: 0.55; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .postmatch-timer-bar {
+            animation: none;
+            transform: scaleX(0);
+            opacity: 0.4;
+          }
+        }
+      `}</style>
+
       <img
         src={AD_IMG}
         alt="¡Adiós anuncios! Transfiere $49 MXN a la cuenta CLABE para disfrutar sin interrupciones."
