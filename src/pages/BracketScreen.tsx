@@ -108,7 +108,7 @@ export default function BracketScreen() {
             <div className="inline-flex flex-col items-center gap-1 text-[#8B9BB4]">
               <div className="inline-flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm">Resolviendo partida IA…</span>
+                <span className="text-sm">Espera tu turno</span>
               </div>
               {activeMatch && (
                 <p className="text-xs text-[#C9A84C]">
