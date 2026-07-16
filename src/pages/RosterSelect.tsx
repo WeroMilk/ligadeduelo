@@ -57,7 +57,7 @@ export default function RosterSelect() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-[#1E2740] px-4 py-2.5 safe-top max-w-6xl mx-auto w-full">
+      <div className="shrink-0 border-b border-[#1E2740] px-4 py-2.5 safe-top md:pt-4 max-w-6xl mx-auto w-full pr-14">
         <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Integrantes</p>
         <h1 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
           Dream team · {state.playerTeamName}
@@ -149,7 +149,7 @@ export default function RosterSelect() {
       </div>
 
       <div className="flex-1 min-h-0 px-4 py-3 max-w-6xl mx-auto w-full overflow-y-auto">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-2 pb-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {list.map(m => {
             const active = state.selectedRoster.some(x => x.id === m.id);
             return (
@@ -194,7 +194,7 @@ export default function RosterSelect() {
         </div>
       </div>
 
-      <div className="shrink-0 px-4 py-3 safe-bottom max-w-6xl mx-auto w-full border-t border-[#1E2740]">
+      <div className="shrink-0 px-4 py-2.5 max-w-6xl mx-auto w-full border-t border-[#1E2740]">
         <button
           type="button"
           disabled={!canConfirm}

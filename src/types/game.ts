@@ -188,10 +188,14 @@ export interface CombatFloat {
 }
 
 export interface PendingObjective {
+  /** Objetivo de mapa o pelea jungla vs jungla en una línea. */
+  kind: 'objective' | 'gank';
   contested: boolean;
   blueIds: string[];
   redIds: string[];
   objective: ObjectiveType;
+  /** Línea del choque de junglas (solo kind === 'gank'). */
+  lane?: LaneId;
 }
 
 export interface ObjectiveQteResult {

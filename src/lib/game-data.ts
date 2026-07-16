@@ -280,7 +280,7 @@ export const POINTS_TOWER = 3;
 export const POINTS_OBJECTIVE = 5;
 export const POINTS_NEXUS = 10;
 /** Extra siege stacks when a lane is left empty for objective help */
-export const FREE_LANE_SIEGE_BONUS = 1;
+export const FREE_LANE_SIEGE_BONUS = 0;
 
 /** Orgs que el jugador puede apoyar como fanático (solo elige nombre de equipo). */
 export interface FanOrg {

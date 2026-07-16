@@ -124,10 +124,13 @@
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
   }
-  /* Margen vertical en desktop: el contenido no pega al borde superior/inferior */
+  /* Desktop: respiración mínima respecto a bordes del viewport */
   @media (min-width: 768px) {
     .h-app {
       box-sizing: border-box;
+    }
+    .safe-top {
+      padding-top: max(1rem, env(safe-area-inset-top, 0px));
     }
   }
   .h-app {

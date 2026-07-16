@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import { Sparkles } from 'lucide-react';
+import { playClickSound } from '@/lib/sounds';
 
 export default function Home() {
   const { dispatch } = useGame();
@@ -11,6 +12,7 @@ export default function Home() {
 
   const handleStart = () => {
     if (!canStart) return;
+    playClickSound();
     dispatch({ type: 'SET_TEAM_NAME', name: trimmed });
     dispatch({ type: 'SET_SCREEN', screen: 'rosterSelect' });
   };

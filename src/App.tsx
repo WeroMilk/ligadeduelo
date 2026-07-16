@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { GameProvider, useGame } from '@/hooks/useGameState';
 import ExitGameButton from '@/components/ExitGameButton';
 import AdBanner from '@/components/AdBanner';
+import AudioBoot from '@/components/AudioBoot';
 import ModeSelect from '@/pages/ModeSelect';
 import LobbyScreen from '@/pages/LobbyScreen';
 import Home from '@/pages/Home';
@@ -84,10 +85,11 @@ function AppShell() {
   const hideAd = state.currentScreen === 'liveMatch';
 
   return (
-    <div className="flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2] safe-x md:py-4 lg:py-5">
+    <div className="flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2] safe-x md:px-4 lg:px-6">
       <ExitGameButton />
-      <main className="flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden">
-        <div className="flex h-full min-h-0 w-full max-w-[100%] flex-col items-stretch justify-center">
+      <AudioBoot />
+      <main className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+        <div className="flex h-full min-h-0 w-full flex-col">
           <GameRouter />
         </div>
       </main>

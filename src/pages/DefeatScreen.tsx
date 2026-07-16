@@ -1,5 +1,7 @@
 import { useGame } from '@/hooks/useGameState';
 import { Skull, RotateCcw, Eye } from 'lucide-react';
+import { useEffect } from 'react';
+import { playDefeatSound, playClickSound } from '@/lib/sounds';
 
 export default function DefeatScreen() {
   const { state, dispatch } = useGame();
@@ -7,11 +9,17 @@ export default function DefeatScreen() {
   const currentRound = state.tournament?.currentRound ?? 0;
   const roundNames = ['Octavos', 'Cuartos', 'Semifinal', 'Final'];
 
+  useEffect(() => {
+    playDefeatSound();
+  }, []);
+
   const handleRestart = () => {
+    playClickSound();
     dispatch({ type: 'RESET_TOURNAMENT' });
   };
 
   const handleViewBracket = () => {
+    playClickSound();
     dispatch({ type: 'SET_SCREEN', screen: 'bracket' });
   };
 

@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom';
 import { Ghost, TreePine, Castle } from 'lucide-react';
 import type { LaneId } from '@/types/game';
+import { playDecideSound } from '@/lib/sounds';
 
 export type DecisionKind = 'jungle' | 'siege';
 
@@ -11,7 +12,6 @@ export type DecisionPayload =
 type Props = {
   kind: DecisionKind;
   objectiveLabel?: string | null;
-  /** Si hay objetivo en el mapa, jungla puede ir a por él (XOR con gank). */
   allowObjective?: boolean;
   secondsLeft: number;
   onPick: (payload: DecisionPayload) => void;
@@ -24,6 +24,11 @@ export default function DecisionOverlay({
   secondsLeft,
   onPick,
 }: Props) {
+  const pick = (payload: DecisionPayload) => {
+    playDecideSound();
+    onPick(payload);
+  };
+
   const body = (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center px-3 pb-6 sm:pb-0 bg-black/55">
       <div className="w-full max-w-md rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-4 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-3">
@@ -49,7 +54,7 @@ export default function DecisionOverlay({
                 <button
                   key={l.id}
                   type="button"
-                  onClick={() => onPick({ kind: 'jungle', target: l.id })}
+                  onClick={() => pick({ kind: 'jungle', target: l.id })}
                   className="min-h-11 rounded-xl border border-[#2A3550] bg-[#0A0E1A] font-bold text-[#F0E6D2] flex items-center justify-center gap-2"
                 >
                   <TreePine className="w-4 h-4 text-[#27AE60]" />
@@ -59,7 +64,7 @@ export default function DecisionOverlay({
               {allowObjective && (
                 <button
                   type="button"
-                  onClick={() => onPick({ kind: 'jungle', target: 'objective' })}
+                  onClick={() => pick({ kind: 'jungle', target: 'objective' })}
                   className="min-h-11 rounded-xl border border-[#E67E22]/50 bg-[#E67E22]/15 font-bold text-[#F5B041] flex items-center justify-center gap-2 col-span-2 animate-obj-breathe"
                 >
                   <Ghost className="w-4 h-4" />
@@ -81,7 +86,7 @@ export default function DecisionOverlay({
                 <button
                   key={lane}
                   type="button"
-                  onClick={() => onPick({ kind: 'siege', lane })}
+                  onClick={() => pick({ kind: 'siege', lane })}
                   className="min-h-11 rounded-xl border border-[#2A3550] bg-[#0A0E1A] font-bold text-[#F0E6D2] flex flex-col items-center justify-center gap-1 text-xs"
                 >
                   <Castle className="w-4 h-4 text-[#3498DB]" />

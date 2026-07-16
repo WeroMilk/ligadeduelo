@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import { CHAMPIONS } from '@/lib/game-data';
 import { Trophy, Swords, ChevronRight, Crown, User, Ghost } from 'lucide-react';
+import { playClickSound } from '@/lib/sounds';
 
 const AI_MATCH_DELAY_MS = 1100;
 
@@ -44,10 +45,12 @@ export default function BracketScreen() {
 
   const handleStartMatch = (matchId: string) => {
     if (simulating) return;
+    playClickSound();
     dispatch({ type: 'PREPARE_MATCH', matchId });
   };
 
   const handleAdvance = () => {
+    playClickSound();
     dispatch({ type: 'ADVANCE_BRACKET' });
   };
 
@@ -60,23 +63,24 @@ export default function BracketScreen() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="shrink-0 bg-[#0A0E1A] border-b border-[#1E2740] px-4 py-3 safe-top">
+      <div className="shrink-0 bg-[#0A0E1A] border-b border-[#1E2740] px-4 py-3 safe-top md:pt-4 pr-14">
         <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <h2 className="text-[#F0E6D2] font-bold text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
-                Torneo
-              </h2>
-              <p className="text-[#8B9BB4] text-sm">
-                {currentRound?.roundName || ''} · Ronda {currentRoundIdx + 1}/4
-              </p>
-            </div>
-            <div className="flex items-center gap-2 bg-[#141B2D] rounded-lg px-3 py-2 max-w-[45%] min-w-0">
+          <div className="flex justify-center">
+            <div className="inline-flex items-center gap-2 bg-[#141B2D] rounded-lg px-3 py-2 max-w-[90%] min-w-0">
               <Crown className="w-4 h-4 text-[#C9A84C] shrink-0" />
-              <span className="text-[#C9A84C] font-bold text-sm truncate">
+              <span className="text-[#C9A84C] font-bold text-sm truncate text-center">
                 {state.playerTeamName || 'Mi Equipo'}
               </span>
             </div>
+          </div>
+
+          <div className="mt-2 text-center">
+            <h2 className="text-[#F0E6D2] font-bold text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
+              Torneo
+            </h2>
+            <p className="text-[#8B9BB4] text-sm">
+              {currentRound?.roundName || ''} · Ronda {currentRoundIdx + 1}/4
+            </p>
           </div>
 
           <div className="mt-2 flex items-center gap-2 rounded-lg border border-[#6B1FA6]/35 bg-[#6B1FA6]/10 px-2.5 py-1.5">
@@ -102,7 +106,7 @@ export default function BracketScreen() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto md:overflow-hidden overscroll-contain px-4 py-4 max-w-6xl lg:max-w-7xl mx-auto w-full safe-bottom flex flex-col">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 md:py-4 max-w-6xl lg:max-w-7xl mx-auto w-full flex flex-col">
         {simulating && (
           <div className="text-center py-2 mb-3 shrink-0">
             <div className="inline-flex flex-col items-center gap-1 text-[#8B9BB4]">
@@ -121,12 +125,12 @@ export default function BracketScreen() {
         )}
 
         <div
-          className={`flex flex-col gap-3 md:grid md:gap-4 md:flex-1 md:min-h-0 md:overflow-hidden md:auto-rows-fr ${
+          className={`flex flex-col gap-3 md:grid md:gap-4 md:auto-rows-min ${
             (currentRound?.matches.length || 0) <= 2
               ? 'md:grid-cols-2 md:max-w-3xl md:mx-auto md:w-full'
               : (currentRound?.matches.length || 0) <= 4
                 ? 'md:grid-cols-2 lg:grid-cols-4'
-                : 'md:grid-cols-2 lg:grid-cols-4 md:grid-rows-2'
+                : 'md:grid-cols-2 lg:grid-cols-4'
           }`}
         >
           {currentRound?.matches.map(match => {
@@ -139,7 +143,7 @@ export default function BracketScreen() {
             return (
               <div
                 key={match.id}
-                className={`rounded-xl border-2 p-4 md:p-5 transition-all md:h-full md:min-h-0 md:flex md:flex-col md:justify-center ${
+                className={`rounded-xl border-2 p-4 md:p-4 transition-all md:flex md:flex-col md:justify-center ${
                   isActive
                     ? 'border-[#3498DB] bg-[#3498DB]/10 shadow-[0_0_20px_rgba(52,152,219,0.15)]'
                     : hasRival && !winner

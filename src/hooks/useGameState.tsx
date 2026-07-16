@@ -452,7 +452,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
       aiBuyItems(tm.blue);
       aiBuyItems(tm.red);
-      const redPlan = generateAIPlan(tm, 'red');
+      const redPlan = generateAIPlan(tm, 'red', action.plan);
       const resolved = resolveRound(tm, action.plan, redPlan);
       const next = {
         ...state,

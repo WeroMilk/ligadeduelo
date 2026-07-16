@@ -1,7 +1,7 @@
 import { useGame } from '@/hooks/useGameState';
 import { Trophy, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { playVictorySound } from '@/lib/sounds';
+import { playVictorySound, playClickSound } from '@/lib/sounds';
 
 export default function VictoryScreen() {
   const { state, dispatch } = useGame();
@@ -51,7 +51,10 @@ export default function VictoryScreen() {
         </div>
         <button
           type="button"
-          onClick={() => dispatch({ type: 'ADVANCE_BRACKET' })}
+          onClick={() => {
+            playClickSound();
+            dispatch({ type: 'ADVANCE_BRACKET' });
+          }}
           className="w-full font-bold py-4 rounded-xl flex items-center justify-center gap-2"
           style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
         >

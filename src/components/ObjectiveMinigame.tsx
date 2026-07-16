@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Champion, ObjectiveType, PendingObjective, TeamColor } from '@/types/game';
 import { CHAMPIONS, objectiveName, objectiveImage } from '@/lib/game-data';
+import { playZoneHitSound, playZoneMissSound } from '@/lib/sounds';
 
 export type ObjectiveQtePayload = {
   skirmishWinner: TeamColor | null;
@@ -26,7 +27,10 @@ type QteProfile = {
   missPenalty: number;
 };
 
-function profileFor(obj: ObjectiveType): QteProfile {
+function profileFor(obj: ObjectiveType, isGank = false): QteProfile {
+  if (isGank) {
+    return { zoneMs: 720, zoneSizePx: 34, spawnGapMs: 1080, hitDmg: 14, missPenalty: 19 };
+  }
   if (obj === 'baron' || obj === 'dragon_ancestral') {
     return { zoneMs: 700, zoneSizePx: 32, spawnGapMs: 1050, hitDmg: 14, missPenalty: 20 };
   }
@@ -125,9 +129,15 @@ export default function ObjectiveMinigame({
   redChampions,
   onComplete,
 }: Props) {
-  const contested = pending.contested;
-  const profile = useMemo(() => profileFor(pending.objective), [pending.objective]);
-  const [phase, setPhase] = useState<'skirmish' | 'monster'>(contested ? 'skirmish' : 'monster');
+  const isGank = pending.kind === 'gank';
+  const contested = pending.contested || isGank;
+  const profile = useMemo(
+    () => profileFor(pending.objective, isGank),
+    [pending.objective, isGank],
+  );
+  const [phase, setPhase] = useState<'skirmish' | 'monster'>(
+    contested || isGank ? 'skirmish' : 'monster',
+  );
   const [blueBar, setBlueBar] = useState(0);
   const [redBar, setRedBar] = useState(0);
   const [monsterHp, setMonsterHp] = useState(MONSTER_HP);
@@ -198,6 +208,7 @@ export default function ObjectiveMinigame({
     if (!zone) return;
     const t = window.setTimeout(() => {
       setFlash('miss');
+      playZoneMissSound();
       if (phase === 'skirmish') {
         setRedBar(v => Math.min(SKIRMISH_GOAL, v + profile.missPenalty));
         setLog('Fallaste · el rival golpea');
@@ -219,22 +230,35 @@ export default function ObjectiveMinigame({
     if (phase !== 'skirmish') return;
     if (blueBar >= SKIRMISH_GOAL) {
       setSkirmishWinner('blue');
-      setLog('¡Ganáis la escaramuza! Ahora el monstruo');
-      setPhase('monster');
-      setMonsterHp(MONSTER_HP);
-      setAllyHp(100);
+      if (isGank) {
+        setLog('¡Ganáis el choque de junglas!');
+        window.setTimeout(() => {
+          finishOnce({
+            skirmishWinner: 'blue',
+            attackingTeam: 'blue',
+            monsterTaken: true,
+          });
+        }, 700);
+      } else {
+        setLog('¡Ganáis la escaramuza! Ahora el monstruo');
+        setPhase('monster');
+        setMonsterHp(MONSTER_HP);
+        setAllyHp(100);
+      }
     } else if (redBar >= SKIRMISH_GOAL) {
       setSkirmishWinner('red');
-      setLog('El rival gana la escaramuza · ellos pelean al monstruo');
+      setLog(isGank
+        ? 'El rival gana el choque de junglas'
+        : 'El rival gana la escaramuza · ellos pelean al monstruo');
       window.setTimeout(() => {
         finishOnce({
           skirmishWinner: 'red',
           attackingTeam: 'red',
-          monsterTaken: Math.random() < 0.55,
+          monsterTaken: isGank ? false : Math.random() < 0.55,
         });
       }, 900);
     }
-  }, [blueBar, redBar, phase, finishOnce]);
+  }, [blueBar, redBar, phase, finishOnce, isGank]);
 
   useEffect(() => {
     if (phase !== 'monster' || skirmishWinner === 'red') return;
@@ -263,6 +287,7 @@ export default function ObjectiveMinigame({
     e.stopPropagation();
     if (!zone) return;
     setFlash('hit');
+    playZoneHitSound();
     if (phase === 'skirmish') {
       setBlueBar(v => Math.min(SKIRMISH_GOAL, v + profile.hitDmg));
       setLog('¡Acierto! Aliados golpean');
@@ -279,17 +304,23 @@ export default function ObjectiveMinigame({
     window.setTimeout(spawnZone, 280);
   };
 
-  const label = objectiveName(pending.objective);
+  const label = isGank
+    ? `Choque · ${pending.lane === 0 ? 'Top' : pending.lane === 2 ? 'Bot' : 'Mid'}`
+    : objectiveName(pending.objective);
 
   const body = (
     <div className="fixed inset-0 z-[95] flex items-center justify-center px-3 bg-black/80">
       <div className="relative w-full max-w-lg rounded-2xl border-2 border-[#E67E22] bg-[#0D1220] overflow-hidden shadow-[0_0_50px_rgba(230,126,34,0.35)]">
         <div className="px-4 pt-4 pb-2 text-center border-b border-[#2A3550]">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#E67E22]">
-            {phase === 'skirmish' ? 'Escaramuza 2v2' : `Asalto · ${label}`}
+            {isGank ? 'Gank contested' : phase === 'skirmish' ? 'Escaramuza 2v2' : `Asalto · ${label}`}
           </p>
           <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-            {phase === 'skirmish' ? 'Pelea por el objetivo' : `Derrota al ${label}`}
+            {isGank
+              ? 'Choque de junglas'
+              : phase === 'skirmish'
+                ? 'Pelea por el objetivo'
+                : `Derrota al ${label}`}
           </h2>
           <p className="text-xs text-[#8B9BB4] mt-1">{log}</p>
         </div>
@@ -352,7 +383,7 @@ export default function ObjectiveMinigame({
             </div>
 
             <div className="flex flex-col items-center gap-1">
-              {phase === 'skirmish' ? (
+              {phase === 'skirmish' || !pending.objective ? (
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">VS</span>
               ) : (
                 <MonsterIcon obj={pending.objective} anim={monsterAnim} />

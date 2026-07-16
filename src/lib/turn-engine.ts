@@ -13,10 +13,11 @@ function logId() { return `l${++idCounter}`; }
 function duelId() { return `d${++idCounter}`; }
 function floatId() { return `f${++idCounter}`; }
 
-const TOWER_MAX_HP = 1000;
-const NEXUS_MAX_HP = 1500;
-const SIEGE_TOWER_DMG = 500;
-const SIEGE_NEXUS_DMG = 750;
+const TOWER_MAX_HP = 1400;
+const NEXUS_MAX_HP = 2200;
+/** ~5 golpes por torre: no se tumba asediando una sola línea en 1–2 rondas */
+const SIEGE_TOWER_DMG = 280;
+const SIEGE_NEXUS_DMG = 400;
 
 function pushFloat(
   floats: CombatFloat[],
@@ -433,6 +434,7 @@ function fightersInLane(
   lane: LaneId,
   bluePlan: TeamPlan,
   redPlan: TeamPlan,
+  skipJungles = false,
 ): { blue: Fighter[]; red: Fighter[] } {
   const collect = (team: TeamData, plan: TeamPlan): Fighter[] => {
     const out: Fighter[] = [];
@@ -447,6 +449,7 @@ function fightersInLane(
       if (def.role === 'jungle') {
         const jt = plan.jungleTarget;
         if (jt === 'objective') continue; // handled separately
+        if (skipJungles) continue; // pelean en QTE de gank contested
         if (typeof jt === 'number') laneNow = jt;
         else laneNow = 1;
       }
@@ -469,8 +472,9 @@ function resolveLaneGroup(
   duels: DuelSummary[],
   floats: CombatFloat[],
   towerStats: { blue: number; red: number },
+  skipJungles = false,
 ) {
-  const { blue, red } = fightersInLane(state, lane, bluePlan, redPlan);
+  const { blue, red } = fightersInLane(state, lane, bluePlan, redPlan, skipJungles);
   if (blue.length === 0 && red.length === 0) return;
 
   pushLog(log, `— Línea ${laneLabel(lane)} —`, 'section');
@@ -927,11 +931,69 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
     if (a) c.revealedAction = a;
   }
 
-  resolveLaneGroup(next, 0, bluePlan, redPlan, log, duels, floats, towerStats);
-  resolveLaneGroup(next, 1, bluePlan, redPlan, log, duels, floats, towerStats);
-  resolveLaneGroup(next, 2, bluePlan, redPlan, log, duels, floats, towerStats);
+  const blueGank = typeof bluePlan.jungleTarget === 'number' ? bluePlan.jungleTarget : null;
+  const redGank = typeof redPlan.jungleTarget === 'number' ? redPlan.jungleTarget : null;
+  const contestedGankLane: LaneId | null =
+    blueGank !== null && redGank !== null && blueGank === redGank ? blueGank : null;
+
+  for (const lane of [0, 1, 2] as LaneId[]) {
+    resolveLaneGroup(
+      next, lane, bluePlan, redPlan, log, duels, floats, towerStats,
+      contestedGankLane === lane,
+    );
+  }
 
   applyFreeLaneAdvantage(next, bluePlan, redPlan, log, floats, towerStats);
+
+  const nexusBlue = next.structures.find(s => s.id === 'nexus_blue');
+  const nexusRed = next.structures.find(s => s.id === 'nexus_red');
+  const nexusAlreadyDown = !!(nexusBlue?.isDestroyed || nexusRed?.isDestroyed);
+
+  // Choque de junglas en la misma línea → QTE (como dragón/barón)
+  if (contestedGankLane !== null && !nexusAlreadyDown) {
+    const blueJg = living(next.blue).find(c => champDef(c).role === 'jungle');
+    const redJg = living(next.red).find(c => champDef(c).role === 'jungle');
+    if (blueJg && redJg) {
+      // Incluir laners vivos de esa línea en la pelea 2v2
+      const blueLaners = living(next.blue).filter(c => {
+        const def = champDef(c);
+        if (def.role === 'jungle') return false;
+        let laneNow = c.position.lane as number;
+        if (bluePlan.bootsLane?.[c.instanceId] !== undefined && hasItem(c, 'boots')) {
+          laneNow = bluePlan.bootsLane[c.instanceId];
+        }
+        return laneNow === contestedGankLane;
+      });
+      const redLaners = living(next.red).filter(c => {
+        const def = champDef(c);
+        if (def.role === 'jungle') return false;
+        let laneNow = c.position.lane as number;
+        if (redPlan.bootsLane?.[c.instanceId] !== undefined && hasItem(c, 'boots')) {
+          laneNow = redPlan.bootsLane[c.instanceId];
+        }
+        return laneNow === contestedGankLane;
+      });
+      const blueIds = [blueJg.instanceId, ...blueLaners.slice(0, 1).map(c => c.instanceId)];
+      const redIds = [redJg.instanceId, ...redLaners.slice(0, 1).map(c => c.instanceId)];
+      next.pendingObjective = {
+        kind: 'gank',
+        contested: true,
+        blueIds,
+        redIds,
+        objective: null,
+        lane: contestedGankLane,
+      };
+      next.deferredBluePlan = bluePlan;
+      next.deferredRedPlan = redPlan;
+      pushLog(log, `¡Choque de junglas en ${laneLabel(contestedGankLane)}!`, 'section');
+      return finalizeRoundBookkeeping(
+        next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
+        towerStats, duels, floats,
+        { winner: null, contested: true, freeItem: false, ancestral: false },
+        true,
+      );
+    }
+  }
 
   const blueWants = bluePlan.jungleTarget === 'objective' && !!next.objective;
   const redWants = redPlan.jungleTarget === 'objective' && !!next.objective;
@@ -939,9 +1001,7 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
   // Si el jugador va al objetivo (solo o contested), diferir a QTE.
   // Si un nexo ya cayó, la partida terminó: no abrir QTE.
   if (blueWants) {
-    const nexusBlue = next.structures.find(s => s.id === 'nexus_blue');
-    const nexusRed = next.structures.find(s => s.id === 'nexus_red');
-    if (nexusBlue?.isDestroyed || nexusRed?.isDestroyed) {
+    if (nexusAlreadyDown) {
       return finalizeRoundBookkeeping(
         next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
         towerStats, duels, floats,
@@ -952,6 +1012,7 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
     const blueP = objectiveParticipants(next.blue, bluePlan);
     const redP = objectiveParticipants(next.red, redPlan);
     next.pendingObjective = {
+      kind: 'objective',
       contested: redWants && redP.length > 0,
       blueIds: blueP.map(c => c.instanceId),
       redIds: redP.map(c => c.instanceId),
@@ -1024,6 +1085,63 @@ export function finishPendingObjective(
     blue: prev?.towersTakenBlue || 0,
     red: prev?.towersTakenRed || 0,
   };
+
+  const pending = state.pendingObjective;
+  if (pending.kind === 'gank') {
+    const lane = (pending.lane ?? 1) as LaneId;
+    const winner = qte.skirmishWinner || qte.attackingTeam;
+    const loser: TeamColor = winner === 'blue' ? 'red' : 'blue';
+    const wTeam = winner === 'blue' ? next.blue : next.red;
+    const lTeam = loser === 'blue' ? next.blue : next.red;
+    const wJg = living(wTeam).find(c => champDef(c).role === 'jungle')
+      || next[winner].champions.find(c => pending.blueIds.includes(c.instanceId) || pending.redIds.includes(c.instanceId));
+    const lJg = living(lTeam).find(c => champDef(c).role === 'jungle')
+      || next[loser].champions.find(c => pending.blueIds.includes(c.instanceId) || pending.redIds.includes(c.instanceId));
+
+    pushLog(log, `Choque de junglas en ${laneLabel(lane)} · gana ${wTeam.name}`, 'kill');
+
+    if (lJg && lJg.isAlive) {
+      const overkill = Math.max(lJg.stats.hp, 1);
+      lJg.stats.hp = 0;
+      lJg.isAlive = false;
+      wTeam.kills += 1;
+      wTeam.score += POINTS_KILL;
+      if (wJg) wJg.kills = (wJg.kills || 0) + 1;
+      pushFloat(floats, {
+        kind: 'damage',
+        amount: overkill,
+        targetType: 'champ',
+        targetId: lJg.instanceId,
+        sourceName: wJg ? champDef(wJg).name : wTeam.name,
+        lane,
+      });
+      pushLog(log, `${wJg ? champDef(wJg).name : wTeam.name} elimina a ${champDef(lJg).name} en el gank`, 'kill');
+      if (wJg) wJg.gold += GOLD_PER_KILL;
+      duels.push({
+        id: duelId(),
+        lane,
+        kind: 'duel',
+        summary: `Gank contested · ${wTeam.name} gana`,
+      });
+    }
+
+    // El ganador asedia la torre enemiga una vez (recompensa del gank)
+    if (wJg && wJg.isAlive) {
+      const towerTeam: TeamColor = winner === 'blue' ? 'red' : 'blue';
+      siegeTower(next, towerTeam, lane, wJg, log, duels, floats, towerStats);
+    }
+
+    next.pendingObjective = null;
+    next.deferredBluePlan = null;
+    next.deferredRedPlan = null;
+
+    return finalizeRoundBookkeeping(
+      next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
+      towerStats, duels, floats,
+      { winner: null, contested: true, freeItem: false, ancestral: false },
+      false,
+    );
+  }
 
   const r = applyObjectiveWithQte(next, state.deferredBluePlan, state.deferredRedPlan, qte);
   log.push(...r.log);
@@ -1126,7 +1244,7 @@ function applyFreeLaneAdvantage(
     if (enemies.length > 0 && alliesLeft.length === 0) {
       const sieger = enemies[0].champ;
       pushLog(log, `${champDef(sieger).name} aprovecha la línea libre (${laneLabel(homeLane)})`, 'tower');
-      for (let i = 0; i < FREE_LANE_SIEGE_BONUS + 1; i++) {
+      for (let i = 0; i < FREE_LANE_SIEGE_BONUS; i++) {
         siegeTower(state, allyTeam, homeLane, sieger, log, [], floats, towerStats);
       }
     }
@@ -1189,8 +1307,12 @@ function onDeathSetRespawn(state: TurnMatchState) {
   }
 }
 
-/** Plan IA agresivo. */
-export function generateAIPlan(state: TurnMatchState, team: 'blue' | 'red'): TeamPlan {
+/** Plan IA agresivo. Opcionalmente reacciona al plan del rival (counter-gank). */
+export function generateAIPlan(
+  state: TurnMatchState,
+  team: 'blue' | 'red',
+  enemyPlan?: TeamPlan | null,
+): TeamPlan {
   const t = team === 'blue' ? state.blue : state.red;
   const enemy = team === 'blue' ? state.red : state.blue;
   const actions: Record<string, CombatAction> = {};
@@ -1199,25 +1321,44 @@ export function generateAIPlan(state: TurnMatchState, team: 'blue' | 'red'): Tea
   let jungleTarget: TeamPlan['jungleTarget'] = 1;
   let objectiveAssistId: string | undefined;
 
+  // Torre propia más dañada → priorizar defensa
+  const ownTowers = state.structures.filter(s => s.type === 'tower' && s.team === team && !s.isDestroyed);
+  const weakTower = [...ownTowers].sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+  const defendLane: LaneId | null =
+    weakTower && weakTower.hp / weakTower.maxHp < 0.55 ? (weakTower.lane as LaneId) : null;
+
   for (const c of living(t)) {
     const def = champDef(c);
     const hpPct = c.stats.hp / c.stats.maxHp;
     let action: CombatAction = 'attack';
-    if (hpPct < 0.28) action = 'defend';
-    else if (def.baseStats.ap >= def.baseStats.ad) action = Math.random() < 0.6 ? 'ability' : 'attack';
-    else action = Math.random() < 0.78 ? 'attack' : (Math.random() < 0.4 ? 'ability' : 'defend');
+    if (hpPct < 0.38) action = 'defend';
+    else if (defendLane !== null && c.position.lane === defendLane && hpPct < 0.7) action = 'defend';
+    else if (def.baseStats.ap >= def.baseStats.ad) action = Math.random() < 0.55 ? 'ability' : 'attack';
+    else action = Math.random() < 0.65 ? 'attack' : (Math.random() < 0.45 ? 'ability' : 'defend');
     actions[c.instanceId] = action;
 
-    if (!c.ultimateUsed && Math.random() < 0.32) {
+    if (!c.ultimateUsed && Math.random() < 0.38) {
       ultimates.push(c.instanceId);
     }
 
-    if (hasItem(c, 'boots') && Math.random() < 0.4) {
-      bootsLane[c.instanceId] = ([0, 1, 2] as LaneId[])[Math.floor(Math.random() * 3)];
+    if (hasItem(c, 'boots') && Math.random() < 0.45) {
+      bootsLane[c.instanceId] = defendLane ?? ([0, 1, 2] as LaneId[])[Math.floor(Math.random() * 3)];
     }
 
     if (def.role === 'jungle') {
-      if (state.objective && Math.random() < 0.72) {
+      const enemyJt = enemyPlan?.jungleTarget;
+      // Counter: si el rival gankea una línea, a menudo contestamos
+      if (typeof enemyJt === 'number' && Math.random() < 0.62) {
+        jungleTarget = enemyJt;
+      } else if (enemyJt === 'objective' && state.objective && Math.random() < 0.55) {
+        jungleTarget = 'objective';
+        const candidates = living(t).filter(x => champDef(x).role !== 'jungle');
+        if (candidates.length) {
+          objectiveAssistId = candidates[Math.floor(Math.random() * candidates.length)].instanceId;
+        }
+      } else if (defendLane !== null && Math.random() < 0.5) {
+        jungleTarget = defendLane;
+      } else if (state.objective && Math.random() < 0.45) {
         jungleTarget = 'objective';
         const candidates = living(t).filter(x => champDef(x).role !== 'jungle');
         if (candidates.length) {
@@ -1281,16 +1422,21 @@ export function simulateAITurnMatch(teamA: TeamData, teamB: TeamData): TurnMatch
 
   while (!state.isComplete) {
     const bluePlan = generateAIPlan(state, 'blue');
-    const redPlan = generateAIPlan(state, 'red');
+    const redPlan = generateAIPlan(state, 'red', bluePlan);
     state = resolveRound(state, bluePlan, redPlan);
     if (state.pendingObjective) {
-      const attacking: 'blue' | 'red' =
-        bluePlan.jungleTarget === 'objective' ? 'blue' :
-        redPlan.jungleTarget === 'objective' ? 'red' : 'blue';
+      const isGank = state.pendingObjective.kind === 'gank';
+      const attacking: 'blue' | 'red' = isGank
+        ? (Math.random() < 0.5 ? 'blue' : 'red')
+        : bluePlan.jungleTarget === 'objective' ? 'blue' :
+          redPlan.jungleTarget === 'objective' ? 'red' : 'blue';
+      const skirmishWinner = state.pendingObjective.contested
+        ? (Math.random() < 0.5 ? 'blue' : 'red')
+        : (isGank ? attacking : null);
       state = finishPendingObjective(state, {
-        skirmishWinner: state.pendingObjective.contested ? (Math.random() < 0.5 ? 'blue' : 'red') : null,
-        attackingTeam: attacking,
-        monsterTaken: Math.random() < 0.7,
+        skirmishWinner,
+        attackingTeam: skirmishWinner || attacking,
+        monsterTaken: isGank ? true : Math.random() < 0.7,
       });
     }
     state = { ...state, pendingReward: false };

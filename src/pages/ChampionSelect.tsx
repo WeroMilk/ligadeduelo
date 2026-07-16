@@ -74,7 +74,7 @@ export default function ChampionSelect() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="shrink-0 z-30 bg-[#0A0E1A] border-b border-[#1E2740] px-4 py-2.5 safe-top">
+      <div className="shrink-0 z-30 bg-[#0A0E1A] border-b border-[#1E2740] px-4 py-2.5 safe-top md:pt-4 pr-14">
         <div className="flex items-center justify-between max-w-6xl mx-auto gap-2">
           <div className="min-w-0">
             <h2 className="text-[#F0E6D2] font-bold text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
@@ -119,9 +119,9 @@ export default function ChampionSelect() {
         </div>
       )}
 
-      {/* Mobile: grid 2 cols con scroll; Desktop: fila compacta sin scroll */}
-      <div className="flex-1 min-h-0 max-w-6xl mx-auto w-full px-4 py-2 overflow-y-auto md:overflow-hidden md:flex md:items-center md:justify-center">
-        <div className="grid grid-cols-2 gap-2.5 pb-2 md:pb-0 md:grid-cols-3 lg:grid-cols-6 md:gap-2.5 md:w-full md:content-start md:auto-rows-min">
+      {/* Mobile: grid 2 cols; Desktop: fila arriba con scroll si no cabe */}
+      <div className="flex-1 min-h-0 max-w-6xl mx-auto w-full px-4 py-2 overflow-y-auto md:pt-3">
+        <div className="grid grid-cols-2 gap-2.5 pb-2 md:grid-cols-3 lg:grid-cols-6 md:gap-2 md:w-full md:content-start md:auto-rows-min">
           {roleChampions.map(champ => {
             const isSelected = selectedIds.includes(champ.id);
             const ult = getUltimate(champ.id);
@@ -200,8 +200,8 @@ export default function ChampionSelect() {
         </div>
       </div>
 
-      <div className="shrink-0 bg-[#0A0E1A] border-t border-[#1E2740] px-4 pt-2.5 safe-bottom">
-        <div className="max-w-6xl mx-auto pb-2.5 flex flex-col md:flex-row md:items-center md:gap-4">
+      <div className="shrink-0 bg-[#0A0E1A] border-t border-[#1E2740] px-4 pt-2.5 pb-2">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center md:gap-4">
           <div className="flex justify-center md:justify-start gap-2 mb-2.5 md:mb-0 md:flex-1">
             {state.selectedChampions.map(c => {
               const def = CHAMPIONS.find(ch => ch.id === c.defId);

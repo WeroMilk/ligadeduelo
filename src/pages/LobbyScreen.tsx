@@ -90,7 +90,7 @@ export default function LobbyScreen() {
         )}
       </div>
 
-      <div className="shrink-0 px-4 py-3 safe-bottom max-w-4xl mx-auto w-full space-y-2 border-t border-[#1E2740] flex flex-col md:flex-row md:items-center md:gap-3">
+      <div className="shrink-0 px-4 py-2.5 max-w-4xl mx-auto w-full space-y-2 border-t border-[#1E2740] flex flex-col md:flex-row md:items-center md:gap-3">
         <button
           type="button"
           disabled={!canStart}

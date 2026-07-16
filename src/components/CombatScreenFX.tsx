@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { playHitSound, playKillSound, playTowerSound, playObjectiveSound, playMultiKillSound } from '@/lib/sounds';
 
 export type ScreenFxKind = 'hit' | 'kill' | 'tower' | 'objective';
 
@@ -21,6 +22,13 @@ export default function CombatScreenFX({ signal }: Props) {
 
   useEffect(() => {
     if (!signal) return;
+    if (signal.kind === 'hit') playHitSound();
+    else if (signal.kind === 'kill') {
+      if (signal.label && /KILLS/i.test(signal.label)) playMultiKillSound();
+      else playKillSound();
+    } else if (signal.kind === 'tower') playTowerSound();
+    else if (signal.kind === 'objective') playObjectiveSound();
+
     const id = ++fxId;
     const ev: FxEvent = {
       id,

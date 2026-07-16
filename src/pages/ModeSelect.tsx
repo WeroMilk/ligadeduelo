@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useGame } from '@/hooks/useGameState';
 import type { GameMode } from '@/types/game';
 import { Bot, Users, Hash, Swords, BookOpen, X } from 'lucide-react';
+import { playClickSound } from '@/lib/sounds';
 
 const MODES: { id: GameMode; title: string; desc: string; icon: React.ReactNode }[] = [
   {
@@ -25,27 +27,45 @@ const MODES: { id: GameMode; title: string; desc: string; icon: React.ReactNode 
 ];
 
 function RulesModal({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/75 px-3 pb-3 sm:pb-0">
-      <div className="w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] shadow-[0_0_40px_rgba(201,168,76,0.2)]">
-        <div className="sticky top-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-[#2A3550] bg-[#0D1220]">
-          <div className="flex items-center gap-2 min-w-0">
-            <BookOpen className="w-5 h-5 text-[#C9A84C] shrink-0" />
-            <h2 className="text-lg font-bold text-[#C9A84C] truncate" style={{ fontFamily: 'Cinzel, serif' }}>
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 px-4"
+      style={{
+        paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rules-title"
+      onClick={onClose}
+    >
+      <div
+        className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] shadow-[0_0_40px_rgba(201,168,76,0.2)]"
+        style={{ maxHeight: 'min(36rem, calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)))' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#2A3550] px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <BookOpen className="h-5 w-5 shrink-0 text-[#C9A84C]" />
+            <h2
+              id="rules-title"
+              className="truncate text-lg font-bold text-[#C9A84C]"
+              style={{ fontFamily: 'Cinzel, serif' }}
+            >
               Cómo jugar
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-10 h-10 rounded-xl border border-[#2A3550] text-[#8B9BB4] hover:text-[#F0E6D2] flex items-center justify-center"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#2A3550] text-[#8B9BB4] hover:text-[#F0E6D2]"
             aria-label="Cerrar reglas"
           >
-            <X className="w-5 h-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="px-4 py-4 space-y-4 text-sm text-[#C5D0E0] leading-relaxed">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-4 text-sm leading-relaxed text-[#C5D0E0]">
           <p>
             No necesitas saber League of Legends. Es un torneo por turnos: eliges equipo,
             campeones y tomas decisiones clave en cada ronda.
@@ -63,7 +83,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
 
           <section className="space-y-1.5">
             <h3 className="font-bold text-[#F0E6D2]">3. Cada partida tiene 8 turnos</h3>
-            <ul className="list-disc pl-5 space-y-1 text-[#8B9BB4]">
+            <ul className="list-disc space-y-1 pl-5 text-[#8B9BB4]">
               <li>Turnos impares (1, 3, 5, 7): pelean en las líneas, sin monstruo.</li>
               <li>Turnos pares (2, 4, 6, 8): aparece un objetivo grande.</li>
             </ul>
@@ -71,7 +91,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
 
           <section className="space-y-1.5">
             <h3 className="font-bold text-[#F0E6D2]">4. Objetivos</h3>
-            <ul className="list-disc pl-5 space-y-1 text-[#8B9BB4]">
+            <ul className="list-disc space-y-1 pl-5 text-[#8B9BB4]">
               <li>Turno 2: Dragón de Agua</li>
               <li>Turno 4: Dragón de Fuego</li>
               <li>Turno 6: Barón Nashor</li>
@@ -82,7 +102,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
 
           <section className="space-y-1.5">
             <h3 className="font-bold text-[#F0E6D2]">5. Tus decisiones</h3>
-            <ul className="list-disc pl-5 space-y-1 text-[#8B9BB4]">
+            <ul className="list-disc space-y-1 pl-5 text-[#8B9BB4]">
               <li><span className="text-[#F0E6D2]">Jungla:</span> gankear una línea o ir al objetivo.</li>
               <li><span className="text-[#F0E6D2]">Asedio:</span> en turnos pares puedes empujar torres/nexo.</li>
             </ul>
@@ -105,18 +125,19 @@ function RulesModal({ onClose }: { onClose: () => void }) {
           </section>
         </div>
 
-        <div className="sticky bottom-0 px-4 py-3 border-t border-[#2A3550] bg-[#0D1220]">
+        <div className="shrink-0 border-t border-[#2A3550] px-4 py-3">
           <button
             type="button"
             onClick={onClose}
-            className="w-full font-bold py-3 rounded-xl"
+            className="w-full rounded-xl py-3 font-bold"
             style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
           >
             Entendido
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -125,8 +146,8 @@ export default function ModeSelect() {
   const [showRules, setShowRules] = useState(false);
 
   return (
-    <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden justify-center">
-      <div className="shrink-0 px-4 pt-6 pb-2 safe-top text-center">
+    <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-y-auto">
+      <div className="shrink-0 px-4 pt-10 pb-2 safe-top text-center sm:pt-12 md:pt-8">
         <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#8B6914] flex items-center justify-center mb-3">
           <Swords className="w-8 h-8 text-[#0A0E1A]" />
         </div>
@@ -136,7 +157,10 @@ export default function ModeSelect() {
         <p className="text-[#8B9BB4] text-sm mt-2 tracking-wide uppercase">Elige cómo quieres jugar</p>
         <button
           type="button"
-          onClick={() => setShowRules(true)}
+          onClick={() => {
+            playClickSound();
+            setShowRules(true);
+          }}
           className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#2A3550] bg-transparent px-4 py-2 text-sm text-[#C9A84C] hover:border-[#C9A84C]/60 hover:bg-[#141B2D] transition-colors"
         >
           <BookOpen className="w-4 h-4 shrink-0" />
@@ -144,13 +168,16 @@ export default function ModeSelect() {
         </button>
       </div>
 
-      <div className="min-h-0 px-4 py-3 max-w-5xl mx-auto w-full overflow-y-auto md:overflow-hidden md:flex md:items-center md:flex-1">
+      <div className="min-h-0 px-4 py-3 max-w-5xl mx-auto w-full md:flex md:items-center md:flex-1 md:pb-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full md:gap-4">
           {MODES.map(m => (
             <button
               key={m.id}
               type="button"
-              onClick={() => dispatch({ type: 'SET_GAME_MODE', mode: m.id })}
+              onClick={() => {
+                playClickSound();
+                dispatch({ type: 'SET_GAME_MODE', mode: m.id });
+              }}
               className="w-full text-left rounded-2xl border-2 border-[#1E2740] bg-[#141B2D] hover:border-[#C9A84C] p-4 md:p-6 flex md:flex-col gap-4 transition-all active:scale-[0.99] md:min-h-[220px]"
             >
               <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-[#0A0E1A] border border-[#2A3550] flex items-center justify-center text-[#C9A84C] shrink-0">
@@ -165,7 +192,7 @@ export default function ModeSelect() {
         </div>
       </div>
 
-      <p className="shrink-0 text-[11px] text-center text-[#4A5570] pb-2 pt-1 px-4">
+      <p className="shrink-0 text-[11px] text-center text-[#4A5570] px-4 pt-2 pb-3">
         Todos los derechos reservados · HOMEBOYS PROD. · 2026
       </p>
 
