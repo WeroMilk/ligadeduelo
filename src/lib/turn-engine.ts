@@ -73,6 +73,11 @@ const NEXUS_MAX_HP = 2000;
 const SIEGE_TOWER_DMG = 520;
 const SIEGE_NEXUS_DMG = 700;
 
+/** Contexto de asedio durante resolveRound (amenaza letal al nexo del jugador). */
+type SiegeCtx = {
+  blueNexusThreat: null | { siegerId: string; lane: LaneId };
+};
+
 function pushFloat(
   floats: CombatFloat[],
   partial: Omit<CombatFloat, 'id'>,
@@ -683,6 +688,7 @@ function resolveLaneGroup(
   towerStats: { blue: number; red: number },
   killEvents: RawKill[],
   skipJungles = false,
+  siegeCtx?: SiegeCtx,
 ) {
   const { blue, red } = fightersInLane(state, lane, bluePlan, redPlan, skipJungles);
   if (blue.length === 0 && red.length === 0) return;
@@ -765,7 +771,7 @@ function resolveLaneGroup(
       } else {
         // Sin contrincante: siempre asedia torre/nexo (errores de carril)
         const towerTeam: TeamColor = atk.champ.team === 'blue' ? 'red' : 'blue';
-        siegeTower(state, towerTeam, lane, atk.champ, log, duels, floats, towerStats);
+        siegeTower(state, towerTeam, lane, atk.champ, log, duels, floats, towerStats, siegeCtx);
       }
     }
   };
@@ -780,14 +786,14 @@ function resolveLaneGroup(
     for (const bf of blue) {
       if (!bf.champ.isAlive || bf.champ.stats.hp <= 0) continue;
       if (!pairedBlue.has(bf.champ.instanceId)) continue; // extras ya asediaron si no había blanco
-      siegeTower(state, 'red', lane, bf.champ, log, duels, floats, towerStats);
+      siegeTower(state, 'red', lane, bf.champ, log, duels, floats, towerStats, siegeCtx);
     }
   }
   if (!blueLeft) {
     for (const rf of red) {
       if (!rf.champ.isAlive || rf.champ.stats.hp <= 0) continue;
       if (!pairedRed.has(rf.champ.instanceId)) continue;
-      siegeTower(state, 'blue', lane, rf.champ, log, duels, floats, towerStats);
+      siegeTower(state, 'blue', lane, rf.champ, log, duels, floats, towerStats, siegeCtx);
     }
   }
 }
@@ -809,6 +815,7 @@ function siegeTower(
   duels: DuelSummary[],
   floats: CombatFloat[],
   towerStats: { blue: number; red: number },
+  siegeCtx?: SiegeCtx,
 ) {
   const siegerSnap: DuelFighterSummary = {
     instanceId: sieger.instanceId,
@@ -828,7 +835,46 @@ function siegeTower(
     const nexus = state.structures.find(s => s.type === 'nexus' && s.team === towerTeam && !s.isDestroyed);
     if (nexus) {
       const raw = calcSiegeDamage(sieger, SIEGE_NEXUS_DMG, 'nexus');
-      const dmg = Math.min(raw, nexus.hp);
+      let dmg = Math.min(raw, nexus.hp);
+
+      // Golpe letal al nexo del jugador → diferir destrucción a QTE de defensa
+      if (
+        towerTeam === 'blue'
+        && sieger.team === 'red'
+        && siegeCtx
+        && nexus.hp - dmg <= 0
+      ) {
+        // Deja el nexo a 1 HP y marca amenaza → QTE de defensa
+        const applied = Math.max(0, nexus.hp - 1);
+        nexus.hp = 1;
+        siegerSnap.damageDealt = applied;
+        pushFloat(floats, {
+          kind: 'damage',
+          amount: applied,
+          targetType: 'nexus',
+          targetId: nexus.id,
+          sourceName: champDef(sieger).name,
+          lane,
+        });
+        pushLog(
+          log,
+          `¡${champDef(sieger).name} asalta el Nexo! Defiende o cae la base`,
+          'tower',
+        );
+        duels.push({
+          id: duelId(),
+          lane,
+          kind: 'siege',
+          blue: undefined,
+          red: siegerSnap,
+          summary: `${champDef(sieger).name} asalta el Nexo — ¡defiende!`,
+          siegeTargetId: nexus.id,
+        });
+        state.blue.nexusHp = 1;
+        siegeCtx.blueNexusThreat = { siegerId: sieger.instanceId, lane };
+        return;
+      }
+
       nexus.hp = Math.max(0, nexus.hp - dmg);
       siegerSnap.damageDealt = dmg;
       pushFloat(floats, {
@@ -901,7 +947,7 @@ function siegeTower(
   });
   // Al tumbar la torre, el mismo golpe sigue al nexo (empuje de línea libre)
   if (towerFell) {
-    siegeTower(state, towerTeam, lane, sieger, log, duels, floats, towerStats);
+    siegeTower(state, towerTeam, lane, sieger, log, duels, floats, towerStats, siegeCtx);
   }
 }
 
@@ -1248,6 +1294,7 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
   const floats: CombatFloat[] = [];
   const killEvents: RawKill[] = [];
   const towerStats = { blue: 0, red: 0 };
+  const siegeCtx: SiegeCtx = { blueNexusThreat: null };
   const scoreBeforeB = next.blue.score;
   const scoreBeforeR = next.red.score;
   const killsBeforeB = next.blue.kills;
@@ -1293,14 +1340,50 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
     resolveLaneGroup(
       next, lane, bluePlan, redPlan, log, duels, floats, towerStats, killEvents,
       contestedGankLane === lane,
+      siegeCtx,
     );
   }
 
-  applyFreeLaneAdvantage(next, bluePlan, redPlan, log, floats, towerStats);
+  applyFreeLaneAdvantage(next, bluePlan, redPlan, log, floats, towerStats, siegeCtx);
 
   const nexusBlue = next.structures.find(s => s.id === 'nexus_blue');
   const nexusRed = next.structures.find(s => s.id === 'nexus_red');
   const nexusAlreadyDown = !!(nexusBlue?.isDestroyed || nexusRed?.isDestroyed);
+
+  // Amenaza letal al nexo del jugador → QTE de defensa (prioridad máxima)
+  if (siegeCtx.blueNexusThreat) {
+    const threat = siegeCtx.blueNexusThreat;
+    const lane = threat.lane;
+    const defenders = living(next.blue)
+      .slice()
+      .sort((a, b) => {
+        const la = a.position.lane === lane ? 0 : 1;
+        const lb = b.position.lane === lane ? 0 : 1;
+        if (la !== lb) return la - lb;
+        return (b.stats.hp / b.stats.maxHp) - (a.stats.hp / a.stats.maxHp);
+      })
+      .slice(0, 2);
+    const blueIds = defenders.map(c => c.instanceId);
+    const redIds = [threat.siegerId];
+    next.pendingObjective = {
+      kind: 'nexus_defense',
+      contested: true,
+      blueIds,
+      redIds,
+      objective: null,
+      lane,
+    };
+    next.deferredBluePlan = bluePlan;
+    next.deferredRedPlan = redPlan;
+    pushLog(log, `¡Asalto al Nexo en ${laneLabel(lane)}! Defiende con bolitas amarillas`, 'section');
+    return finalizeRoundBookkeeping(
+      next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
+      towerStats, duels, floats,
+      { winner: null, contested: true, freeItem: false, ancestral: false, bonus: null },
+      true,
+      killEvents,
+    );
+  }
 
   // Choque de junglas en la misma línea → QTE (como dragón/barón)
   if (contestedGankLane !== null && !nexusAlreadyDown) {
@@ -1516,6 +1599,48 @@ export function finishPendingObjective(
   const pending = state.pendingObjective;
   const fate: 'killed' | 'escaped' = qte.loserFate || 'killed';
 
+  if (pending.kind === 'nexus_defense') {
+    const lane = (pending.lane ?? 1) as LaneId;
+    const winner = qte.skirmishWinner || qte.attackingTeam;
+    const nexus = next.structures.find(s => s.id === 'nexus_blue');
+
+    if (winner === 'blue') {
+      const restored = Math.floor(NEXUS_MAX_HP * 0.25);
+      if (nexus) {
+        nexus.hp = restored;
+        nexus.isDestroyed = false;
+      }
+      next.blue.nexusHp = restored;
+      pushLog(
+        log,
+        fate === 'escaped'
+          ? `¡Nexo defendido en ${laneLabel(lane)}! El asaltante huye · base al ${Math.round((restored / NEXUS_MAX_HP) * 100)}%`
+          : `¡Nexo defendido en ${laneLabel(lane)}! Base restaurada al ${Math.round((restored / NEXUS_MAX_HP) * 100)}%`,
+        'tower',
+      );
+    } else {
+      if (nexus) {
+        nexus.hp = 0;
+        nexus.isDestroyed = true;
+      }
+      next.blue.nexusHp = 0;
+      pushLog(log, `¡NEXO DESTRUIDO! Fallaste la defensa en ${laneLabel(lane)}`, 'tower');
+    }
+
+    next.pendingObjective = null;
+    next.deferredBluePlan = null;
+    next.deferredRedPlan = null;
+
+    return finalizeRoundBookkeeping(
+      next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
+      towerStats, duels, floats,
+      { winner: null, contested: true, freeItem: false, ancestral: false, bonus: null },
+      false,
+      killEvents,
+      false,
+    );
+  }
+
   if (pending.kind === 'gank') {
     const lane = (pending.lane ?? 1) as LaneId;
     const winner = qte.skirmishWinner || qte.attackingTeam;
@@ -1639,6 +1764,7 @@ function applyFreeLaneAdvantage(
   log: CombatLogLine[],
   floats: CombatFloat[],
   towerStats: { blue: number; red: number },
+  siegeCtx?: SiegeCtx,
 ) {
   const check = (plan: TeamPlan, allyTeam: TeamColor) => {
     if (plan.jungleTarget !== 'objective' || !plan.objectiveAssistId) return;
@@ -1653,7 +1779,7 @@ function applyFreeLaneAdvantage(
       const sieger = enemies[0].champ;
       pushLog(log, `${champDef(sieger).name} aprovecha la línea libre (${laneLabel(homeLane)})`, 'tower');
       for (let i = 0; i < FREE_LANE_SIEGE_BONUS; i++) {
-        siegeTower(state, allyTeam, homeLane, sieger, log, [], floats, towerStats);
+        siegeTower(state, allyTeam, homeLane, sieger, log, [], floats, towerStats, siegeCtx);
       }
     }
   };
@@ -1839,18 +1965,19 @@ export function simulateAITurnMatch(teamA: TeamData, teamB: TeamData): TurnMatch
     const redPlan = generateAIPlan(state, 'red', bluePlan);
     state = resolveRound(state, bluePlan, redPlan);
     if (state.pendingObjective) {
-      const isGank = state.pendingObjective.kind === 'gank';
-      const attacking: 'blue' | 'red' = isGank
+      const kind = state.pendingObjective.kind;
+      const isSkirmishOnly = kind === 'gank' || kind === 'nexus_defense';
+      const attacking: 'blue' | 'red' = isSkirmishOnly
         ? (Math.random() < 0.5 ? 'blue' : 'red')
         : bluePlan.jungleTarget === 'objective' ? 'blue' :
           redPlan.jungleTarget === 'objective' ? 'red' : 'blue';
       const skirmishWinner = state.pendingObjective.contested
         ? (Math.random() < 0.5 ? 'blue' : 'red')
-        : (isGank ? attacking : null);
+        : (isSkirmishOnly ? attacking : null);
       state = finishPendingObjective(state, {
         skirmishWinner,
         attackingTeam: skirmishWinner || attacking,
-        monsterTaken: isGank ? true : Math.random() < 0.7,
+        monsterTaken: isSkirmishOnly ? true : Math.random() < 0.7,
       });
     }
     state = { ...state, pendingReward: false };

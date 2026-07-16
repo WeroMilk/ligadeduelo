@@ -194,13 +194,13 @@ export interface CombatFloat {
 }
 
 export interface PendingObjective {
-  /** Objetivo de mapa o pelea jungla vs jungla en una línea. */
-  kind: 'objective' | 'gank';
+  /** Objetivo de mapa, pelea jungla, o defensa del nexo. */
+  kind: 'objective' | 'gank' | 'nexus_defense';
   contested: boolean;
   blueIds: string[];
   redIds: string[];
-  objective: ObjectiveType;
-  /** Línea del choque de junglas (solo kind === 'gank'). */
+  objective: ObjectiveType | null;
+  /** Línea del choque / asalto al nexo. */
   lane?: LaneId;
 }
 

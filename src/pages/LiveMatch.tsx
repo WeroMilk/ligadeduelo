@@ -292,8 +292,12 @@ export default function LiveMatch() {
       enqueueAnnounces(laneKills, `kills-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}`);
     }
 
-    // Choque de junglas: QTE al instante (sin esperar el cine de líneas)
-    if (res.pendingObjectiveQte && current.pendingObjective?.kind === 'gank') {
+    // Choque de junglas o defensa de nexo: QTE al instante (sin esperar el cine de líneas)
+    if (
+      res.pendingObjectiveQte
+      && (current.pendingObjective?.kind === 'gank'
+        || current.pendingObjective?.kind === 'nexus_defense')
+    ) {
       awaitingQte.current = true;
       needsPostQteClaim.current = true;
       setPhase({ t: 'qte' });
