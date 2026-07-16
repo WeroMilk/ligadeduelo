@@ -63,7 +63,7 @@ export default function BracketScreen() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="shrink-0 bg-[#0A0E1A] border-b border-[#1E2740] px-4 py-2 safe-top safe-chrome-x md:py-3">
+      <div className="shrink-0 bg-[#0A0E1A] border-b border-[#1E2740] px-4 pb-2 pt-0 safe-top safe-chrome-x md:py-3">
         <div className="max-w-6xl mx-auto">
           <div className="flex justify-center">
             <div className="inline-flex items-center gap-2 bg-[#141B2D] rounded-lg px-3 py-1.5 md:py-2 max-w-[90%] min-w-0">

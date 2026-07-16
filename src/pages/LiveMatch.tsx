@@ -617,7 +617,7 @@ export default function LiveMatch() {
       <CombatScreenFX signal={fx} />
       <CombatAnnounceOverlay batch={announceBatch} />
 
-      <div className="shrink-0 px-3 py-2 safe-top safe-chrome-x border-b border-[#1E2740] max-w-lg md:max-w-6xl mx-auto w-full md:px-4 md:py-3">
+      <div className="shrink-0 px-3 pb-2 pt-0 safe-top safe-chrome-x border-b border-[#1E2740] max-w-lg md:max-w-6xl mx-auto w-full md:px-4 md:py-3">
         <p className="text-[#C9A84C] text-[10px] md:text-xs uppercase tracking-wider">Partida en vivo</p>
         <div className="flex justify-between items-end gap-2">
           <h1 className="text-base md:text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>

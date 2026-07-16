@@ -115,8 +115,8 @@
 /* Mobile shell helpers */
 @layer utilities {
   .safe-top {
-    /* Safe area + aire bajo la barra de estado / botones fijos */
-    padding-top: calc(env(safe-area-inset-top, 0px) + 3.25rem);
+    /* Safe area + hueco para la X fija (sin empujar el contenido de más) */
+    padding-top: calc(env(safe-area-inset-top, 0px) + 2.1rem);
   }
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -130,9 +130,9 @@
     padding-left: 3.25rem;
     padding-right: 3.25rem;
   }
-  /* Pantallas de selección: menos aire vertical en móvil */
+  /* Pantallas de selección: cabecera a la altura de la X, sin solaparse */
   .select-screen-top {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 2.75rem);
+    padding-top: calc(env(safe-area-inset-top, 0px) + 1.95rem);
   }
   /* Desktop: respiración mínima respecto a bordes del viewport */
   @media (min-width: 768px) {

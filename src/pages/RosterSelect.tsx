@@ -150,7 +150,7 @@ export default function RosterSelect() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="relative shrink-0 border-b border-[#1E2740] px-4 py-1.5 select-screen-top safe-chrome-x max-w-6xl mx-auto w-full md:py-2.5">
+      <div className="relative shrink-0 border-b border-[#1E2740] px-4 pb-1.5 pt-0 select-screen-top safe-chrome-x max-w-6xl mx-auto w-full md:py-2.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Integrantes</p>

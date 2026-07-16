@@ -78,7 +78,7 @@ export default function ChampionSelect() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="relative shrink-0 z-30 border-b border-[#1E2740] bg-[#0A0E1A] px-4 py-1.5 select-screen-top safe-chrome-x md:py-2.5">
+      <div className="relative shrink-0 z-30 border-b border-[#1E2740] bg-[#0A0E1A] px-4 pb-1.5 pt-0 select-screen-top safe-chrome-x md:py-2.5">
         <div className="mx-auto flex max-w-6xl items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <h2 className="text-base font-bold text-[#F0E6D2] md:text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
