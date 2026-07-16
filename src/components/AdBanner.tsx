@@ -14,7 +14,7 @@ export default function AdBanner() {
 
   return (
     <div
-      className="relative z-[40] w-full shrink-0 border-t border-white/10 bg-[linear-gradient(90deg,#07111d,#183247_50%,#07111d)] px-2 py-1.5 shadow-[0_-8px_30px_rgba(0,0,0,0.28)] md:px-6 md:py-2.5 lg:px-8"
+      className="relative z-[40] w-full shrink-0 border-t border-white/10 bg-[linear-gradient(90deg,#07111d,#183247_50%,#07111d)] px-2 py-1.5 shadow-[0_-8px_30px_rgba(0,0,0,0.28)] md:px-4 md:py-2"
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.375rem)' }}
       role="complementary"
       aria-label="Publicidad"
@@ -25,7 +25,7 @@ export default function AdBanner() {
       */}
       <button
         type="button"
-        className="group relative mx-auto block h-[72px] w-full max-w-3xl overflow-hidden rounded-md border border-white/15 bg-[#4f9bc4] shadow-[0_3px_18px_rgba(0,0,0,0.42)] md:flex md:h-[120px] md:w-fit md:max-w-full md:rounded-lg md:bg-transparent lg:h-[140px]"
+        className="group relative mx-auto block h-[72px] w-full max-w-3xl overflow-hidden rounded-md border border-white/15 bg-[#4f9bc4] shadow-[0_3px_18px_rgba(0,0,0,0.42)] md:flex md:h-[88px] md:w-fit md:max-w-[min(100%,36rem)] md:rounded-lg md:bg-transparent lg:h-[96px]"
         style={{ userSelect: 'none' }}
         onClick={() => registerBannerTap()}
         aria-label="Banner publicitario Servipartz"
