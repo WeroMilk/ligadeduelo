@@ -5,24 +5,27 @@ import type { GameMode } from '@/types/game';
 import { Bot, Users, Hash, Swords, BookOpen, X } from 'lucide-react';
 import { playClickSound } from '@/lib/sounds';
 
-const MODES: { id: GameMode; title: string; desc: string; icon: React.ReactNode }[] = [
+const MODES: { id: GameMode; title: string; desc: string; icon: React.ReactNode; enabled: boolean }[] = [
   {
     id: 'ai',
     title: 'Contra la IA',
     desc: 'Torneo de 16 equipos. Tú decides en tu partida; el resto se simula.',
     icon: <Bot className="w-7 h-7" />,
+    enabled: true,
   },
   {
     id: 'coop_local',
     title: 'Cooperativo · misma pantalla',
     desc: '2 a 4 jugadores en este dispositivo. Decisiones compartidas en partida.',
     icon: <Users className="w-7 h-7" />,
+    enabled: false,
   },
   {
     id: 'coop_code',
     title: 'Cooperativo · con código',
     desc: 'Código de sala local: añade hasta 16 amigos en este dispositivo (sin red).',
     icon: <Hash className="w-7 h-7" />,
+    enabled: false,
   },
 ];
 
@@ -146,12 +149,12 @@ export default function ModeSelect() {
   const [showRules, setShowRules] = useState(false);
 
   return (
-    <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-y-auto">
-      <div className="shrink-0 px-4 pt-16 pb-2 safe-top text-center sm:pt-20 md:pt-14">
+    <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
+      <div className="shrink-0 px-4 safe-top safe-chrome-x pb-3 text-center md:pb-2">
         <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#8B6914] flex items-center justify-center mb-3">
           <Swords className="w-8 h-8 text-[#0A0E1A]" />
         </div>
-        <h1 className="text-3xl font-bold text-[#C9A84C]" style={{ fontFamily: 'Cinzel, serif' }}>
+        <h1 className="text-3xl font-bold text-[#C9A84C] leading-tight" style={{ fontFamily: 'Cinzel, serif' }}>
           LIGA DE DUELO
         </h1>
         <p className="text-[#8B9BB4] text-sm mt-2 tracking-wide uppercase">Elige cómo quieres jugar</p>
@@ -168,23 +171,35 @@ export default function ModeSelect() {
         </button>
       </div>
 
-      <div className="min-h-0 px-4 py-3 pt-5 max-w-5xl mx-auto w-full md:flex md:items-start md:flex-1 md:pb-4 md:pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full md:gap-4">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 max-w-5xl mx-auto w-full md:flex md:items-start md:pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full md:gap-4 pb-2">
           {MODES.map(m => (
             <button
               key={m.id}
               type="button"
+              disabled={!m.enabled}
               onClick={() => {
+                if (!m.enabled) return;
                 playClickSound();
                 dispatch({ type: 'SET_GAME_MODE', mode: m.id });
               }}
-              className="w-full text-left rounded-2xl border-2 border-[#1E2740] bg-[#141B2D] hover:border-[#C9A84C] p-4 md:p-6 flex md:flex-col gap-4 transition-all active:scale-[0.99] md:min-h-[220px]"
+              className={`relative w-full text-left rounded-2xl border-2 p-4 md:p-6 flex md:flex-col gap-4 transition-all md:min-h-[220px] ${
+                m.enabled
+                  ? 'border-[#1E2740] bg-[#141B2D] hover:border-[#C9A84C] active:scale-[0.99]'
+                  : 'border-[#1E2740]/70 bg-[#0F1420] opacity-55 cursor-not-allowed'
+              }`}
+              aria-disabled={!m.enabled}
             >
-              <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-[#0A0E1A] border border-[#2A3550] flex items-center justify-center text-[#C9A84C] shrink-0">
+              {!m.enabled && (
+                <span className="absolute right-3 top-3 rounded-md border border-[#2A3550] bg-[#0A0E1A] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4]">
+                  Próximamente
+                </span>
+              )}
+              <div className={`w-12 h-12 md:w-14 md:h-14 rounded-xl bg-[#0A0E1A] border border-[#2A3550] flex items-center justify-center shrink-0 ${m.enabled ? 'text-[#C9A84C]' : 'text-[#4A5570]'}`}>
                 {m.icon}
               </div>
               <div className="min-w-0">
-                <p className="font-bold text-[#F0E6D2] text-lg">{m.title}</p>
+                <p className={`font-bold text-lg ${m.enabled ? 'text-[#F0E6D2]' : 'text-[#8B9BB4]'}`}>{m.title}</p>
                 <p className="text-xs text-[#8B9BB4] mt-1 leading-snug">{m.desc}</p>
               </div>
             </button>

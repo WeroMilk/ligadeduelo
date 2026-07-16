@@ -21,7 +21,7 @@ export default function VictoryScreen() {
   const tm = state.turnMatch;
 
   return (
-    <div className="screen-center relative bg-[#0A0E1A] px-4 py-8 safe-top safe-bottom">
+    <div className="screen-center relative bg-[#0A0E1A] px-4 py-8 safe-top safe-chrome-x safe-bottom">
       <div className="absolute inset-0 pointer-events-none">
         {confetti.map(c => (
           <div key={c.id} className="absolute w-2 h-2 rounded-sm animate-confetti" style={{ left: `${c.x}%`, top: '-10px', backgroundColor: c.color, animationDelay: `${c.delay}s` }} />

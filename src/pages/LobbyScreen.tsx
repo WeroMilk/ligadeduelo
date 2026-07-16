@@ -16,7 +16,7 @@ export default function LobbyScreen() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="shrink-0 px-4 py-4 safe-top border-b border-[#1E2740] max-w-4xl mx-auto w-full">
+      <div className="shrink-0 px-4 py-4 safe-top safe-chrome-x border-b border-[#1E2740] max-w-4xl mx-auto w-full">
         <h1 className="text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
           {isCode ? 'Sala con código' : 'Lobby compartido'}
         </h1>

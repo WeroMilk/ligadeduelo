@@ -19,11 +19,11 @@ export default function Home() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 flex flex-col items-center justify-start px-4 pt-16 pb-8 safe-top safe-bottom sm:pt-20 md:justify-center md:pt-8">
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-start px-4 safe-top safe-chrome-x pb-8 safe-bottom md:justify-center">
         <div className="w-full max-w-md space-y-6 text-center">
           <div>
             <h1
-              className="text-3xl font-bold text-[#C9A84C]"
+              className="text-3xl font-bold text-[#C9A84C] leading-tight"
               style={{ fontFamily: 'Cinzel, Georgia, serif' }}
             >
               Nombre de equipo

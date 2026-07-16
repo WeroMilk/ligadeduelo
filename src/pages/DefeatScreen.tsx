@@ -24,7 +24,7 @@ export default function DefeatScreen() {
   };
 
   return (
-    <div className="screen-center relative bg-[#0A0E1A] px-4 py-8 safe-top safe-bottom">
+    <div className="screen-center relative bg-[#0A0E1A] px-4 py-8 safe-top safe-chrome-x safe-bottom">
       {/* Red vignette */}
       <div className="absolute inset-0 bg-gradient-radial from-[#E74C3C]/10 via-transparent to-transparent" />
 

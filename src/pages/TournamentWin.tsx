@@ -40,7 +40,7 @@ export default function TournamentWin() {
 
   if (!playerWon) {
     return (
-      <div className="screen-center relative bg-[#0A0E1A] px-4 py-6 safe-top safe-bottom">
+      <div className="screen-center relative bg-[#0A0E1A] px-4 py-6 safe-top safe-chrome-x safe-bottom">
         <div className="relative z-10 flex flex-col items-center gap-4 max-w-md w-full">
           <div className="w-20 h-20 rounded-full bg-[#141B2D] border-2 border-[#2A3550] flex items-center justify-center">
             <Flag className="w-9 h-9 text-[#8B9BB4]" />
@@ -71,7 +71,7 @@ export default function TournamentWin() {
   }
 
   return (
-    <div className="screen-center relative bg-[#0A0E1A] px-4 py-6 safe-top safe-bottom">
+    <div className="screen-center relative bg-[#0A0E1A] px-4 py-6 safe-top safe-chrome-x safe-bottom">
       <div className="absolute inset-0 pointer-events-none">
         {particles.map(p => (
           <div

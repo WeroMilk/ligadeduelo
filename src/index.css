@@ -115,7 +115,8 @@
 /* Mobile shell helpers */
 @layer utilities {
   .safe-top {
-    padding-top: env(safe-area-inset-top, 0px);
+    /* Safe area + aire bajo la barra de estado / botones fijos */
+    padding-top: calc(env(safe-area-inset-top, 0px) + 3.25rem);
   }
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -124,13 +125,22 @@
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
   }
+  /* Evita solape con botones fijos (café / audio / salir) */
+  .safe-chrome-x {
+    padding-left: 3.25rem;
+    padding-right: 3.25rem;
+  }
   /* Desktop: respiración mínima respecto a bordes del viewport */
   @media (min-width: 768px) {
     .h-app {
       box-sizing: border-box;
     }
     .safe-top {
-      padding-top: max(1rem, env(safe-area-inset-top, 0px));
+      padding-top: max(1rem, calc(env(safe-area-inset-top, 0px) + 1rem));
+    }
+    .safe-chrome-x {
+      padding-left: 1rem;
+      padding-right: 3.5rem;
     }
   }
   .h-app {

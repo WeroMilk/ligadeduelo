@@ -3,7 +3,7 @@ import { useGame } from '@/hooks/useGameState';
 import Minimap, { type AttackBeam, type ObjectiveAnimPhase } from '@/components/Minimap';
 import DecisionOverlay, { type DecisionKind, type DecisionPayload } from '@/components/DecisionOverlay';
 import CombatScreenFX, { type ScreenFxKind } from '@/components/CombatScreenFX';
-import CombatAnnounceOverlay, { type AnnounceItem } from '@/components/CombatAnnounceOverlay';
+import CombatAnnounceOverlay, { type AnnounceItem, ANNOUNCE_DURATION_MS } from '@/components/CombatAnnounceOverlay';
 import ObjectiveMinigame, { type ObjectiveQtePayload } from '@/components/ObjectiveMinigame';
 import { generateAIPlan, champDef } from '@/lib/turn-engine';
 import { setAdHidden } from '@/lib/ad-visibility';
@@ -126,6 +126,7 @@ export default function LiveMatch() {
   const [activeFloats, setActiveFloats] = useState<CombatFloat[]>([]);
   const [announceBatch, setAnnounceBatch] = useState<{ items: AnnounceItem[]; nonce: number } | null>(null);
   const [announceBusy, setAnnounceBusy] = useState(false);
+  const announceBusyRef = useRef(false);
   const pickQueue = useRef<DecisionKind[]>([]);
   const picksRef = useRef<DecisionPayload[]>([]);
   const cinemaTimers = useRef<number[]>([]);
@@ -144,6 +145,7 @@ export default function LiveMatch() {
 
   phaseRef.current = phase;
   tmRef.current = tm;
+  announceBusyRef.current = announceBusy;
 
   // Banner: visible al esperar; oculto en decisiones, QTE y popups
   useEffect(() => {
@@ -156,11 +158,14 @@ export default function LiveMatch() {
   }, [phase, announceBusy]);
 
   const enqueueAnnounces = (items: AnnounceItem[], key: string) => {
-    if (items.length === 0) return;
-    if (announcedKeys.current.has(key)) return;
+    if (items.length === 0) return 0;
+    if (announcedKeys.current.has(key)) return 0;
     announcedKeys.current.add(key);
     announceNonce.current += 1;
     setAnnounceBatch({ items, nonce: announceNonce.current });
+    announceBusyRef.current = true;
+    setAnnounceBusy(true);
+    return items.length;
   };
 
   const announcesFromRes = (res: RoundResolution): AnnounceItem[] => {
@@ -172,6 +177,20 @@ export default function LiveMatch() {
       items.push({ kind: 'objective', data: res.objectiveBonus });
     }
     return items;
+  };
+
+  /** Espera a que terminen los popups de kill/objetivo antes de seguir. */
+  const endCinemaWhenAnnouncesDone = (res: RoundResolution, minWaitMs = 0) => {
+    const started = Date.now();
+    const tryEnd = () => {
+      const waited = Date.now() - started;
+      if (waited < minWaitMs || announceBusyRef.current) {
+        cinemaTimers.current.push(window.setTimeout(tryEnd, 250));
+        return;
+      }
+      endCinemaAndContinue(res);
+    };
+    cinemaTimers.current.push(window.setTimeout(tryEnd, Math.max(80, minWaitMs)));
   };
 
   const resetCinemaGuards = () => {
@@ -224,7 +243,14 @@ export default function LiveMatch() {
     markPhaseStart();
     setCinemaRes(res);
     setScale(1.12);
-    enqueueAnnounces(announcesFromRes(res), `obj-${res.round}-${res.objectiveWinner}-${res.objectiveBonus?.id || 'x'}`);
+    const objItems: AnnounceItem[] = res.objectiveBonus
+      ? [{ kind: 'objective', data: res.objectiveBonus }]
+      : [];
+    // Kills ya se anunciaron al inicio del cine; aquí solo el bonus del objetivo
+    const n = enqueueAnnounces(
+      objItems,
+      `obj-${res.round}-${res.objectiveWinner}-${res.objectiveBonus?.id || 'x'}`,
+    );
     const schedule = (fn: () => void, ms: number) => {
       cinemaTimers.current.push(window.setTimeout(fn, ms));
     };
@@ -244,7 +270,8 @@ export default function LiveMatch() {
         );
       }, 1400);
     }
-    schedule(() => endCinemaAndContinue(res), 2200);
+    // Mínimo el claim corto; los popups de 6s bloquean el avance
+    endCinemaWhenAnnouncesDone(res, Math.max(2200, n > 0 ? ANNOUNCE_DURATION_MS : 2200));
   };
 
   const playCinema = (res: RoundResolution) => {
@@ -256,11 +283,11 @@ export default function LiveMatch() {
     setScale(1.08);
     setActiveFloats([]);
 
-    // Kills de líneas al empezar el cine
+    // Kills de líneas al empezar el cine (aliados y enemigos)
     const laneKills = (res.killAnnounces || []).map(k => ({ kind: 'kill' as const, data: k }));
-    if (laneKills.length > 0) {
-      enqueueAnnounces(laneKills, `kills-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}`);
-    }
+    const killCount = laneKills.length > 0
+      ? enqueueAnnounces(laneKills, `kills-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}`)
+      : 0;
 
     // Choque de junglas: QTE al instante (sin esperar el cine de líneas)
     if (res.pendingObjectiveQte && current.pendingObjective?.kind === 'gank') {
@@ -318,13 +345,13 @@ export default function LiveMatch() {
         return;
       }
       if (res.pendingObjectiveQte && !live?.pendingObjective) {
-        endCinemaAndContinue(res);
+        endCinemaWhenAnnouncesDone(res);
         return;
       }
-      if (res.objective) {
+      if (res.objective || res.objectiveWinner || res.objectiveBonus) {
         playObjectiveClaim(res);
       } else {
-        endCinemaAndContinue(res);
+        endCinemaWhenAnnouncesDone(res, killCount > 0 ? Math.min(t, ANNOUNCE_DURATION_MS) : 0);
       }
     }, t + 400);
   };
@@ -353,7 +380,7 @@ export default function LiveMatch() {
       // Choque de junglas: sin claim de monstruo
       cinemaForKey.current = `gank-done-${res.round}`;
       enqueueAnnounces(announcesFromRes(res), `gank-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}`);
-      endCinemaAndContinue(res);
+      endCinemaWhenAnnouncesDone(res, ANNOUNCE_DURATION_MS);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tm?.lastResolution, tm?.pendingObjective]);
@@ -545,7 +572,7 @@ export default function LiveMatch() {
       <CombatScreenFX signal={fx} />
       <CombatAnnounceOverlay batch={announceBatch} onBusyChange={setAnnounceBusy} />
 
-      <div className="shrink-0 px-4 py-3 safe-top border-b border-[#1E2740] max-w-lg md:max-w-6xl mx-auto w-full pr-14">
+      <div className="shrink-0 px-4 py-3 safe-top safe-chrome-x border-b border-[#1E2740] max-w-lg md:max-w-6xl mx-auto w-full">
         <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Partida en vivo</p>
         <div className="flex justify-between items-end gap-2">
           <h1 className="text-lg md:text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>

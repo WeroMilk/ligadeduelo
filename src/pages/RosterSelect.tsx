@@ -57,7 +57,7 @@ export default function RosterSelect() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-[#1E2740] px-4 py-2.5 safe-top md:pt-4 max-w-6xl mx-auto w-full pr-14">
+      <div className="shrink-0 border-b border-[#1E2740] px-4 py-2.5 safe-top safe-chrome-x max-w-6xl mx-auto w-full">
         <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Integrantes</p>
         <h1 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
           Dream team · {state.playerTeamName}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { KillAnnounce, ObjectiveBonusAnnounce, TeamColor } from '@/types/game';
 
 export type AnnounceItem =
@@ -12,7 +13,7 @@ type Props = {
   onBusyChange?: (busy: boolean) => void;
 };
 
-const DURATION_MS = 6000;
+export const ANNOUNCE_DURATION_MS = 6000;
 
 function multiLabel(n: number): string | null {
   if (n >= 5) return '¡PENTAKILL!';
@@ -42,56 +43,54 @@ export default function CombatAnnounceOverlay({ batch, onBusyChange }: Props) {
     setQueue(prev => [...prev, ...batch.items]);
   }, [batch?.nonce]);
 
+  const busy = !!current || queue.length > 0;
   useEffect(() => {
-    onBusyChange?.(!!current || queue.length > 0);
-  }, [current, queue.length, onBusyChange]);
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
 
   useEffect(() => {
     if (current || queue.length === 0) return;
     const [next, ...rest] = queue;
     setCurrent(next);
     setQueue(rest);
-    const t = window.setTimeout(() => setCurrent(null), DURATION_MS);
+    const t = window.setTimeout(() => setCurrent(null), ANNOUNCE_DURATION_MS);
     return () => window.clearTimeout(t);
   }, [current, queue]);
 
   if (!current) return null;
 
-  if (current.kind === 'kill') {
-    const a = current.data;
-    const multi = multiLabel(a.multi);
-    return (
-      <div className="pointer-events-none fixed inset-0 z-[70] flex items-start justify-center pt-[18%] px-4" aria-live="polite">
+  const body =
+    current.kind === 'kill' ? (
+      <div className="pointer-events-none fixed inset-0 z-[120] flex items-start justify-center pt-[16%] px-4" aria-live="polite">
         <div
-          className="w-full max-w-md rounded-2xl border-2 bg-[#0D1220]/95 px-5 py-4 text-center shadow-[0_0_40px_rgba(0,0,0,0.55)] animate-kill-banner"
-          style={{ borderColor: teamColor(a.team) }}
+          className="w-full max-w-md rounded-2xl border-2 bg-[#0D1220]/96 px-5 py-4 text-center shadow-[0_0_40px_rgba(0,0,0,0.6)] animate-kill-banner"
+          style={{ borderColor: teamColor(current.data.team) }}
         >
-          {multi && (
-            <p className="text-sm font-black uppercase tracking-[0.2em] text-[#F1C40F] mb-1">{multi}</p>
+          {multiLabel(current.data.multi) && (
+            <p className="text-sm font-black uppercase tracking-[0.2em] text-[#F1C40F] mb-1">
+              {multiLabel(current.data.multi)}
+            </p>
           )}
           <p className="text-lg sm:text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-            {killTitle(a)}
+            {killTitle(current.data)}
+          </p>
+        </div>
+      </div>
+    ) : (
+      <div className="pointer-events-none fixed inset-0 z-[120] flex items-start justify-center pt-[16%] px-4" aria-live="polite">
+        <div className="w-full max-w-md rounded-2xl border-2 border-[#F1C40F] bg-[#0D1220]/96 px-5 py-4 text-center shadow-[0_0_40px_rgba(241,196,15,0.35)] animate-kill-banner">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#F1C40F] mb-1">Bonus de objetivo</p>
+          <p className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+            {current.data.title}
+          </p>
+          <p className="text-sm text-[#C9A84C] mt-2 leading-snug">{current.data.bonusText}</p>
+          <p className="text-xs text-[#8B9BB4] mt-2">
+            Reciben ({current.data.teamName}):{' '}
+            {current.data.recipients.length > 0 ? current.data.recipients.join(', ') : 'ninguno vivo'}
           </p>
         </div>
       </div>
     );
-  }
 
-  const o = current.data;
-  return (
-    <div className="pointer-events-none fixed inset-0 z-[70] flex items-start justify-center pt-[18%] px-4" aria-live="polite">
-      <div
-        className="w-full max-w-md rounded-2xl border-2 border-[#F1C40F] bg-[#0D1220]/95 px-5 py-4 text-center shadow-[0_0_40px_rgba(241,196,15,0.35)] animate-kill-banner"
-      >
-        <p className="text-[10px] font-bold uppercase tracking-wider text-[#F1C40F] mb-1">Bonus de objetivo</p>
-        <p className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-          {o.title}
-        </p>
-        <p className="text-sm text-[#C9A84C] mt-2 leading-snug">{o.bonusText}</p>
-        <p className="text-xs text-[#8B9BB4] mt-2">
-          Reciben ({o.teamName}): {o.recipients.length > 0 ? o.recipients.join(', ') : 'ninguno vivo'}
-        </p>
-      </div>
-    </div>
-  );
+  return createPortal(body, document.body);
 }
