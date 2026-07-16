@@ -2,14 +2,32 @@
 
 export type Role = 'top' | 'jungle' | 'mid' | 'adc' | 'support';
 export type TeamColor = 'blue' | 'red';
+export type GameMode = 'ai' | 'coop_local' | 'coop_code';
+
 export type GameScreen =
+  | 'modeSelect'
+  | 'lobby'
   | 'home'
+  | 'rosterSelect'
   | 'championSelect'
   | 'bracket'
+  | 'liveMatch'
   | 'victory'
   | 'defeat'
   | 'tournamentWin';
 
+export interface LobbyPlayer {
+  id: string;
+  name: string;
+  isHost: boolean;
+}
+
+export interface RosterMember {
+  id: string;
+  name: string;
+  role: Role;
+  image: string;
+}
 export type BuffId = 'fury' | 'iron' | 'vital' | 'greed';
 export type CombatAction = 'attack' | 'ability' | 'defend';
 export type LaneId = 0 | 1 | 2; // top, mid, bot

@@ -1,8 +1,13 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { GameProvider, useGame } from '@/hooks/useGameState';
+import ExitGameButton from '@/components/ExitGameButton';
+import ModeSelect from '@/pages/ModeSelect';
+import LobbyScreen from '@/pages/LobbyScreen';
 import Home from '@/pages/Home';
+import RosterSelect from '@/pages/RosterSelect';
 import ChampionSelect from '@/pages/ChampionSelect';
 import BracketScreen from '@/pages/BracketScreen';
+import LiveMatch from '@/pages/LiveMatch';
 import VictoryScreen from '@/pages/VictoryScreen';
 import DefeatScreen from '@/pages/DefeatScreen';
 import TournamentWin from '@/pages/TournamentWin';
@@ -38,12 +43,20 @@ function GameRouter() {
   const { state } = useGame();
 
   switch (state.currentScreen) {
+    case 'modeSelect':
+      return <ModeSelect />;
+    case 'lobby':
+      return <LobbyScreen />;
     case 'home':
       return <Home />;
+    case 'rosterSelect':
+      return <RosterSelect />;
     case 'championSelect':
       return <ChampionSelect />;
     case 'bracket':
       return <BracketScreen />;
+    case 'liveMatch':
+      return <LiveMatch />;
     case 'victory':
       return <VictoryScreen />;
     case 'defeat':
@@ -51,7 +64,7 @@ function GameRouter() {
     case 'tournamentWin':
       return <TournamentWin />;
     default:
-      return <Home />;
+      return <ModeSelect />;
   }
 }
 
@@ -59,7 +72,8 @@ export default function App() {
   return (
     <ErrorBoundary>
       <GameProvider>
-        <div className="flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2] safe-x">
+        <div className="flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2] safe-x md:py-4 lg:py-5">
+          <ExitGameButton />
           <GameRouter />
         </div>
       </GameProvider>

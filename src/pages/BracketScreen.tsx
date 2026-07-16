@@ -15,7 +15,7 @@ export default function BracketScreen() {
   const currentRound = tournament?.rounds[currentRoundIdx];
   const winnersKey = currentRound?.matches.map(m => `${m.id}:${m.winner ?? '-'}`).join('|') ?? '';
 
-  // Resolver partidos IA uno a uno (solo resultado, sin canvas)
+  // Resolver partidas IA uno a uno (solo resultado, sin canvas)
   useEffect(() => {
     if (!currentRound) return;
 
@@ -61,7 +61,7 @@ export default function BracketScreen() {
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
       <div className="shrink-0 bg-[#0A0E1A] border-b border-[#1E2740] px-4 py-3 safe-top">
-        <div className="max-w-lg mx-auto">
+        <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <h2 className="text-[#F0E6D2] font-bold text-lg" style={{ fontFamily: 'Cinzel, serif' }}>
@@ -102,13 +102,13 @@ export default function BracketScreen() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 max-w-lg mx-auto w-full safe-bottom">
+      <div className="flex-1 min-h-0 overflow-y-auto md:overflow-hidden overscroll-contain px-4 py-4 max-w-6xl mx-auto w-full safe-bottom flex flex-col">
         {simulating && (
-          <div className="text-center py-3 mb-3">
+          <div className="text-center py-2 mb-2 shrink-0">
             <div className="inline-flex flex-col items-center gap-1 text-[#8B9BB4]">
               <div className="inline-flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm">Resolviendo partido IA…</span>
+                <span className="text-sm">Resolviendo partida IA…</span>
               </div>
               {activeMatch && (
                 <p className="text-xs text-[#C9A84C]">
@@ -120,7 +120,7 @@ export default function BracketScreen() {
           </div>
         )}
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-3 md:flex-1 md:min-h-0 md:overflow-hidden md:content-start">
           {currentRound?.matches.map(match => {
             const isPlayer = match.isPlayerMatch;
             const winner = match.winner;
@@ -216,7 +216,7 @@ export default function BracketScreen() {
                     className="w-full mt-3 min-h-11 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold py-3 rounded-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-40"
                   >
                     <Swords className="w-4 h-4" />
-                    SIMULAR PARTIDO
+                    ENTRAR A PARTIDA
                   </button>
                 ) : (
                   <p className="text-center text-[#4A5570] text-xs mt-2">

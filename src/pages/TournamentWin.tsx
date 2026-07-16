@@ -3,6 +3,7 @@ import { Crown, RotateCcw, User, Award, Flag } from 'lucide-react';
 import { getChampionDef } from '@/lib/game-engine';
 import { useEffect, useState } from 'react';
 import { playVictorySound } from '@/lib/sounds';
+import TournamentRecap from '@/components/TournamentRecap';
 
 export default function TournamentWin() {
   const { state, dispatch } = useGame();
@@ -39,20 +40,23 @@ export default function TournamentWin() {
 
   if (!playerWon) {
     return (
-      <div className="screen-center relative bg-[#0A0E1A] px-4 py-8 safe-top safe-bottom">
-        <div className="relative z-10 flex flex-col items-center gap-6 max-w-md w-full">
-          <div className="w-24 h-24 rounded-full bg-[#141B2D] border-2 border-[#2A3550] flex items-center justify-center">
-            <Flag className="w-10 h-10 text-[#8B9BB4]" />
+      <div className="screen-center relative bg-[#0A0E1A] px-4 py-6 safe-top safe-bottom">
+        <div className="relative z-10 flex flex-col items-center gap-4 max-w-md w-full">
+          <div className="w-20 h-20 rounded-full bg-[#141B2D] border-2 border-[#2A3550] flex items-center justify-center">
+            <Flag className="w-9 h-9 text-[#8B9BB4]" />
           </div>
           <div className="text-center">
             <p className="text-[#8B9BB4] text-sm uppercase tracking-[0.3em] mb-2">Fin del torneo</p>
-            <h1 className="text-3xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
               Campeón: {champion?.name || 'Otro equipo'}
             </h1>
-            <p className="text-[#8B9BB4] mt-2">
+            <p className="text-[#8B9BB4] mt-2 text-sm">
               Tu equipo fue eliminado. Espectaste hasta el final del bracket.
             </p>
           </div>
+
+          <TournamentRecap playerWon={false} />
+
           <button
             type="button"
             onClick={handleRestart}
@@ -67,7 +71,7 @@ export default function TournamentWin() {
   }
 
   return (
-    <div className="screen-center relative bg-[#0A0E1A] px-4 py-8 safe-top safe-bottom">
+    <div className="screen-center relative bg-[#0A0E1A] px-4 py-6 safe-top safe-bottom">
       <div className="absolute inset-0 pointer-events-none">
         {particles.map(p => (
           <div
@@ -90,24 +94,24 @@ export default function TournamentWin() {
         }`}
       />
 
-      <div className="relative z-10 flex flex-col items-center gap-6 max-w-md w-full">
-        <div className={`w-28 h-28 rounded-full flex items-center justify-center animate-pulse-slow ${
+      <div className="relative z-10 flex flex-col items-center gap-4 max-w-md w-full">
+        <div className={`w-24 h-24 rounded-full flex items-center justify-center animate-pulse-slow ${
           frame === 'obsidian'
             ? 'bg-gradient-to-br from-[#9B59B6] via-[#6B1FA6] to-[#2C1638] shadow-[0_0_80px_rgba(155,89,182,0.5)]'
             : 'bg-gradient-to-br from-[#F1C40F] via-[#C9A84C] to-[#8B6914] shadow-[0_0_80px_rgba(201,168,76,0.5)]'
         }`}>
-          <Crown className="w-14 h-14 text-[#0A0E1A]" />
+          <Crown className="w-12 h-12 text-[#0A0E1A]" />
         </div>
 
         <div className="text-center">
           <p className="text-[#C9A84C] text-sm uppercase tracking-[0.3em] mb-2">Felicidades</p>
           <h1
-            className={`text-3xl font-bold ${frame === 'obsidian' ? 'text-[#C39BD3]' : 'text-[#F1C40F]'}`}
+            className={`text-2xl sm:text-3xl font-bold ${frame === 'obsidian' ? 'text-[#C39BD3]' : 'text-[#F1C40F]'}`}
             style={{ fontFamily: 'Cinzel, serif', textShadow: '0 2px 20px rgba(241,196,15,0.4)' }}
           >
             ¡CAMPEÓN DEL TORNEO!
           </h1>
-          <p className="text-[#8B9BB4] mt-2">
+          <p className="text-[#8B9BB4] mt-2 text-sm">
             {state.playerTeamName || 'Tu equipo'} ha conquistado la Grieta
           </p>
         </div>
@@ -130,36 +134,38 @@ export default function TournamentWin() {
           </div>
         )}
 
-        <div className={`w-full rounded-xl border p-4 ${
+        <TournamentRecap playerWon />
+
+        <div className={`w-full rounded-xl border p-3 ${
           frame === 'obsidian' ? 'bg-[#12081A] border-[#9B59B6]/35' : 'bg-[#141B2D] border-[#C9A84C]/30'
         }`}>
-          <p className={`text-xs uppercase tracking-wider text-center mb-3 ${
+          <p className={`text-xs uppercase tracking-wider text-center mb-2 ${
             frame === 'obsidian' ? 'text-[#C39BD3]' : 'text-[#C9A84C]'
           }`}>
-            Marco {frame === 'obsidian' ? 'Obsidiana' : 'Dorado'} · Skin de campeón
+            Marco {frame === 'obsidian' ? 'Obsidiana' : 'Dorado'}
           </p>
-          <div className="flex justify-center flex-wrap gap-3">
+          <div className="flex justify-center flex-wrap gap-2">
             {champions.map(c => {
               const def = getChampionDef(c.defId);
               return (
-                <div key={c.instanceId} className="flex flex-col items-center gap-1 w-16">
+                <div key={c.instanceId} className="flex flex-col items-center gap-1 w-14">
                   <div className={`p-0.5 rounded-full border-2 ${ring}`}>
                     {def.image ? (
                       <img
                         src={def.image}
                         alt={def.name}
-                        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover ${skinTint}`}
+                        className={`w-10 h-10 rounded-full object-cover ${skinTint}`}
                       />
                     ) : (
                       <div
-                        className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center font-bold text-white ${skinTint}`}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${skinTint}`}
                         style={{ backgroundColor: def.color }}
                       >
-                        <User className="w-6 h-6" />
+                        <User className="w-5 h-5" />
                       </div>
                     )}
                   </div>
-                  <span className="text-[#F0E6D2] text-[10px] font-bold truncate max-w-full text-center">{def.name}</span>
+                  <span className="text-[#F0E6D2] text-[9px] font-bold truncate max-w-full text-center">{def.name}</span>
                 </div>
               );
             })}

@@ -1,42 +1,85 @@
 import { createContext, useContext, useReducer, type ReactNode } from 'react';
 import type {
   GameScreen, Champion, TeamData, Tournament, Match, TurnMatchState,
+  GameMode, LobbyPlayer, RosterMember, TeamPlan, LaneId,
 } from '@/types/game';
 import { createTeam, simulateAIMatch } from '@/lib/game-engine';
-import { simulateAITurnMatch } from '@/lib/turn-engine';
+import {
+  createTurnMatch, createTurnTeam, resolveRound, generateAIPlan, aiBuyItems,
+} from '@/lib/turn-engine';
 import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats, RIVAL_TEAM_ID, RIVAL_TEAM_NAME } from '@/lib/game-data';
+
+const emptyPlan = (): TeamPlan => ({ actions: {}, ultimates: [], bootsLane: {}, jungleTarget: 1 });
+
+function makeRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
 
 interface GameState {
   currentScreen: GameScreen;
+  gameMode: GameMode | null;
+  roomCode: string;
+  lobbyPlayers: LobbyPlayer[];
   playerTeamName: string;
+  selectedFanOrgId: string | null;
+  selectedRoster: RosterMember[];
   selectedChampions: Champion[];
+  /** champ defId -> roster member id */
+  champToRoster: Record<string, string>;
   tournament: Tournament | null;
   currentMatch: Match | null;
   turnMatch: TurnMatchState | null;
+  playerPlan: TeamPlan;
+  enemyPlanPreview: TeamPlan | null;
   matchResult: 'win' | 'lose' | null;
   defeatedRival: boolean;
+  /** Ronda en la que el jugador fue eliminado (0–3). null si sigue vivo / campeón. */
+  playerEliminatedRound: number | null;
 }
 
 const initialState: GameState = {
-  currentScreen: 'home',
+  currentScreen: 'modeSelect',
+  gameMode: null,
+  roomCode: '',
+  lobbyPlayers: [],
   playerTeamName: '',
+  selectedFanOrgId: null,
+  selectedRoster: [],
   selectedChampions: [],
+  champToRoster: {},
   tournament: null,
   currentMatch: null,
   turnMatch: null,
+  playerPlan: emptyPlan(),
+  enemyPlanPreview: null,
   matchResult: null,
   defeatedRival: false,
+  playerEliminatedRound: null,
 };
 
 type GameAction =
   | { type: 'SET_SCREEN'; screen: GameScreen }
-  | { type: 'SET_TEAM_NAME'; name: string }
+  | { type: 'SET_GAME_MODE'; mode: GameMode }
+  | { type: 'ADD_LOBBY_PLAYER'; name: string }
+  | { type: 'REMOVE_LOBBY_PLAYER'; id: string }
+  | { type: 'CONFIRM_LOBBY' }
+  | { type: 'SET_TEAM_NAME'; name: string; orgId?: string }
+  | { type: 'SELECT_ROSTER'; member: RosterMember }
+  | { type: 'DESELECT_ROSTER'; memberId: string }
+  | { type: 'CONFIRM_ROSTER' }
   | { type: 'SELECT_CHAMPION'; defId: string }
   | { type: 'DESELECT_CHAMPION'; defId: string }
   | { type: 'CONFIRM_TEAM' }
   | { type: 'PREPARE_MATCH'; matchId: string }
+  | { type: 'SET_LIVE_PLAN'; plan: TeamPlan }
+  | { type: 'RESOLVE_LIVE_ROUND'; plan: TeamPlan }
+  | { type: 'FINISH_LIVE_MATCH' }
   | { type: 'ADVANCE_BRACKET' }
   | { type: 'SIMULATE_ONE_AI_MATCH' }
+  | { type: 'EXIT_TO_MODE' }
   | { type: 'RESET_TOURNAMENT' };
 
 function generateAIChampions(): string[] {
@@ -58,13 +101,24 @@ function buildRewards(beatRival: boolean): { titles: string[]; frame: Tournament
   return { titles, frame: beatRival ? 'obsidian' : 'gold' };
 }
 
-function generateTournament(playerTeam: TeamData): Tournament {
+function generateTournament(playerTeam: TeamData, lobbyPlayers: LobbyPlayer[], mode: GameMode | null): Tournament {
   const teams: TeamData[] = [playerTeam];
   teams.push(createTeam(RIVAL_TEAM_ID, RIVAL_TEAM_NAME, 'red', generateRivalChampions()));
+
+  const friendSlots = lobbyPlayers.filter(p => !p.isHost).slice(0, 14);
+  for (let i = 0; i < friendSlots.length; i++) {
+    teams.push(createTeam(`friend_${i}`, friendSlots[i].name, 'red', generateAIChampions()));
+  }
+
+  const need = 16 - teams.length;
   const aiNames = AI_TEAM_NAMES.filter(n => !playerTeam.name.startsWith(n));
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < need; i++) {
     teams.push(createTeam(`ai_${i}`, aiNames[i] || `Equipo ${i + 1}`, 'red', generateAIChampions()));
   }
+
+  // mode unused but keeps API clear for future weighting
+  void mode;
+
   const shuffled = [...teams].sort(() => Math.random() - 0.5);
   const round1Matches: Match[] = [];
   for (let i = 0; i < 8; i++) {
@@ -103,13 +157,120 @@ function matchInvolvesRival(match: Match, rivalId: string) {
   return match.teamA.id === rivalId || match.teamB.id === rivalId;
 }
 
+function applyMatchEnd(state: GameState, turnMatch: TurnMatchState): GameState {
+  const winner = turnMatch.winner || 'blue';
+  const result = winner === 'blue' ? 'win' : 'lose';
+  let defeatedRival = state.defeatedRival;
+  let tournament = state.tournament;
+  if (tournament && state.currentMatch) {
+    const rounds = tournament.rounds.map((r, idx) => {
+      if (idx !== tournament!.currentRound) return r;
+      return {
+        ...r,
+        matches: r.matches.map(m =>
+          m.id === state.currentMatch!.id ? { ...m, winner, isSimulated: false } : m
+        ),
+      };
+    });
+    tournament = { ...tournament, rounds };
+    if (result === 'win' && matchInvolvesRival(state.currentMatch, tournament.rivalTeamId)) {
+      defeatedRival = true;
+    }
+  }
+  return {
+    ...state,
+    turnMatch,
+    tournament,
+    defeatedRival,
+    matchResult: result,
+    playerEliminatedRound:
+      result === 'lose' && state.tournament
+        ? state.tournament.currentRound
+        : state.playerEliminatedRound,
+    currentScreen: result === 'win' ? 'victory' : 'defeat',
+  };
+}
+
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'SET_SCREEN':
       return { ...state, currentScreen: action.screen };
 
+    case 'SET_GAME_MODE': {
+      if (action.mode === 'ai') {
+        return {
+          ...state,
+          gameMode: 'ai',
+          roomCode: '',
+          lobbyPlayers: [{ id: 'host', name: 'Tú', isHost: true }],
+          currentScreen: 'home',
+        };
+      }
+      if (action.mode === 'coop_local') {
+        return {
+          ...state,
+          gameMode: 'coop_local',
+          roomCode: '',
+          lobbyPlayers: [{ id: 'host', name: 'Jugador 1', isHost: true }],
+          currentScreen: 'lobby',
+        };
+      }
+      return {
+        ...state,
+        gameMode: 'coop_code',
+        roomCode: makeRoomCode(),
+        lobbyPlayers: [{ id: 'host', name: 'Host', isHost: true }],
+        currentScreen: 'lobby',
+      };
+    }
+
+    case 'ADD_LOBBY_PLAYER': {
+      if (state.lobbyPlayers.length >= 16) return state;
+      const name = action.name.trim() || `Amigo ${state.lobbyPlayers.length}`;
+      return {
+        ...state,
+        lobbyPlayers: [
+          ...state.lobbyPlayers,
+          { id: `p_${Date.now()}_${state.lobbyPlayers.length}`, name, isHost: false },
+        ],
+      };
+    }
+
+    case 'REMOVE_LOBBY_PLAYER':
+      return {
+        ...state,
+        lobbyPlayers: state.lobbyPlayers.filter(p => p.id !== action.id || p.isHost),
+      };
+
+    case 'CONFIRM_LOBBY': {
+      if (state.gameMode === 'coop_local' && state.lobbyPlayers.length < 2) return state;
+      if (state.gameMode === 'coop_code' && state.lobbyPlayers.length < 2) return state;
+      return { ...state, currentScreen: 'home' };
+    }
+
     case 'SET_TEAM_NAME':
-      return { ...state, playerTeamName: action.name };
+      return {
+        ...state,
+        playerTeamName: action.name,
+        selectedFanOrgId: action.orgId ?? state.selectedFanOrgId,
+      };
+
+    case 'SELECT_ROSTER': {
+      const m = action.member;
+      if (state.selectedRoster.some(x => x.id === m.id)) return state;
+      const withoutRole = state.selectedRoster.filter(x => x.role !== m.role);
+      return { ...state, selectedRoster: [...withoutRole, m] };
+    }
+
+    case 'DESELECT_ROSTER':
+      return {
+        ...state,
+        selectedRoster: state.selectedRoster.filter(x => x.id !== action.memberId),
+      };
+
+    case 'CONFIRM_ROSTER':
+      if (state.selectedRoster.length !== 5) return state;
+      return { ...state, currentScreen: 'championSelect', selectedChampions: [], champToRoster: {} };
 
     case 'SELECT_CHAMPION': {
       const def = CHAMPIONS.find(c => c.id === action.defId);
@@ -119,6 +280,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         const cd = CHAMPIONS.find(x => x.id === c.defId);
         return cd?.role !== def.role;
       });
+      const rosterMate = state.selectedRoster.find(r => r.role === def.role);
       const newChamp: Champion = {
         instanceId: `p_${action.defId}`,
         defId: action.defId,
@@ -135,21 +297,44 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ultimateUsed: false,
         siegeStacks: 0,
       };
-      return { ...state, selectedChampions: [...withoutSameRole, newChamp] };
+      const champToRoster = { ...state.champToRoster };
+      Object.keys(champToRoster).forEach(k => {
+        const cd = CHAMPIONS.find(x => x.id === k);
+        if (cd?.role === def.role) delete champToRoster[k];
+      });
+      if (rosterMate) champToRoster[action.defId] = rosterMate.id;
+      return {
+        ...state,
+        selectedChampions: [...withoutSameRole, newChamp],
+        champToRoster,
+      };
     }
 
-    case 'DESELECT_CHAMPION':
-      return { ...state, selectedChampions: state.selectedChampions.filter(c => c.defId !== action.defId) };
+    case 'DESELECT_CHAMPION': {
+      const nextMap = { ...state.champToRoster };
+      delete nextMap[action.defId];
+      return {
+        ...state,
+        selectedChampions: state.selectedChampions.filter(c => c.defId !== action.defId),
+        champToRoster: nextMap,
+      };
+    }
 
     case 'CONFIRM_TEAM': {
-      if (state.selectedChampions.length !== 5) return state;
+      if (state.selectedChampions.length !== 5 || state.selectedRoster.length !== 5) return state;
       const playerTeam = createTeam(
         'player',
         state.playerTeamName || 'Mi Equipo',
         'blue',
         state.selectedChampions.map(c => c.defId),
       );
-      return { ...state, tournament: generateTournament(playerTeam), currentScreen: 'bracket', defeatedRival: false };
+      return {
+        ...state,
+        tournament: generateTournament(playerTeam, state.lobbyPlayers, state.gameMode),
+        currentScreen: 'bracket',
+        defeatedRival: false,
+        playerEliminatedRound: null,
+      };
     }
 
     case 'PREPARE_MATCH': {
@@ -157,36 +342,62 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const round = state.tournament.rounds[state.tournament.currentRound];
       const match = round.matches.find(m => m.id === action.matchId);
       if (!match) return state;
-
-      // Todo el combate se simula: el jugador solo eligió org + 5 champs
-      const turnMatch = simulateAITurnMatch(match.teamA, match.teamB);
-      const winner = turnMatch.winner || 'blue';
-      const result = winner === 'blue' ? 'win' : 'lose';
-
-      let defeatedRival = state.defeatedRival;
-      const rounds = state.tournament.rounds.map((r, idx) => {
-        if (idx !== state.tournament!.currentRound) return r;
-        return {
-          ...r,
-          matches: r.matches.map(m =>
-            m.id === match.id ? { ...m, winner, isSimulated: true } : m
-          ),
-        };
-      });
-      const tournament = { ...state.tournament, rounds };
-      if (result === 'win' && matchInvolvesRival(match, tournament.rivalTeamId)) {
-        defeatedRival = true;
-      }
-
+      const blue = createTurnTeam(match.teamA.id, match.teamA.name, 'blue', match.teamA.champions.map(c => c.defId));
+      const red = createTurnTeam(match.teamB.id, match.teamB.name, 'red', match.teamB.champions.map(c => c.defId));
+      const turnMatch = createTurnMatch(blue, red, null);
       return {
         ...state,
         currentMatch: match,
         turnMatch,
-        matchResult: result,
-        defeatedRival,
-        tournament,
-        currentScreen: result === 'win' ? 'victory' : 'defeat',
+        matchResult: null,
+        playerPlan: emptyPlan(),
+        enemyPlanPreview: null,
+        currentScreen: 'liveMatch',
       };
+    }
+
+    case 'SET_LIVE_PLAN':
+      return { ...state, playerPlan: action.plan };
+
+    case 'RESOLVE_LIVE_ROUND': {
+      if (!state.turnMatch) return state;
+      let tm = {
+        ...state.turnMatch,
+        blue: {
+          ...state.turnMatch.blue,
+          champions: state.turnMatch.blue.champions.map(c => ({
+            ...c,
+            stats: { ...c.stats },
+            items: [...c.items],
+          })),
+        },
+        red: {
+          ...state.turnMatch.red,
+          champions: state.turnMatch.red.champions.map(c => ({
+            ...c,
+            stats: { ...c.stats },
+            items: [...c.items],
+          })),
+        },
+        structures: state.turnMatch.structures.map(s => ({ ...s })),
+      };
+      aiBuyItems(tm.blue);
+      aiBuyItems(tm.red);
+      const redPlan = generateAIPlan(tm, 'red');
+      const resolved = resolveRound(tm, action.plan, redPlan);
+      const next = {
+        ...state,
+        turnMatch: { ...resolved, pendingReward: false },
+        playerPlan: action.plan,
+        enemyPlanPreview: redPlan,
+      };
+      if (resolved.isComplete) return applyMatchEnd(next, resolved);
+      return next;
+    }
+
+    case 'FINISH_LIVE_MATCH': {
+      if (!state.turnMatch) return state;
+      return applyMatchEnd(state, state.turnMatch);
     }
 
     case 'ADVANCE_BRACKET': {
@@ -257,6 +468,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         turnMatch: null,
         currentScreen: 'bracket',
         matchResult: null,
+        playerPlan: emptyPlan(),
       };
     }
 
@@ -278,8 +490,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, tournament: { ...state.tournament, rounds } };
     }
 
+    case 'EXIT_TO_MODE':
     case 'RESET_TOURNAMENT':
-      return { ...initialState, currentScreen: 'home' };
+      return { ...initialState, currentScreen: 'modeSelect' };
 
     default:
       return state;
@@ -303,3 +516,5 @@ export function useGame() {
   if (!ctx) throw new Error('useGame must be used within GameProvider');
   return ctx;
 }
+
+export type { LaneId };

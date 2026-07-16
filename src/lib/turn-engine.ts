@@ -967,8 +967,8 @@ export function aiBuyItems(team: TeamData) {
   }
 }
 
-/** Simula un partido IA completo (bracket). */
-/** Simula un partido completo (ambos equipos juegan con IA). Sin input del jugador. */
+/** Simula una partida IA completa (bracket). */
+/** Simula una partida completa (ambos equipos juegan con IA). Sin input del jugador. */
 export function simulateAITurnMatch(teamA: TeamData, teamB: TeamData): TurnMatchState {
   let state = createTurnMatch(
     createTurnTeam(teamA.id, teamA.name, 'blue', teamA.champions.map(c => c.defId)),
