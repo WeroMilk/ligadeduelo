@@ -3,7 +3,7 @@ import { useGame } from '@/hooks/useGameState';
 import Minimap, { type AttackBeam, type ObjectiveAnimPhase } from '@/components/Minimap';
 import DecisionOverlay, { type DecisionKind, type DecisionPayload } from '@/components/DecisionOverlay';
 import CombatScreenFX, { type ScreenFxKind } from '@/components/CombatScreenFX';
-import CombatAnnounceOverlay, { type AnnounceItem, ANNOUNCE_DURATION_MS } from '@/components/CombatAnnounceOverlay';
+import CombatAnnounceOverlay, { type AnnounceItem } from '@/components/CombatAnnounceOverlay';
 import ObjectiveMinigame, { type ObjectiveQtePayload } from '@/components/ObjectiveMinigame';
 import { generateAIPlan, champDef } from '@/lib/turn-engine';
 import { setAdHidden } from '@/lib/ad-visibility';
@@ -51,7 +51,6 @@ const PROMPT_SEC = 8;
 const LANE_MS = 2000;
 const CINEMA_STUCK_MS = 12000;
 const QTE_STUCK_MS = 55000;
-const ANNOUNCE_MAX_WAIT_MS = 10000;
 
 type Phase =
   | { t: 'prompt'; kind: DecisionKind }
@@ -143,7 +142,6 @@ export default function LiveMatch() {
   const [activeFloats, setActiveFloats] = useState<CombatFloat[]>([]);
   const [announceBatch, setAnnounceBatch] = useState<{ items: AnnounceItem[]; nonce: number } | null>(null);
   const [announceBusy, setAnnounceBusy] = useState(false);
-  const announceBusyRef = useRef(false);
   const pickQueue = useRef<DecisionKind[]>([]);
   const picksRef = useRef<DecisionPayload[]>([]);
   const cinemaTimers = useRef<number[]>([]);
@@ -162,7 +160,6 @@ export default function LiveMatch() {
 
   phaseRef.current = phase;
   tmRef.current = tm;
-  announceBusyRef.current = announceBusy;
 
   // Banner: visible al esperar; oculto en decisiones, QTE y popups
   useEffect(() => {
@@ -180,8 +177,6 @@ export default function LiveMatch() {
     announcedKeys.current.add(key);
     announceNonce.current += 1;
     setAnnounceBatch({ items, nonce: announceNonce.current });
-    announceBusyRef.current = true;
-    setAnnounceBusy(true);
     return items.length;
   };
 
@@ -196,20 +191,12 @@ export default function LiveMatch() {
     return items;
   };
 
-  /** Espera a que terminen los popups de kill/objetivo antes de seguir (con tope fail-open). */
-  const endCinemaWhenAnnouncesDone = (res: RoundResolution, minWaitMs = 0) => {
-    const started = Date.now();
-    const maxWait = Math.max(minWaitMs, ANNOUNCE_MAX_WAIT_MS);
-    const tryEnd = () => {
-      const waited = Date.now() - started;
-      const announceBlocking = announceBusyRef.current && waited < maxWait;
-      if (waited < minWaitMs || announceBlocking) {
-        cinemaTimers.current.push(window.setTimeout(tryEnd, 250));
-        return;
-      }
-      endCinemaAndContinue(res);
+  /** Avanza el cine tras la animación mínima; los popups siguen en paralelo. */
+  const endCinemaAfterDelay = (res: RoundResolution, minWaitMs = 0) => {
+    const schedule = (fn: () => void, ms: number) => {
+      cinemaTimers.current.push(window.setTimeout(fn, ms));
     };
-    cinemaTimers.current.push(window.setTimeout(tryEnd, Math.max(80, Math.min(minWaitMs, 250))));
+    schedule(() => endCinemaAndContinue(res), Math.max(0, minWaitMs));
   };
 
   const resetCinemaGuards = () => {
@@ -245,8 +232,6 @@ export default function LiveMatch() {
     awaitingCinema.current = false;
     awaitingQte.current = false;
     needsPostQteClaim.current = false;
-    announceBusyRef.current = false;
-    setAnnounceBusy(false);
     resetCinemaGuards();
     setActiveFloats([]);
     setCinemaRes(null);
@@ -268,7 +253,7 @@ export default function LiveMatch() {
       ? [{ kind: 'objective', data: res.objectiveBonus }]
       : [];
     // Kills ya se anunciaron al inicio del cine; aquí solo el bonus del objetivo
-    const n = enqueueAnnounces(
+    enqueueAnnounces(
       objItems,
       `obj-${res.round}-${res.objectiveWinner}-${res.objectiveBonus?.id || 'x'}`,
     );
@@ -291,8 +276,8 @@ export default function LiveMatch() {
         );
       }, 1400);
     }
-    // Mínimo el claim corto; los popups de 6s bloquean el avance
-    endCinemaWhenAnnouncesDone(res, Math.max(2200, n > 0 ? ANNOUNCE_DURATION_MS : 2200));
+    // Mínimo el claim corto; popups no bloquean el avance
+    endCinemaAfterDelay(res, 2200);
   };
 
   const playCinema = (res: RoundResolution) => {
@@ -306,9 +291,9 @@ export default function LiveMatch() {
 
     // Kills de líneas al empezar el cine (aliados y enemigos)
     const laneKills = (res.killAnnounces || []).map(k => ({ kind: 'kill' as const, data: k }));
-    const killCount = laneKills.length > 0
-      ? enqueueAnnounces(laneKills, `kills-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}`)
-      : 0;
+    if (laneKills.length > 0) {
+      enqueueAnnounces(laneKills, `kills-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}`);
+    }
 
     // Choque de junglas: QTE al instante (sin esperar el cine de líneas)
     if (res.pendingObjectiveQte && current.pendingObjective?.kind === 'gank') {
@@ -366,13 +351,13 @@ export default function LiveMatch() {
         return;
       }
       if (res.pendingObjectiveQte && !live?.pendingObjective) {
-        endCinemaWhenAnnouncesDone(res);
+        endCinemaAfterDelay(res);
         return;
       }
       if (res.objective || res.objectiveWinner || res.objectiveBonus) {
         playObjectiveClaim(res);
       } else {
-        endCinemaWhenAnnouncesDone(res, killCount > 0 ? Math.min(t, ANNOUNCE_DURATION_MS) : 0);
+        endCinemaAfterDelay(res);
       }
     }, t + 400);
   };
@@ -402,7 +387,7 @@ export default function LiveMatch() {
       cinemaForKey.current = `gank-done-${res.round}`;
       postQteClaim.current = true;
       enqueueAnnounces(announcesFromRes(res), `gank-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}`);
-      endCinemaWhenAnnouncesDone(res, ANNOUNCE_DURATION_MS);
+      endCinemaAfterDelay(res);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tm?.lastResolution, tm?.pendingObjective]);
