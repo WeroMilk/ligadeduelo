@@ -1,8 +1,11 @@
 import type { RoundResolution, RosterMember, TurnMatchState } from '@/types/game';
-import { CHAMPIONS, objectiveName } from '@/lib/game-data';
+import { CHAMPIONS, ROLE_NAMES, objectiveName } from '@/lib/game-data';
+import type { Role } from '@/types/game';
 
 const STORAGE_KEY = 'ligadeduelo_player_runs_v1';
 const MAX_STORED = 80;
+
+const ROLE_ORDER: Role[] = ['top', 'jungle', 'mid', 'adc', 'support'];
 
 export interface RunMatchRecord {
   opponent: string;
@@ -22,6 +25,9 @@ export interface PlayerRunRecord {
   playTimeMs: number;
   finishedAt: number;
   matches: RunMatchRecord[];
+  /** Posición del torneo (ej. "1º · Campeón del torneo"). */
+  placement?: string;
+  wonTournament?: boolean;
 }
 
 type ActiveRun = {
@@ -32,6 +38,11 @@ type ActiveRun = {
   kills: number;
   deaths: number;
   matches: RunMatchRecord[];
+};
+
+export type FinalizeRunMeta = {
+  placement?: string;
+  wonTournament?: boolean;
 };
 
 let activeRun: ActiveRun | null = null;
@@ -78,9 +89,8 @@ export function beginPlayerRun(
   roster: RosterMember[],
   championDefIds: string[],
 ) {
-  const roleOrder: RosterMember['role'][] = ['top', 'jungle', 'mid', 'adc', 'support'];
-  const players = roleOrder.map(role => roster.find(r => r.role === role)?.name || '—');
-  const champions = roleOrder.map(role => {
+  const players = ROLE_ORDER.map(role => roster.find(r => r.role === role)?.name || '—');
+  const champions = ROLE_ORDER.map(role => {
     const champ = CHAMPIONS.find(c => championDefIds.includes(c.id) && c.role === role);
     return champ?.name || '—';
   });
@@ -132,7 +142,7 @@ export function recordPlayerMatchEnd(
   currentMatchObjectives = [];
 }
 
-export function finalizePlayerRun() {
+export function finalizePlayerRun(meta?: FinalizeRunMeta) {
   if (!activeRun) return;
   if (activeRun.matches.length === 0) {
     activeRun = null;
@@ -149,9 +159,52 @@ export function finalizePlayerRun() {
     playTimeMs: Date.now() - activeRun.startedAt,
     finishedAt: Date.now(),
     matches: activeRun.matches.slice(-4),
+    placement: meta?.placement,
+    wonTournament: meta?.wonTournament,
   };
   const all = readAll();
   writeAll([entry, ...all]);
   activeRun = null;
   currentMatchObjectives = [];
+}
+
+/** Texto listo para volver a compartir la jugada por WhatsApp. */
+export function buildRunShareText(entry: PlayerRunRecord): string {
+  const header = entry.wonTournament
+    ? `¡Soy campeón de Liga de Duelo con ${entry.teamName}!`
+    : `Jugué Liga de Duelo con ${entry.teamName}`;
+  const place = entry.placement ? `Posición: ${entry.placement}` : null;
+  const roster = ROLE_ORDER.map((role, i) => {
+    const player = entry.players[i] || '—';
+    const champ = entry.champions[i] || '—';
+    return `• ${ROLE_NAMES[role]}: ${player} → ${champ}`;
+  }).join('\n');
+  const matchLines = entry.matches.length > 0
+    ? entry.matches
+      .map(m => `${m.won ? '✓' : '✗'} vs ${m.opponent} (${m.playerKills}–${m.enemyKills})`)
+      .join('\n')
+    : null;
+  const stats = `Bajas ${entry.kills} · Recibidas ${entry.deaths} · ${formatPlayTime(entry.playTimeMs)}`;
+  return [
+    header,
+    place,
+    stats,
+    '',
+    'Mi equipo:',
+    roster,
+    matchLines ? '' : null,
+    matchLines ? 'Partidas:' : null,
+    matchLines,
+    '',
+    '¿Te atreves a jugar?',
+    'https://ligadeduelo.vercel.app/',
+  ]
+    .filter(line => line !== null && line !== undefined)
+    .join('\n');
+}
+
+export function shareRunOnWhatsApp(entry: PlayerRunRecord) {
+  const text = buildRunShareText(entry);
+  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
 }

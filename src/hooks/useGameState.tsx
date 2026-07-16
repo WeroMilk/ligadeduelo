@@ -16,6 +16,19 @@ import {
   resetCurrentMatchObjectives,
 } from '@/lib/player-leaderboard';
 
+const ROUND_PLACE: Record<number, string> = {
+  0: '9º–16º · Octavos',
+  1: '5º–8º · Cuartos',
+  2: '3º–4º · Semifinal',
+  3: '2º · Subcampeón',
+};
+
+function placementLabel(wonTournament: boolean, eliminatedRound: number | null): string {
+  if (wonTournament) return '1º · Campeón del torneo';
+  if (eliminatedRound === null) return 'Eliminado';
+  return ROUND_PLACE[eliminatedRound] ?? 'Eliminado';
+}
+
 const emptyPlan = (): TeamPlan => ({ actions: {}, ultimates: [], bootsLane: {} });
 
 function makeRoomCode() {
@@ -603,9 +616,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'EXIT_TO_MODE':
-    case 'RESET_TOURNAMENT':
-      finalizePlayerRun();
+    case 'RESET_TOURNAMENT': {
+      const wonTournament = state.tournament?.champion?.id === 'player';
+      finalizePlayerRun({
+        wonTournament,
+        placement: placementLabel(wonTournament, state.playerEliminatedRound),
+      });
       return { ...initialState, currentScreen: 'modeSelect' };
+    }
 
     default:
       return state;

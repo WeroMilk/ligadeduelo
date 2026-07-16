@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import { ROLE_COLORS, ROLE_NAMES, CHAMPIONS } from '@/lib/game-data';
 import { getUltimate } from '@/lib/ultimates';
@@ -22,6 +22,8 @@ export default function ChampionSelect() {
   const [activeRole, setActiveRole] = useState<Role>('top');
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const roleTabsRef = useRef<HTMLDivElement>(null);
+  const roleTabRefs = useRef<Partial<Record<Role, HTMLButtonElement | null>>>({});
 
   useEffect(() => {
     preloadChampionImages();
@@ -29,6 +31,15 @@ export default function ChampionSelect() {
 
   useEffect(() => {
     preloadChampionImages(CHAMPIONS.filter(c => c.role === activeRole).map(c => c.image));
+  }, [activeRole]);
+
+  // Al cambiar de pestaña (manual o tras elegir campeón), desplaza la lista horizontal
+  useEffect(() => {
+    const tab = roleTabRefs.current[activeRole];
+    const scroller = roleTabsRef.current;
+    if (!tab || !scroller) return;
+    const target = tab.offsetLeft - (scroller.clientWidth - tab.offsetWidth) / 2;
+    scroller.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
   }, [activeRole]);
 
   const selectedIds = state.selectedChampions.map(c => c.defId);
@@ -101,7 +112,10 @@ export default function ChampionSelect() {
           </div>
         </div>
 
-        <div className="mx-auto mt-1.5 flex max-w-6xl gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide touch-pan-x md:mt-2 md:gap-2 md:overflow-visible md:flex-wrap md:pb-1">
+        <div
+          ref={roleTabsRef}
+          className="mx-auto mt-1.5 flex max-w-6xl gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide touch-pan-x md:mt-2 md:gap-2 md:overflow-x-auto md:flex-nowrap md:pb-1"
+        >
           {ROLES.map(role => {
             const isActive = activeRole === role;
             const isSelected = !!selectedByRole[role];
@@ -110,6 +124,9 @@ export default function ChampionSelect() {
               <button
                 key={role}
                 type="button"
+                ref={el => {
+                  roleTabRefs.current[role] = el;
+                }}
                 onClick={() => { setActiveRole(role); setError(''); }}
                 className={`flex items-center gap-1.5 px-3 min-h-10 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 ${
                   isActive ? 'text-white shadow-lg' : 'text-[#8B9BB4] bg-[#141B2D] hover:bg-[#1E2740]'

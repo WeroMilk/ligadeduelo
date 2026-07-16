@@ -14,19 +14,39 @@ export default function NameSearch({
   pinned?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) inputRef.current?.focus();
+    if (!open) return;
+    // Enfocar tras abrir: abre el teclado sin zoom (input ≥16px).
+    const id = window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0);
+    return () => window.clearTimeout(id);
+  }, [open]);
+
+  // Toque fuera de la lupa/campo → cierra teclado y pliega la búsqueda
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const root = rootRef.current;
+      if (!root) return;
+      if (root.contains(e.target as Node)) return;
+      inputRef.current?.blur();
+      setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
   }, [open]);
 
   const close = () => {
+    inputRef.current?.blur();
     onChange('');
     setOpen(false);
   };
 
   return (
     <div
+      ref={rootRef}
       className={
         pinned
           ? 'pointer-events-auto relative z-30 shrink-0'
@@ -34,15 +54,32 @@ export default function NameSearch({
       }
     >
       {open ? (
-        <div className={`flex items-center gap-1 rounded-lg border border-[#2A3550] bg-[#141B2D]/95 py-0.5 pl-2 pr-1 shadow-lg backdrop-blur-sm ${pinned ? 'absolute right-0 top-0 w-[min(calc(100vw-2rem),17rem)]' : ''}`}>
+        <div
+          className={`flex items-center gap-1 rounded-lg border border-[#2A3550] bg-[#141B2D]/95 py-0.5 pl-2 pr-1 shadow-lg backdrop-blur-sm ${
+            pinned ? 'absolute right-0 top-0 w-[min(calc(100vw-2rem),17rem)]' : ''
+          }`}
+        >
           <Search className="h-3.5 w-3.5 shrink-0 text-[#8B9BB4]" aria-hidden />
           <input
             ref={inputRef}
             type="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
             value={value}
             onChange={e => onChange(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Escape') {
+                inputRef.current?.blur();
+                setOpen(false);
+              }
+            }}
             placeholder={placeholder}
-            className="w-[9rem] bg-transparent text-xs text-[#F0E6D2] outline-none placeholder:text-[#4A5570] sm:w-36"
+            /* text-base (16px): evita zoom automático de iOS/Android al enfocar */
+            className="w-[9rem] bg-transparent text-base leading-tight text-[#F0E6D2] outline-none placeholder:text-[#4A5570] sm:w-36 md:text-sm"
+            style={{ fontSize: '16px' }}
             aria-label={placeholder}
           />
           <button

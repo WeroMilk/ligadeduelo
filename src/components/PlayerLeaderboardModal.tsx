@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Trophy, X, ChevronRight, Users } from 'lucide-react';
+import { Trophy, X, ChevronRight, Users, Share2 } from 'lucide-react';
 import {
   formatPlayTime,
   getLeaderboard,
+  shareRunOnWhatsApp,
   type PlayerRunRecord,
 } from '@/lib/player-leaderboard';
 import { playClickSound } from '@/lib/sounds';
@@ -65,6 +66,29 @@ function Shell({
   );
 }
 
+function ShareWhatsAppButton({
+  entry,
+  className = '',
+}: {
+  entry: PlayerRunRecord;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={e => {
+        e.stopPropagation();
+        playClickSound();
+        shareRunOnWhatsApp(entry);
+      }}
+      className={`flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#25D366] font-bold text-[#0A0E1A] active:scale-[0.98] ${className}`}
+    >
+      <Share2 className="h-4 w-4" />
+      WhatsApp
+    </button>
+  );
+}
+
 function RunCard({
   entry,
   onClick,
@@ -73,41 +97,47 @@ function RunCard({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={() => {
-        playClickSound();
-        onClick();
-      }}
-      className="w-full rounded-xl border border-[#2A3550] bg-[#141B2D] p-3 text-left transition-colors hover:border-[#C9A84C]/50 active:scale-[0.99]"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-bold text-[#F0E6D2] truncate">{entry.teamName}</p>
-          <p className="text-[10px] text-[#8B9BB4] mt-0.5">
-            {entry.players.join(' · ')}
-          </p>
+    <div className="rounded-xl border border-[#2A3550] bg-[#141B2D] p-3 transition-colors hover:border-[#C9A84C]/50">
+      <button
+        type="button"
+        onClick={() => {
+          playClickSound();
+          onClick();
+        }}
+        className="w-full text-left active:scale-[0.99]"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-bold text-[#F0E6D2] truncate">{entry.teamName}</p>
+            {entry.placement && (
+              <p className="text-[10px] font-bold text-[#C9A84C] mt-0.5 truncate">{entry.placement}</p>
+            )}
+            <p className="text-[10px] text-[#8B9BB4] mt-0.5">
+              {entry.players.join(' · ')}
+            </p>
+          </div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-[#C9A84C] mt-1" />
         </div>
-        <ChevronRight className="h-4 w-4 shrink-0 text-[#C9A84C] mt-1" />
-      </div>
-      <p className="text-[10px] text-[#8B9BB4] mt-2 truncate">
-        {entry.champions.join(' · ')}
-      </p>
-      <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
-        <span className="rounded-md bg-[#3498DB]/15 px-2 py-0.5 text-[#3498DB] font-bold">
-          {entry.kills} bajas
-        </span>
-        <span className="rounded-md bg-[#E74C3C]/15 px-2 py-0.5 text-[#E74C3C] font-bold">
-          {entry.deaths} recibidas
-        </span>
-        <span className="rounded-md bg-[#2A3550] px-2 py-0.5 text-[#8B9BB4]">
-          {formatPlayTime(entry.playTimeMs)}
-        </span>
-        <span className="rounded-md bg-[#2A3550] px-2 py-0.5 text-[#8B9BB4]">
-          {entry.matches.length} partida{entry.matches.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-    </button>
+        <p className="text-[10px] text-[#8B9BB4] mt-2 truncate">
+          {entry.champions.join(' · ')}
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
+          <span className="rounded-md bg-[#3498DB]/15 px-2 py-0.5 text-[#3498DB] font-bold">
+            {entry.kills} bajas
+          </span>
+          <span className="rounded-md bg-[#E74C3C]/15 px-2 py-0.5 text-[#E74C3C] font-bold">
+            {entry.deaths} recibidas
+          </span>
+          <span className="rounded-md bg-[#2A3550] px-2 py-0.5 text-[#8B9BB4]">
+            {formatPlayTime(entry.playTimeMs)}
+          </span>
+          <span className="rounded-md bg-[#2A3550] px-2 py-0.5 text-[#8B9BB4]">
+            {entry.matches.length} partida{entry.matches.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+      </button>
+      <ShareWhatsAppButton entry={entry} className="mt-2.5 w-full text-xs" />
+    </div>
   );
 }
 
@@ -117,23 +147,29 @@ function DetailView({ entry, onBack }: { entry: PlayerRunRecord; onBack: () => v
       title={entry.teamName}
       onClose={onBack}
       footer={
-        <button
-          type="button"
-          onClick={() => {
-            playClickSound();
-            onBack();
-          }}
-          className="w-full rounded-xl py-3 font-bold"
-          style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
-        >
-          Volver a la lista
-        </button>
+        <div className="flex flex-col gap-2">
+          <ShareWhatsAppButton entry={entry} className="w-full" />
+          <button
+            type="button"
+            onClick={() => {
+              playClickSound();
+              onBack();
+            }}
+            className="w-full rounded-xl py-3 font-bold"
+            style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
+          >
+            Volver a la lista
+          </button>
+        </div>
       }
     >
       <div className="space-y-4 text-sm">
         <section className="rounded-xl border border-[#2A3550] bg-[#141B2D] p-3 space-y-2">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">Equipo</p>
           <p className="text-[#F0E6D2] font-bold">{entry.teamName}</p>
+          {entry.placement && (
+            <p className="text-xs font-bold text-[#C9A84C]">{entry.placement}</p>
+          )}
           <div className="grid grid-cols-2 gap-2 text-[11px]">
             <div>
               <p className="text-[#8B9BB4]">Integrantes</p>
@@ -215,7 +251,7 @@ export default function PlayerLeaderboardModal({ onClose }: { onClose: () => voi
 
   return (
     <Shell
-      title="Mejores jugadores"
+      title="Mejores jugadas"
       onClose={onClose}
       footer={
         <button
@@ -235,7 +271,7 @@ export default function PlayerLeaderboardModal({ onClose }: { onClose: () => voi
         <div className="flex flex-col items-center gap-3 py-10 text-center">
           <Users className="h-10 w-10 text-[#4A5570]" />
           <p className="text-sm text-[#8B9BB4]">
-            Aún no hay registros. Juega un torneo y tus estadísticas aparecerán aquí.
+            Aún no hay jugadas. Completa un torneo y podrás verlas y compartirlas aquí.
           </p>
         </div>
       ) : (

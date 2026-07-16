@@ -294,9 +294,9 @@ export default function ModeSelect() {
             <Trophy className="h-5 w-5 md:h-6 md:w-6" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-bold text-sm text-[#F0E6D2] md:text-base">Mejores jugadores</p>
+            <p className="font-bold text-sm text-[#F0E6D2] md:text-base">Mejores jugadas</p>
             <p className="mt-0.5 text-[10px] leading-snug text-[#C5D0E0]/90 md:text-xs">
-              Estadísticas de torneos jugados en este dispositivo.
+              Tus torneos guardados: revisa y vuelve a compartir por WhatsApp.
             </p>
           </div>
         </button>
