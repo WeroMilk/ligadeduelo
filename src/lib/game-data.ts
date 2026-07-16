@@ -272,7 +272,7 @@ export const ITEMS: ItemDef[] = [
   },
 ];
 
-export const MAX_MATCH_ROUNDS = 5;
+export const MAX_MATCH_ROUNDS = 8;
 export const GOLD_PER_ROUND = 70;
 export const GOLD_PER_KILL = 100;
 export const POINTS_KILL = 2;
@@ -370,12 +370,13 @@ export const ITEM_PRIORITY_BY_ROLE: Record<Role, string[]> = {
   support: ['tear', 'null_magic', 'ruby_crystal', 'boots', 'cloth_armor', 'blasting_wand', 'long_sword', 'dagger'],
 };
 
-/** R1–2 none, R3 fire, R4 water, R5 baron, R6 ancestral */
+/** Impares: sin objetivo. Pares: agua → fuego → barón → ancestral. */
 export function objectiveForRound(round: number): ObjectiveType {
-  if (round <= 2) return null;
-  if (round === 3) return 'dragon_fire';
-  if (round === 4) return 'dragon_water';
-  if (round >= 5) return 'baron';
+  if (round % 2 === 1) return null;
+  if (round === 2) return 'dragon_water';
+  if (round === 4) return 'dragon_fire';
+  if (round === 6) return 'baron';
+  if (round === 8) return 'dragon_ancestral';
   return null;
 }
 
