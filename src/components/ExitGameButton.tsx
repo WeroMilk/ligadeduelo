@@ -1,5 +1,5 @@
 import { useGame } from '@/hooks/useGameState';
-import { LogOut } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useState } from 'react';
 
 export default function ExitGameButton() {
@@ -13,11 +13,10 @@ export default function ExitGameButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed top-3 left-3 z-[80] md:top-7 lg:top-8 safe-top min-h-10 min-w-10 px-2.5 rounded-lg border border-[#2A3550] bg-[#0A0E1A]/90 text-[#8B9BB4] hover:text-[#F0E6D2] hover:border-[#C9A84C] flex items-center gap-1.5 text-xs font-bold"
+        className="fixed top-3 right-3 z-[80] md:top-7 lg:top-8 safe-top w-9 h-9 rounded-full border border-[#2A3550]/80 bg-[#0A0E1A]/70 text-[#8B9BB4] hover:text-[#C9A84C] hover:border-[#C9A84C] hover:bg-[#141B2D] flex items-center justify-center transition-colors backdrop-blur-sm"
         aria-label="Salir del juego"
       >
-        <LogOut className="w-4 h-4" />
-        <span className="hidden sm:inline">Salir</span>
+        <X className="w-4 h-4" strokeWidth={2.5} />
       </button>
 
       {open && (

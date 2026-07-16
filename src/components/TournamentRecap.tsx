@@ -23,7 +23,7 @@ export function buildShareText(opts: {
   teamName: string;
   placement: string;
   tournamentChampion?: string;
-  lines: { player: string; champ: string; role: string }[];
+  lines: { player: string; champ: string; role: string; org?: string }[];
 }): string {
   const header = opts.playerWon
     ? `¡Soy campeón de Liga de Duelo con ${opts.teamName}!`
@@ -33,9 +33,9 @@ export function buildShareText(opts: {
     ? `Campeón del torneo: ${opts.tournamentChampion}`
     : null;
   const roster = opts.lines
-    .map(l => `• ${l.role}: ${l.player} → ${l.champ}`)
+    .map(l => `• ${l.role}: ${l.player}${l.org ? ` (${l.org})` : ''} → ${l.champ}`)
     .join('\n');
-  return [header, place, champLine, '', 'Mi equipo:', roster, '', '¿Te atreves a jugar?']
+  return [header, place, champLine, '', 'Mi equipo:', roster, '', '¿Te atreves a jugar?', 'https://ligadeduelo.vercel.app/']
     .filter(Boolean)
     .join('\n');
 }
@@ -56,6 +56,7 @@ export default function TournamentRecap({ playerWon }: { playerWon: boolean }) {
       role,
       roleLabel: ROLE_NAMES[role],
       player: member?.name || '—',
+      orgName: member?.orgName || '',
       playerImage: member?.image,
       champ: def?.name || '—',
       champImage: def?.image || null,
@@ -70,7 +71,12 @@ export default function TournamentRecap({ playerWon }: { playerWon: boolean }) {
       teamName,
       placement,
       tournamentChampion: state.tournament?.champion?.name,
-      lines: lines.map(l => ({ player: l.player, champ: l.champ, role: l.roleLabel })),
+      lines: lines.map(l => ({
+        player: l.player,
+        champ: l.champ,
+        role: l.roleLabel,
+        org: l.orgName || undefined,
+      })),
     });
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -110,6 +116,9 @@ export default function TournamentRecap({ playerWon }: { playerWon: boolean }) {
                 {l.roleLabel}
               </p>
               <p className="text-sm font-bold text-[#F0E6D2] truncate">{l.player}</p>
+              {l.orgName ? (
+                <p className="text-[10px] text-[#8B9BB4] truncate">{l.orgName}</p>
+              ) : null}
             </div>
             <span className="text-[#4A5570] text-xs shrink-0">→</span>
             <div className="flex items-center gap-1.5 min-w-0 shrink-0">

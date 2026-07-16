@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import type { Champion, Structure, TeamPlan, LaneId, ObjectiveType, CombatAction, TeamColor } from '@/types/game';
+import type { Champion, Structure, TeamPlan, LaneId, ObjectiveType, CombatAction, TeamColor, CombatFloat } from '@/types/game';
 import { actionLabelEs, champDef } from '@/lib/turn-engine';
 import { objectiveIsBaronSide, objectiveName } from '@/lib/game-data';
 import { Swords, Shield, Sparkles } from 'lucide-react';
@@ -18,6 +18,7 @@ type MinimapProps = {
   className?: string;
   size?: number;
   showActions?: boolean;
+  showHp?: boolean;
   /** Dim/highlight cinema: focus one lane (0/1/2) or null for all. */
   focusLane?: LaneId | null;
   /** Pull lane fighters closer together. */
@@ -26,6 +27,7 @@ type MinimapProps = {
   objectiveAnim?: ObjectiveAnimPhase;
   objectiveWinner?: TeamColor | null;
   attackBeams?: AttackBeam[];
+  combatFloats?: CombatFloat[];
 };
 
 type Pt = { x: number; y: number };
@@ -164,12 +166,14 @@ export default function Minimap({
   className = '',
   size = 168,
   showActions = false,
+  showHp = false,
   focusLane = null,
   cinemaApproach = false,
   highlightObjective = false,
   objectiveAnim = 'none',
   objectiveWinner = null,
   attackBeams = [],
+  combatFloats = [],
 }: MinimapProps) {
   const livingBlue = blueChampions.filter(c => c.isAlive);
   const livingRed = redChampions.filter(c => c.isAlive);
@@ -311,12 +315,13 @@ export default function Minimap({
           const isBlue = s.team === 'blue';
           const isNexus = s.type === 'nexus';
           const dim = focusLane !== null && !isNexus && s.lane !== focusLane;
+          const hpPct = Math.max(0, Math.min(1, s.hp / Math.max(1, s.maxHp)));
           return (
             <div
               key={s.id}
               className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity duration-700"
               style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, opacity: dim ? 0.35 : 1 }}
-              title={`${isBlue ? 'Azul' : 'Rojo'} ${isNexus ? 'Nexo' : 'Torre'}`}
+              title={`${isBlue ? 'Azul' : 'Rojo'} ${isNexus ? 'Nexo' : 'Torre'} · ${Math.floor(s.hp)}/${s.maxHp}`}
             >
               {isNexus ? (
                 <div
@@ -339,6 +344,24 @@ export default function Minimap({
                     boxShadow: '0 0 3px rgba(0,0,0,0.6)',
                   }}
                 />
+              )}
+              {showHp && (
+                <div
+                  className="absolute left-1/2 -translate-x-1/2 rounded-sm overflow-hidden bg-black/70"
+                  style={{
+                    top: isNexus ? size * 0.075 : size * 0.06,
+                    width: size * (isNexus ? 0.09 : 0.07),
+                    height: 3,
+                  }}
+                >
+                  <div
+                    className="h-full"
+                    style={{
+                      width: `${hpPct * 100}%`,
+                      backgroundColor: hpPct > 0.5 ? '#27AE60' : hpPct > 0.25 ? '#F1C40F' : '#E74C3C',
+                    }}
+                  />
+                </div>
               )}
             </div>
           );
@@ -458,7 +481,52 @@ export default function Minimap({
                   </div>
                 )}
               </div>
+              {showHp && (
+                <div
+                  className="absolute left-1/2 -translate-x-1/2 rounded-sm overflow-hidden bg-black/75"
+                  style={{ top: icon + 1, width: icon * 1.05, height: 3 }}
+                >
+                  <div
+                    className="h-full transition-[width] duration-500"
+                    style={{
+                      width: `${Math.max(0, Math.min(100, (c.stats.hp / Math.max(1, c.stats.maxHp)) * 100))}%`,
+                      backgroundColor:
+                        c.stats.hp / c.stats.maxHp > 0.5 ? '#27AE60' :
+                        c.stats.hp / c.stats.maxHp > 0.25 ? '#F1C40F' : '#E74C3C',
+                    }}
+                  />
+                </div>
+              )}
               {showActions && action && !dim && <ActionBadge action={action} size={icon * 0.42} />}
+            </div>
+          );
+        })}
+
+        {combatFloats.map((f, i) => {
+          let p: Pt | undefined;
+          if (f.targetType === 'champ') {
+            p = posById.get(f.targetId);
+          } else {
+            const s = structures.find(x => x.id === f.targetId);
+            if (s) p = structurePos(s);
+          }
+          if (!p) return null;
+          const isHeal = f.kind === 'heal';
+          return (
+            <div
+              key={`${f.id}-${i}`}
+              className="absolute -translate-x-1/2 pointer-events-none font-black text-[10px] leading-none"
+              style={{
+                left: `${p.x * 100}%`,
+                top: `${p.y * 100}%`,
+                color: isHeal ? '#2ECC71' : '#E74C3C',
+                textShadow: '0 1px 2px #000, 0 0 4px rgba(0,0,0,0.9)',
+                animation: 'minimap-float 1.1s ease-out forwards',
+                animationDelay: `${(i % 4) * 0.08}s`,
+                zIndex: 20,
+              }}
+            >
+              {isHeal ? '+' : '−'}{f.amount}
             </div>
           );
         })}
@@ -468,6 +536,11 @@ export default function Minimap({
         @keyframes minimap-beam {
           from { stroke-opacity: 0.45; }
           to { stroke-opacity: 1; }
+        }
+        @keyframes minimap-float {
+          0% { transform: translate(-50%, 0); opacity: 0; }
+          15% { opacity: 1; }
+          100% { transform: translate(-50%, -18px); opacity: 0; }
         }
         @keyframes minimap-obj-pulse {
           0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0.9; }

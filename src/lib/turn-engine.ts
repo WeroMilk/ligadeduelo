@@ -1,7 +1,7 @@
 import type {
   Champion, TeamData, TeamPlan, CombatAction, LaneId, TeamColor,
   TurnMatchState, RoundResolution, CombatLogLine, Structure,
-  DuelSummary, DuelFighterSummary,
+  DuelSummary, DuelFighterSummary, CombatFloat,
 } from '@/types/game';
 import { CHAMPIONS, getChampionBaseStats, ITEMS, ITEM_PRIORITY_BY_ROLE, MAX_MATCH_ROUNDS, GOLD_PER_ROUND, GOLD_PER_KILL, POINTS_KILL, POINTS_TOWER, POINTS_OBJECTIVE, POINTS_NEXUS, FREE_LANE_SIEGE_BONUS, AI_BASE_DAMAGE_BUFF, objectiveForRound, objectiveName } from './game-data';
 import { applyBuffToStats, type BuffId } from './buffs';
@@ -11,6 +11,19 @@ let idCounter = 0;
 function uid(prefix = 'c') { return `${prefix}${++idCounter}`; }
 function logId() { return `l${++idCounter}`; }
 function duelId() { return `d${++idCounter}`; }
+function floatId() { return `f${++idCounter}`; }
+
+const TOWER_MAX_HP = 1000;
+const NEXUS_MAX_HP = 1500;
+const SIEGE_TOWER_DMG = 500;
+const SIEGE_NEXUS_DMG = 750;
+
+function pushFloat(
+  floats: CombatFloat[],
+  partial: Omit<CombatFloat, 'id'>,
+) {
+  floats.push({ id: floatId(), ...partial });
+}
 
 export function actionLabelEs(action: CombatAction): string {
   if (action === 'attack') return 'Atacar';
@@ -71,8 +84,8 @@ export function createTurnTeam(id: string, name: string, color: TeamColor, champ
     name,
     color,
     champions: champIds.map(cid => createTurnChampion(cid, color)),
-    nexusHp: 1,
-    maxNexusHp: 1,
+    nexusHp: NEXUS_MAX_HP,
+    maxNexusHp: NEXUS_MAX_HP,
     kills: 0,
     score: 0,
     damageBuff: 0,
@@ -81,14 +94,14 @@ export function createTurnTeam(id: string, name: string, color: TeamColor, champ
 
 function initStructures(): Structure[] {
   return [
-    { id: 'tower_blue_0', type: 'tower', team: 'blue', lane: 0, hp: 1, maxHp: 1, position: { lane: 0, x: 0.25 }, isDestroyed: false },
-    { id: 'tower_blue_1', type: 'tower', team: 'blue', lane: 1, hp: 1, maxHp: 1, position: { lane: 1, x: 0.25 }, isDestroyed: false },
-    { id: 'tower_blue_2', type: 'tower', team: 'blue', lane: 2, hp: 1, maxHp: 1, position: { lane: 2, x: 0.25 }, isDestroyed: false },
-    { id: 'tower_red_0', type: 'tower', team: 'red', lane: 0, hp: 1, maxHp: 1, position: { lane: 0, x: 0.75 }, isDestroyed: false },
-    { id: 'tower_red_1', type: 'tower', team: 'red', lane: 1, hp: 1, maxHp: 1, position: { lane: 1, x: 0.75 }, isDestroyed: false },
-    { id: 'tower_red_2', type: 'tower', team: 'red', lane: 2, hp: 1, maxHp: 1, position: { lane: 2, x: 0.75 }, isDestroyed: false },
-    { id: 'nexus_blue', type: 'nexus', team: 'blue', lane: -1, hp: 1, maxHp: 1, position: { lane: 1, x: 0.05 }, isDestroyed: false },
-    { id: 'nexus_red', type: 'nexus', team: 'red', lane: -1, hp: 1, maxHp: 1, position: { lane: 1, x: 0.95 }, isDestroyed: false },
+    { id: 'tower_blue_0', type: 'tower', team: 'blue', lane: 0, hp: TOWER_MAX_HP, maxHp: TOWER_MAX_HP, position: { lane: 0, x: 0.25 }, isDestroyed: false },
+    { id: 'tower_blue_1', type: 'tower', team: 'blue', lane: 1, hp: TOWER_MAX_HP, maxHp: TOWER_MAX_HP, position: { lane: 1, x: 0.25 }, isDestroyed: false },
+    { id: 'tower_blue_2', type: 'tower', team: 'blue', lane: 2, hp: TOWER_MAX_HP, maxHp: TOWER_MAX_HP, position: { lane: 2, x: 0.25 }, isDestroyed: false },
+    { id: 'tower_red_0', type: 'tower', team: 'red', lane: 0, hp: TOWER_MAX_HP, maxHp: TOWER_MAX_HP, position: { lane: 0, x: 0.75 }, isDestroyed: false },
+    { id: 'tower_red_1', type: 'tower', team: 'red', lane: 1, hp: TOWER_MAX_HP, maxHp: TOWER_MAX_HP, position: { lane: 1, x: 0.75 }, isDestroyed: false },
+    { id: 'tower_red_2', type: 'tower', team: 'red', lane: 2, hp: TOWER_MAX_HP, maxHp: TOWER_MAX_HP, position: { lane: 2, x: 0.75 }, isDestroyed: false },
+    { id: 'nexus_blue', type: 'nexus', team: 'blue', lane: -1, hp: NEXUS_MAX_HP, maxHp: NEXUS_MAX_HP, position: { lane: 1, x: 0.05 }, isDestroyed: false },
+    { id: 'nexus_red', type: 'nexus', team: 'red', lane: -1, hp: NEXUS_MAX_HP, maxHp: NEXUS_MAX_HP, position: { lane: 1, x: 0.95 }, isDestroyed: false },
   ];
 }
 
@@ -210,6 +223,7 @@ function resolveDuel(
   state: TurnMatchState,
   log: CombatLogLine[],
   duels: DuelSummary[],
+  floats: CombatFloat[],
   lane: LaneId,
 ): { blueKill: boolean; redKill: boolean } {
   let blueKill = false;
@@ -297,6 +311,17 @@ function resolveDuel(
     if (atk === a) dmgByA += dealt;
     else dmgByB += dealt;
 
+    if (dealt > 0) {
+      pushFloat(floats, {
+        kind: 'damage',
+        amount: dealt,
+        targetType: 'champ',
+        targetId: def.champ.instanceId,
+        sourceName: champDef(atk.champ).name,
+        lane,
+      });
+    }
+
     const dmgType = magic ? 'daño mágico' : 'daño físico';
     pushLog(
       log,
@@ -316,6 +341,16 @@ function resolveDuel(
       const second = dealDamage(atk.champ, def.champ, Math.floor(mitigated * 0.6), false);
       if (atk === a) dmgByA += second;
       else dmgByB += second;
+      if (second > 0) {
+        pushFloat(floats, {
+          kind: 'damage',
+          amount: second,
+          targetType: 'champ',
+          targetId: def.champ.instanceId,
+          sourceName: champDef(atk.champ).name,
+          lane,
+        });
+      }
       pushLog(log, `${champDef(atk.champ).name} Segundo Aliento: +${second}`, 'ulti');
     }
 
@@ -337,12 +372,28 @@ function resolveDuel(
 
       if (atk.ult && atk.champ.defId === 'darius') {
         atk.champ.stats.hp = Math.min(atk.champ.stats.maxHp, atk.champ.stats.hp + 80);
+        pushFloat(floats, {
+          kind: 'heal',
+          amount: 80,
+          targetType: 'champ',
+          targetId: atk.champ.instanceId,
+          sourceName: champDef(atk.champ).name,
+          lane,
+        });
         pushLog(log, `${champDef(atk.champ).name} se cura 80`, 'ulti');
       }
     } else if (atk.ult && atk.champ.defId === 'zed') {
       def.champ.stats.hp = Math.max(0, def.champ.stats.hp - 30);
       if (atk === a) dmgByA += 30;
       else dmgByB += 30;
+      pushFloat(floats, {
+        kind: 'damage',
+        amount: 30,
+        targetType: 'champ',
+        targetId: def.champ.instanceId,
+        sourceName: champDef(atk.champ).name,
+        lane,
+      });
       pushLog(log, `Marca Mortal: +30 a ${champDef(def.champ).name}`, 'ulti');
       if (def.champ.stats.hp <= 0) {
         def.champ.isAlive = false;
@@ -414,6 +465,7 @@ function resolveLaneGroup(
   redPlan: TeamPlan,
   log: CombatLogLine[],
   duels: DuelSummary[],
+  floats: CombatFloat[],
   towerStats: { blue: number; red: number },
 ) {
   const { blue, red } = fightersInLane(state, lane, bluePlan, redPlan);
@@ -425,7 +477,17 @@ function resolveLaneGroup(
     if (!f.ult) continue;
     const team = f.champ.team === 'blue' ? state.blue : state.red;
     if (f.champ.defId === 'soraka') {
-      for (const a of living(team)) a.stats.hp = Math.min(a.stats.maxHp, a.stats.hp + 100);
+      for (const a of living(team)) {
+        a.stats.hp = Math.min(a.stats.maxHp, a.stats.hp + 100);
+        pushFloat(floats, {
+          kind: 'heal',
+          amount: 100,
+          targetType: 'champ',
+          targetId: a.instanceId,
+          sourceName: champDef(f.champ).name,
+          lane,
+        });
+      }
       pushLog(log, `${champDef(f.champ).name} Wish cura al equipo`, 'ulti');
     }
     if (f.champ.defId === 'lulu' || f.champ.defId === 'yuumi' || f.champ.defId === 'shen') {
@@ -434,6 +496,14 @@ function resolveLaneGroup(
       if (ally) {
         if (f.champ.defId === 'lulu' || f.champ.defId === 'yuumi') {
           ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + 120);
+          pushFloat(floats, {
+            kind: 'heal',
+            amount: 120,
+            targetType: 'champ',
+            targetId: ally.instanceId,
+            sourceName: champDef(f.champ).name,
+            lane,
+          });
           pushLog(log, `${champDef(f.champ).name} escuda a ${champDef(ally).name}`, 'ulti');
         }
         if (f.champ.defId === 'shen') {
@@ -452,16 +522,16 @@ function resolveLaneGroup(
     if (enemy && enemy.champ.isAlive) {
       fought.add(bf.champ.instanceId);
       fought.add(enemy.champ.instanceId);
-      resolveDuel(bf, enemy, state, log, duels, lane);
+      resolveDuel(bf, enemy, state, log, duels, floats, lane);
     } else if (bf.action !== 'defend') {
-      siegeTower(state, 'red', lane, bf.champ, log, duels, towerStats);
+      siegeTower(state, 'red', lane, bf.champ, log, duels, floats, towerStats);
     }
   }
   for (const rf of red) {
     if (!rf.champ.isAlive || fought.has(rf.champ.instanceId)) continue;
     const hasBlue = blue.some(b => b.champ.isAlive && b.champ.stats.hp > 0);
     if (!hasBlue && rf.action !== 'defend') {
-      siegeTower(state, 'blue', lane, rf.champ, log, duels, towerStats);
+      siegeTower(state, 'blue', lane, rf.champ, log, duels, floats, towerStats);
     }
   }
 }
@@ -473,6 +543,7 @@ function siegeTower(
   sieger: Champion,
   log: CombatLogLine[],
   duels: DuelSummary[],
+  floats: CombatFloat[],
   towerStats: { blue: number; red: number },
 ) {
   const siegerSnap: DuelFighterSummary = {
@@ -492,29 +563,54 @@ function siegeTower(
   if (!tower) {
     const nexus = state.structures.find(s => s.type === 'nexus' && s.team === towerTeam && !s.isDestroyed);
     if (nexus) {
-      sieger.siegeStacks += 1;
-      pushLog(log, `${champDef(sieger).name} presiona el Nexo (${sieger.siegeStacks}/1)`);
+      const dmg = Math.min(SIEGE_NEXUS_DMG, nexus.hp);
+      nexus.hp = Math.max(0, nexus.hp - dmg);
+      siegerSnap.damageDealt = dmg;
+      pushFloat(floats, {
+        kind: 'damage',
+        amount: dmg,
+        targetType: 'nexus',
+        targetId: nexus.id,
+        sourceName: champDef(sieger).name,
+        lane,
+      });
+      pushLog(log, `${champDef(sieger).name} golpea el Nexo · ${dmg} de daño (${nexus.hp}/${nexus.maxHp})`);
       duels.push({
         id: duelId(),
         lane,
         kind: 'siege',
         blue: sieger.team === 'blue' ? siegerSnap : undefined,
         red: sieger.team === 'red' ? siegerSnap : undefined,
-        summary: `${champDef(sieger).name} asedia el Nexo`,
+        summary: `${champDef(sieger).name} asedia el Nexo (−${dmg})`,
       });
-      if (sieger.siegeStacks >= 1) {
+      if (nexus.hp <= 0) {
         nexus.isDestroyed = true;
+        const team = towerTeam === 'blue' ? state.blue : state.red;
+        team.nexusHp = 0;
         pushLog(log, `¡NEXO DESTRUIDO por ${champDef(sieger).name}! Victoria automática`, 'tower');
+      } else {
+        const team = towerTeam === 'blue' ? state.blue : state.red;
+        team.nexusHp = nexus.hp;
       }
     }
     return;
   }
-  sieger.siegeStacks += 1;
-  pushLog(log, `${champDef(sieger).name} asedia la torre ${laneLabel(lane)} (${sieger.siegeStacks}/2)`);
-  let summary = `${champDef(sieger).name} asedia torre ${laneLabel(lane)} (${sieger.siegeStacks}/2)`;
-  if (sieger.siegeStacks >= 2) {
+
+  const dmg = Math.min(SIEGE_TOWER_DMG, tower.hp);
+  tower.hp = Math.max(0, tower.hp - dmg);
+  siegerSnap.damageDealt = dmg;
+  pushFloat(floats, {
+    kind: 'damage',
+    amount: dmg,
+    targetType: 'tower',
+    targetId: tower.id,
+    sourceName: champDef(sieger).name,
+    lane,
+  });
+  pushLog(log, `${champDef(sieger).name} asedia la torre ${laneLabel(lane)} · ${dmg} de daño (${tower.hp}/${tower.maxHp})`);
+  let summary = `${champDef(sieger).name} asedia torre ${laneLabel(lane)} (−${dmg})`;
+  if (tower.hp <= 0) {
     tower.isDestroyed = true;
-    sieger.siegeStacks = 0;
     if (sieger.team === 'blue') {
       state.blue.score += POINTS_TOWER;
       towerStats.blue += 1;
@@ -541,6 +637,7 @@ function resolveObjective(
   redPlan: TeamPlan,
   log: CombatLogLine[],
   duels: DuelSummary[],
+  floats: CombatFloat[],
 ): { winner: TeamColor | null; contested: boolean; freeItem: boolean; ancestral: boolean } {
   if (!state.objective) return { winner: null, contested: false, freeItem: false, ancestral: false };
   const obj = state.objective;
@@ -600,6 +697,7 @@ function resolveObjective(
       state,
       log,
       duels,
+      floats,
       1,
     );
     bp = power(blueP.filter(c => c.isAlive));
@@ -612,6 +710,7 @@ function resolveObjective(
       state,
       log,
       duels,
+      floats,
       1,
     );
     bp = power(blueP.filter(c => c.isAlive));
@@ -713,6 +812,7 @@ function applyFreeLaneAdvantage(
   bluePlan: TeamPlan,
   redPlan: TeamPlan,
   log: CombatLogLine[],
+  floats: CombatFloat[],
   towerStats: { blue: number; red: number },
 ) {
   const check = (plan: TeamPlan, allyTeam: TeamColor) => {
@@ -728,7 +828,7 @@ function applyFreeLaneAdvantage(
       const sieger = enemies[0].champ;
       pushLog(log, `${champDef(sieger).name} aprovecha la línea libre (${laneLabel(homeLane)})`, 'tower');
       for (let i = 0; i < FREE_LANE_SIEGE_BONUS + 1; i++) {
-        siegeTower(state, allyTeam, homeLane, sieger, log, [], towerStats);
+        siegeTower(state, allyTeam, homeLane, sieger, log, [], floats, towerStats);
       }
     }
   };
@@ -799,6 +899,7 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
   };
   const log: CombatLogLine[] = [];
   const duels: DuelSummary[] = [];
+  const floats: CombatFloat[] = [];
   const towerStats = { blue: 0, red: 0 };
   const scoreBeforeB = next.blue.score;
   const scoreBeforeR = next.red.score;
@@ -821,13 +922,13 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
     if (a) c.revealedAction = a;
   }
 
-  resolveLaneGroup(next, 0, bluePlan, redPlan, log, duels, towerStats);
-  resolveLaneGroup(next, 1, bluePlan, redPlan, log, duels, towerStats);
-  resolveLaneGroup(next, 2, bluePlan, redPlan, log, duels, towerStats);
+  resolveLaneGroup(next, 0, bluePlan, redPlan, log, duels, floats, towerStats);
+  resolveLaneGroup(next, 1, bluePlan, redPlan, log, duels, floats, towerStats);
+  resolveLaneGroup(next, 2, bluePlan, redPlan, log, duels, floats, towerStats);
 
-  applyFreeLaneAdvantage(next, bluePlan, redPlan, log, towerStats);
+  applyFreeLaneAdvantage(next, bluePlan, redPlan, log, floats, towerStats);
 
-  const objResult = resolveObjective(next, bluePlan, redPlan, log, duels);
+  const objResult = resolveObjective(next, bluePlan, redPlan, log, duels, floats);
 
   onDeathSetRespawn(next);
   income(next);
@@ -855,6 +956,7 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
     round: next.round,
     log,
     duels,
+    floats,
     blueScoreDelta: next.blue.score - scoreBeforeB,
     redScoreDelta: next.red.score - scoreBeforeR,
     blueKillsDelta: next.blue.kills - killsBeforeB,

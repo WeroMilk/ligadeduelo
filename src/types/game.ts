@@ -27,6 +27,8 @@ export interface RosterMember {
   name: string;
   role: Role;
   image: string;
+  orgId: string;
+  orgName: string;
 }
 export type BuffId = 'fury' | 'iron' | 'vital' | 'greed';
 export type CombatAction = 'attack' | 'ability' | 'defend';
@@ -175,10 +177,21 @@ export interface DuelSummary {
   summary: string;
 }
 
+export interface CombatFloat {
+  id: string;
+  kind: 'damage' | 'heal';
+  amount: number;
+  targetType: 'champ' | 'tower' | 'nexus';
+  targetId: string;
+  sourceName?: string;
+  lane?: LaneId;
+}
+
 export interface RoundResolution {
   round: number;
   log: CombatLogLine[];
   duels: DuelSummary[];
+  floats: CombatFloat[];
   blueScoreDelta: number;
   redScoreDelta: number;
   blueKillsDelta: number;

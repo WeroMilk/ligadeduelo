@@ -2,21 +2,28 @@ import { createPortal } from 'react-dom';
 import { Ghost, TreePine, Castle } from 'lucide-react';
 import type { LaneId } from '@/types/game';
 
-export type DecisionKind = 'jungle' | 'objective' | 'siege';
+export type DecisionKind = 'jungle' | 'siege';
 
 export type DecisionPayload =
   | { kind: 'jungle'; target: LaneId | 'objective' }
-  | { kind: 'objective'; contest: boolean }
   | { kind: 'siege'; lane: LaneId };
 
 type Props = {
   kind: DecisionKind;
   objectiveLabel?: string | null;
+  /** Si hay objetivo en el mapa, jungla puede ir a por él (XOR con gank). */
+  allowObjective?: boolean;
   secondsLeft: number;
   onPick: (payload: DecisionPayload) => void;
 };
 
-export default function DecisionOverlay({ kind, objectiveLabel, secondsLeft, onPick }: Props) {
+export default function DecisionOverlay({
+  kind,
+  objectiveLabel,
+  allowObjective = false,
+  secondsLeft,
+  onPick,
+}: Props) {
   const body = (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center px-3 pb-6 sm:pb-0 bg-black/55">
       <div className="w-full max-w-md rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-4 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-3">
@@ -28,13 +35,16 @@ export default function DecisionOverlay({ kind, objectiveLabel, secondsLeft, onP
         {kind === 'jungle' && (
           <>
             <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-              ¿Dónde gankea la jungla?
+              Jungla: ¿gank o objetivo?
             </h2>
+            <p className="text-xs text-[#8B9BB4]">
+              Solo una opción: gankear una línea o ir al objetivo.
+            </p>
             <div className="grid grid-cols-2 gap-2">
               {([
-                { id: 0 as LaneId, label: 'Top' },
-                { id: 1 as LaneId, label: 'Mid' },
-                { id: 2 as LaneId, label: 'Bot' },
+                { id: 0 as LaneId, label: 'Gank Top' },
+                { id: 1 as LaneId, label: 'Gank Mid' },
+                { id: 2 as LaneId, label: 'Gank Bot' },
               ]).map(l => (
                 <button
                   key={l.id}
@@ -46,38 +56,16 @@ export default function DecisionOverlay({ kind, objectiveLabel, secondsLeft, onP
                   {l.label}
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={() => onPick({ kind: 'jungle', target: 'objective' })}
-                className="min-h-11 rounded-xl border border-[#E67E22]/50 bg-[#E67E22]/15 font-bold text-[#F5B041] flex items-center justify-center gap-2 col-span-2"
-              >
-                <Ghost className="w-4 h-4" />
-                Objetivo {objectiveLabel ? `· ${objectiveLabel}` : ''}
-              </button>
-            </div>
-          </>
-        )}
-
-        {kind === 'objective' && (
-          <>
-            <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-              ¿Atacáis el {objectiveLabel || 'objetivo'}?
-            </h2>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => onPick({ kind: 'objective', contest: true })}
-                className="min-h-12 rounded-xl font-bold bg-[#C9A84C] text-[#0A0E1A]"
-              >
-                Sí, pelear
-              </button>
-              <button
-                type="button"
-                onClick={() => onPick({ kind: 'objective', contest: false })}
-                className="min-h-12 rounded-xl font-bold border border-[#2A3550] text-[#8B9BB4]"
-              >
-                No, farm
-              </button>
+              {allowObjective && (
+                <button
+                  type="button"
+                  onClick={() => onPick({ kind: 'jungle', target: 'objective' })}
+                  className="min-h-11 rounded-xl border border-[#E67E22]/50 bg-[#E67E22]/15 font-bold text-[#F5B041] flex items-center justify-center gap-2 col-span-2"
+                >
+                  <Ghost className="w-4 h-4" />
+                  Objetivo {objectiveLabel ? `· ${objectiveLabel}` : ''}
+                </button>
+              )}
             </div>
           </>
         )}
@@ -87,6 +75,7 @@ export default function DecisionOverlay({ kind, objectiveLabel, secondsLeft, onP
             <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
               ¿Priorizar qué torre?
             </h2>
+            <p className="text-xs text-[#8B9BB4]">No cambia el gank de la jungla.</p>
             <div className="grid grid-cols-3 gap-2">
               {([0, 1, 2] as LaneId[]).map(lane => (
                 <button

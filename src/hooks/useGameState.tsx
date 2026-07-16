@@ -391,7 +391,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         playerPlan: action.plan,
         enemyPlanPreview: redPlan,
       };
-      if (resolved.isComplete) return applyMatchEnd(next, resolved);
+      // Keep liveMatch open so cinema can play; FINISH_LIVE_MATCH ends after.
       return next;
     }
 

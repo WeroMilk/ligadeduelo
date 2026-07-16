@@ -77,6 +77,8 @@ export function buildOrgRoster(org: FanOrg): RosterMember[] {
       name,
       role,
       image: `/players/${role}.svg`,
+      orgId: org.id,
+      orgName: org.name,
     });
   }
 
@@ -96,8 +98,15 @@ export function buildOrgRoster(org: FanOrg): RosterMember[] {
       name,
       role,
       image: `/players/${role}.svg`,
+      orgId: org.id,
+      orgName: org.name,
     });
   }
 
   return members;
+}
+
+/** Pool de todas las orgs para dream-team multi-equipo. */
+export function buildAllRosters(orgs: FanOrg[]): RosterMember[] {
+  return orgs.flatMap(o => buildOrgRoster(o));
 }
