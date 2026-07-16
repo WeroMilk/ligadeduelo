@@ -84,14 +84,14 @@ function AppShell() {
   const hideAd = state.currentScreen === 'liveMatch';
 
   return (
-    <div
-      className={`flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2] safe-x md:py-4 lg:py-5 ${
-        hideAd ? 'pb-0' : 'pb-11'
-      }`}
-    >
+    <div className="flex h-app w-full flex-col overflow-hidden bg-[#0A0E1A] text-[#F0E6D2] safe-x md:py-4 lg:py-5">
       <ExitGameButton />
-      <GameRouter />
-      <AdBanner />
+      <main className="flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden">
+        <div className="flex h-full min-h-0 w-full max-w-[100%] flex-col items-stretch justify-center">
+          <GameRouter />
+        </div>
+      </main>
+      {!hideAd && <AdBanner />}
     </div>
   );
 }

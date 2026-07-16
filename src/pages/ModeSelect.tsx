@@ -125,8 +125,8 @@ export default function ModeSelect() {
   const [showRules, setShowRules] = useState(false);
 
   return (
-    <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
-      <div className="shrink-0 px-4 pt-8 pb-3 safe-top text-center">
+    <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden justify-center">
+      <div className="shrink-0 px-4 pt-6 pb-2 safe-top text-center">
         <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-[#C9A84C] to-[#8B6914] flex items-center justify-center mb-3">
           <Swords className="w-8 h-8 text-[#0A0E1A]" />
         </div>
@@ -144,7 +144,7 @@ export default function ModeSelect() {
         </button>
       </div>
 
-      <div className="flex-1 min-h-0 px-4 pb-6 max-w-5xl mx-auto w-full overflow-y-auto md:overflow-hidden md:flex md:items-center">
+      <div className="min-h-0 px-4 py-3 max-w-5xl mx-auto w-full overflow-y-auto md:overflow-hidden md:flex md:items-center md:flex-1">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full md:gap-4">
           {MODES.map(m => (
             <button
@@ -165,7 +165,7 @@ export default function ModeSelect() {
         </div>
       </div>
 
-      <p className="shrink-0 text-[11px] text-center text-[#4A5570] pb-4 px-4">
+      <p className="shrink-0 text-[11px] text-center text-[#4A5570] pb-2 pt-1 px-4">
         Todos los derechos reservados · HOMEBOYS PROD. · 2026
       </p>
 
