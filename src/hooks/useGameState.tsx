@@ -1,13 +1,13 @@
 import { createContext, useContext, useReducer, type ReactNode } from 'react';
 import type {
   GameScreen, Champion, TeamData, Tournament, Match, TurnMatchState,
-  GameMode, LobbyPlayer, RosterMember, TeamPlan, LaneId,
+  GameMode, LobbyPlayer, RosterMember, TeamPlan, LaneId, TeamColor,
 } from '@/types/game';
 import { createTeam, simulateAIMatch } from '@/lib/game-engine';
 import {
-  createTurnMatch, createTurnTeam, resolveRound, generateAIPlan, aiBuyItems,
+  createTurnMatch, createTurnTeam, resolveRound, generateAIPlan, aiBuyItems, finishPendingObjective,
 } from '@/lib/turn-engine';
-import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats, RIVAL_TEAM_ID, RIVAL_TEAM_NAME } from '@/lib/game-data';
+import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats } from '@/lib/game-data';
 
 const emptyPlan = (): TeamPlan => ({ actions: {}, ultimates: [], bootsLane: {}, jungleTarget: 1 });
 
@@ -76,50 +76,99 @@ type GameAction =
   | { type: 'PREPARE_MATCH'; matchId: string }
   | { type: 'SET_LIVE_PLAN'; plan: TeamPlan }
   | { type: 'RESOLVE_LIVE_ROUND'; plan: TeamPlan }
+  | {
+      type: 'RESOLVE_OBJECTIVE_QTE';
+      qte: { skirmishWinner: TeamColor | null; attackingTeam: TeamColor; monsterTaken: boolean };
+    }
   | { type: 'FINISH_LIVE_MATCH' }
   | { type: 'ADVANCE_BRACKET' }
   | { type: 'SIMULATE_ONE_AI_MATCH' }
   | { type: 'EXIT_TO_MODE' }
   | { type: 'RESET_TOURNAMENT' };
 
-function generateAIChampions(): string[] {
-  const roles = ['top', 'jungle', 'mid', 'adc', 'support'] as const;
-  return roles.map(role => {
-    const available = CHAMPIONS.filter(c => c.role === role);
-    return available[Math.floor(Math.random() * available.length)].id;
-  });
+function shuffleInPlace<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
-function generateRivalChampions(): string[] {
-  return ['darius', 'kayn', 'zed', 'kaisa', 'thresh'];
+function nameKey(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9áéíóúñ]/gi, '');
+}
+
+const ROLES = ['top', 'jungle', 'mid', 'adc', 'support'] as const;
+
+/** Pools por rol: alineaciones distintas hasta agotar el pool (luego se regenera). */
+function createChampPools(excludeDefIds: Set<string>): Record<(typeof ROLES)[number], string[]> {
+  const pools = {} as Record<(typeof ROLES)[number], string[]>;
+  for (const role of ROLES) {
+    const ids = CHAMPIONS.filter(c => c.role === role && !excludeDefIds.has(c.id)).map(c => c.id);
+    const fallback = CHAMPIONS.filter(c => c.role === role).map(c => c.id);
+    pools[role] = shuffleInPlace(ids.length > 0 ? ids : [...fallback]);
+  }
+  return pools;
+}
+
+function drawLineup(pools: Record<(typeof ROLES)[number], string[]>): string[] {
+  return ROLES.map(role => {
+    if (pools[role].length === 0) {
+      pools[role] = shuffleInPlace(CHAMPIONS.filter(c => c.role === role).map(c => c.id));
+    }
+    return pools[role].shift()!;
+  });
 }
 
 function buildRewards(beatRival: boolean): { titles: string[]; frame: Tournament['championFrame'] } {
   const titles = ['Campeón de la Grieta'];
-  if (beatRival) titles.push('Cazador de Sombras');
+  if (beatRival) titles.push('Cazador de Rivales');
   titles.push('Estrella del Bracket');
   return { titles, frame: beatRival ? 'obsidian' : 'gold' };
 }
 
 function generateTournament(playerTeam: TeamData, lobbyPlayers: LobbyPlayer[], mode: GameMode | null): Tournament {
-  const teams: TeamData[] = [playerTeam];
-  teams.push(createTeam(RIVAL_TEAM_ID, RIVAL_TEAM_NAME, 'red', generateRivalChampions()));
+  void mode;
+  const usedNames = new Set<string>([nameKey(playerTeam.name)]);
+  const namePool = shuffleInPlace(
+    AI_TEAM_NAMES.filter(n => !usedNames.has(nameKey(n))),
+  );
+
+  const playerChampIds = new Set(playerTeam.champions.map(c => c.defId));
+  const champPools = createChampPools(playerChampIds);
+
+  // Rival aleatorio (nombre + alineación distintos cada torneo)
+  const rivalName = namePool.shift() || 'Rival Misterioso';
+  usedNames.add(nameKey(rivalName));
+  const rivalTeamId = `rival_${nameKey(rivalName) || 'x'}`;
+  const rivalTeam = createTeam(rivalTeamId, rivalName, 'red', drawLineup(champPools));
+
+  const teams: TeamData[] = [playerTeam, rivalTeam];
 
   const friendSlots = lobbyPlayers.filter(p => !p.isHost).slice(0, 14);
   for (let i = 0; i < friendSlots.length; i++) {
-    teams.push(createTeam(`friend_${i}`, friendSlots[i].name, 'red', generateAIChampions()));
+    const fname = friendSlots[i].name;
+    usedNames.add(nameKey(fname));
+    teams.push(createTeam(`friend_${i}`, fname, 'red', drawLineup(champPools)));
   }
 
-  const need = 16 - teams.length;
-  const aiNames = AI_TEAM_NAMES.filter(n => !playerTeam.name.startsWith(n));
-  for (let i = 0; i < need; i++) {
-    teams.push(createTeam(`ai_${i}`, aiNames[i] || `Equipo ${i + 1}`, 'red', generateAIChampions()));
+  let aiIdx = 0;
+  while (teams.length < 16) {
+    let name = namePool.shift();
+    if (!name) {
+      name = `Equipo ${aiIdx + 1}`;
+      while (usedNames.has(nameKey(name))) {
+        aiIdx++;
+        name = `Equipo ${aiIdx + 1}`;
+      }
+    }
+    usedNames.add(nameKey(name));
+    teams.push(createTeam(`ai_${aiIdx}`, name, 'red', drawLineup(champPools)));
+    aiIdx++;
   }
 
-  // mode unused but keeps API clear for future weighting
-  void mode;
-
-  const shuffled = [...teams].sort(() => Math.random() - 0.5);
+  // Bracket aleatorio; jugador siempre en teamA de su partido
+  const shuffled = shuffleInPlace([...teams]);
   const round1Matches: Match[] = [];
   for (let i = 0; i < 8; i++) {
     let teamA = shuffled[i * 2];
@@ -147,7 +196,8 @@ function generateTournament(playerTeam: TeamData, lobbyPlayers: LobbyPlayer[], m
     currentRound: 0,
     isComplete: false,
     champion: null,
-    rivalTeamId: RIVAL_TEAM_ID,
+    rivalTeamId,
+    rivalTeamName: rivalName,
     titles: [],
     championFrame: 'none',
   };
@@ -252,7 +302,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         playerTeamName: action.name,
-        selectedFanOrgId: action.orgId ?? state.selectedFanOrgId,
+        selectedFanOrgId: action.orgId ?? null,
       };
 
     case 'SELECT_ROSTER': {
@@ -393,6 +443,15 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
       // Keep liveMatch open so cinema can play; FINISH_LIVE_MATCH ends after.
       return next;
+    }
+
+    case 'RESOLVE_OBJECTIVE_QTE': {
+      if (!state.turnMatch?.pendingObjective) return state;
+      const resolved = finishPendingObjective(state.turnMatch, action.qte);
+      return {
+        ...state,
+        turnMatch: { ...resolved, pendingReward: false },
+      };
     }
 
     case 'FINISH_LIVE_MATCH': {

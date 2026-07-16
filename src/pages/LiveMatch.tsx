@@ -3,11 +3,33 @@ import { useGame } from '@/hooks/useGameState';
 import Minimap, { type AttackBeam, type ObjectiveAnimPhase } from '@/components/Minimap';
 import DecisionOverlay, { type DecisionKind, type DecisionPayload } from '@/components/DecisionOverlay';
 import CombatScreenFX, { type ScreenFxKind } from '@/components/CombatScreenFX';
+import ObjectiveMinigame, { type ObjectiveQtePayload } from '@/components/ObjectiveMinigame';
 import { generateAIPlan, champDef } from '@/lib/turn-engine';
 import { objectiveName } from '@/lib/game-data';
-import type { CombatFloat, LaneId, RoundResolution, TeamPlan } from '@/types/game';
+import type { CombatFloat, LaneId, RoundResolution, Structure, TeamPlan } from '@/types/game';
 
-const MAP_SIZE = 280;
+const MAP_SIZE_MOBILE = 280;
+
+function useMapSize() {
+  const [size, setSize] = useState(MAP_SIZE_MOBILE);
+  useEffect(() => {
+    const update = () => {
+      const desktop = window.matchMedia('(min-width: 768px)').matches;
+      if (!desktop) {
+        setSize(MAP_SIZE_MOBILE);
+        return;
+      }
+      // ~62% del alto útil, acotado para que quepa con panel HP y header
+      const byH = Math.floor(window.innerHeight * 0.62);
+      const byW = Math.floor(window.innerWidth * 0.48);
+      setSize(Math.max(420, Math.min(580, byH, byW)));
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+  return size;
+}
 const PROMPT_SEC = 8;
 const LANE_MS = 2000;
 
@@ -15,6 +37,7 @@ type Phase =
   | { t: 'prompt'; kind: DecisionKind }
   | { t: 'lane'; lane: LaneId; fight: boolean }
   | { t: 'objective'; anim: ObjectiveAnimPhase }
+  | { t: 'qte' }
   | { t: 'idle' };
 
 type FxSignal = { kind: ScreenFxKind; label?: string; team?: 'blue' | 'red' | 'neutral'; nonce: number };
@@ -38,7 +61,6 @@ function mergeDecisions(
       plan.objectiveAssistId = p.target === 'objective' ? assistId : undefined;
     }
     if (p.kind === 'siege') {
-      // Solo prioriza asedio en laners; no mueve a la jungla.
       Object.keys(plan.actions).forEach(id => {
         if (plan.actions[id] === 'defend') plan.actions[id] = 'attack';
       });
@@ -47,9 +69,50 @@ function mergeDecisions(
   return plan;
 }
 
+function StructureHpRow({ structures, team }: { structures: Structure[]; team: 'blue' | 'red' }) {
+  const towers = [0, 1, 2].map(lane =>
+    structures.find(s => s.type === 'tower' && s.team === team && s.lane === lane),
+  );
+  const nexus = structures.find(s => s.type === 'nexus' && s.team === team);
+  const color = team === 'blue' ? '#3498DB' : '#E74C3C';
+  const labels = ['T', 'M', 'B'];
+
+  const bar = (s: Structure | undefined, label: string) => {
+    const destroyed = !s || s.isDestroyed || s.hp <= 0;
+    const pct = destroyed ? 0 : Math.max(0, Math.min(100, (s!.hp / s!.maxHp) * 100));
+    return (
+      <div key={label} className="flex-1 min-w-0">
+        <div className="flex justify-between text-[9px] mb-0.5">
+          <span style={{ color }}>{label}</span>
+          <span className="text-[#8B9BB4]">
+            {destroyed ? '✕' : `${Math.floor(s!.hp)}`}
+          </span>
+        </div>
+        <div className="h-1.5 rounded-full bg-black/50 overflow-hidden">
+          <div
+            className="h-full transition-all"
+            style={{
+              width: `${pct}%`,
+              backgroundColor: destroyed ? '#4A5570' : pct > 50 ? '#27AE60' : pct > 25 ? '#F1C40F' : '#E74C3C',
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex gap-1.5 w-full">
+      {towers.map((s, i) => bar(s, `Torre ${labels[i]}`))}
+      {bar(nexus, 'Nexo')}
+    </div>
+  );
+}
+
 export default function LiveMatch() {
   const { state, dispatch } = useGame();
   const tm = state.turnMatch;
+  const mapSize = useMapSize();
   const [phase, setPhase] = useState<Phase | null>(null);
   const [promptLeft, setPromptLeft] = useState(PROMPT_SEC);
   const [scale, setScale] = useState(0.92);
@@ -63,6 +126,7 @@ export default function LiveMatch() {
   const promptsForRound = useRef<number | null>(null);
   const cinemaForKey = useRef<string | null>(null);
   const awaitingCinema = useRef(false);
+  const awaitingQte = useRef(false);
   const fxNonce = useRef(0);
 
   const fireFx = (kind: ScreenFxKind, label?: string, team?: FxSignal['team']) => {
@@ -86,6 +150,7 @@ export default function LiveMatch() {
 
   const endCinemaAndContinue = (res: RoundResolution) => {
     awaitingCinema.current = false;
+    awaitingQte.current = false;
     setActiveFloats([]);
     setCinemaRes(null);
     setPhase({ t: 'idle' });
@@ -93,8 +158,33 @@ export default function LiveMatch() {
       dispatch({ type: 'FINISH_LIVE_MATCH' });
       return;
     }
-    // Siguiente ronda (round ya avanzó en resolve)
     if (tm) beginPrompts(tm.round);
+  };
+
+  const playObjectiveClaim = (res: RoundResolution) => {
+    clearCinema();
+    setCinemaRes(res);
+    setScale(1.12);
+    const schedule = (fn: () => void, ms: number) => {
+      cinemaTimers.current.push(window.setTimeout(fn, ms));
+    };
+    setPhase({ t: 'objective', anim: 'pulse' });
+    schedule(() => {
+      setPhase({ t: 'objective', anim: 'clash' });
+      fireFx('hit', undefined, 'neutral');
+    }, 600);
+    schedule(() => setPhase({ t: 'objective', anim: 'claim' }), 1200);
+    if (res.objectiveWinner) {
+      schedule(() => {
+        const name = res.objective ? objectiveName(res.objective) : 'Objetivo';
+        fireFx(
+          'objective',
+          `${res.objectiveWinner === 'blue' ? 'Azul' : 'Rojo'} · ${name}`,
+          res.objectiveWinner === 'blue' ? 'blue' : 'red',
+        );
+      }, 1400);
+    }
+    schedule(() => endCinemaAndContinue(res), 2200);
   };
 
   const playCinema = (res: RoundResolution) => {
@@ -110,7 +200,7 @@ export default function LiveMatch() {
     };
 
     const floatsForLane = (lane: LaneId) =>
-      (res.floats || []).filter(f => f.lane === lane || (f.targetType !== 'champ' && f.lane === lane));
+      (res.floats || []).filter(f => f.lane === lane);
 
     const fightLane = (lane: LaneId, at: number) => {
       schedule(() => {
@@ -126,25 +216,8 @@ export default function LiveMatch() {
     schedule(() => { setPhase({ t: 'lane', lane: 2, fight: false }); setActiveFloats([]); }, LANE_MS * 2);
     fightLane(2, LANE_MS * 2 + 800);
 
-    let t = LANE_MS * 3;
-    const hadObj = !!res.objective;
-    if (hadObj) {
-      schedule(() => {
-        setPhase({ t: 'objective', anim: 'pulse' });
-        setScale(1.12);
-        setActiveFloats((res.floats || []).filter(f => f.lane === 1 && f.targetType === 'champ'));
-      }, t);
-      schedule(() => {
-        setPhase({ t: 'objective', anim: 'clash' });
-        fireFx('hit', undefined, 'neutral');
-      }, t + 800);
-      schedule(() => setPhase({ t: 'objective', anim: 'claim' }), t + 1400);
-      t += 2400;
-    } else {
-      t += 400;
-    }
+    const t = LANE_MS * 3;
 
-    // FX banners from resolution
     schedule(() => {
       const totalKills = (res.blueKillsDelta ?? 0) + (res.redKillsDelta ?? 0);
       if (totalKills > 0) {
@@ -153,24 +226,46 @@ export default function LiveMatch() {
       }
       const towers = (res.towersTakenBlue ?? 0) + (res.towersTakenRed ?? 0);
       if (towers > 0) {
-        fireFx(
-          'tower',
-          (res.towersTakenBlue ?? 0) > 0 ? '¡Torre caída!' : '¡Torre caída!',
-          (res.towersTakenBlue ?? 0) > 0 ? 'blue' : 'red',
-        );
+        fireFx('tower', '¡Torre caída!', (res.towersTakenBlue ?? 0) > 0 ? 'blue' : 'red');
       }
-      if (res.objectiveWinner) {
-        const name = res.objective ? objectiveName(res.objective) : 'Objetivo';
-        fireFx(
-          'objective',
-          `${res.objectiveWinner === 'blue' ? 'Azul' : 'Rojo'} · ${name}`,
-          res.objectiveWinner === 'blue' ? 'blue' : 'red',
-        );
-      }
-    }, Math.max(900, t - 1200));
+    }, Math.max(900, t - 800));
 
-    schedule(() => endCinemaAndContinue(res), t + 400);
+    schedule(() => {
+      if (res.pendingObjectiveQte && tm.pendingObjective) {
+        awaitingQte.current = true;
+        setPhase({ t: 'qte' });
+        setActiveFloats([]);
+        return;
+      }
+      if (res.objective && res.objectiveWinner) {
+        playObjectiveClaim(res);
+      } else if (res.objective) {
+        // Objetivo en mapa pero nadie lo tomó / ya resuelto sin winner
+        playObjectiveClaim(res);
+      } else {
+        endCinemaAndContinue(res);
+      }
+    }, t + 400);
   };
+
+  const onQteComplete = (qte: ObjectiveQtePayload) => {
+    awaitingQte.current = false;
+    setPhase({ t: 'idle' });
+    dispatch({ type: 'RESOLVE_OBJECTIVE_QTE', qte });
+  };
+
+  // Tras QTE: resolución final sin pending → animación claim
+  useEffect(() => {
+    const res = tm?.lastResolution;
+    if (!res || !awaitingCinema.current) return;
+    if (res.pendingObjectiveQte) return;
+    if (!cinemaForKey.current?.includes('qte-pending')) return;
+    const key = `claim-${res.round}-${res.objectiveWinner}`;
+    if (cinemaForKey.current === key) return;
+    cinemaForKey.current = key;
+    playObjectiveClaim(res);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tm?.lastResolution, tm?.pendingObjective]);
 
   const resolveWithPicks = (finalPicks: DecisionPayload[]) => {
     if (!tm) return;
@@ -196,10 +291,9 @@ export default function LiveMatch() {
     else resolveWithPicks([]);
   };
 
-  // Start prompts for current round once
   useEffect(() => {
     if (!tm || tm.isComplete) return;
-    if (awaitingCinema.current) return;
+    if (awaitingCinema.current || awaitingQte.current) return;
     if (promptsForRound.current === tm.round) return;
     clearCinema();
     beginPrompts(tm.round);
@@ -207,13 +301,15 @@ export default function LiveMatch() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tm?.round, tm?.isComplete]);
 
-  // When resolve lands, play cinema from THIS resolution
   useEffect(() => {
     const res = tm?.lastResolution;
     if (!res || !awaitingCinema.current) return;
-    const key = `${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}-${res.towersTakenBlue}-${res.towersTakenRed}-${res.duels.length}`;
-    if (cinemaForKey.current === key) return;
-    cinemaForKey.current = key;
+    if (awaitingQte.current) return;
+    // No re-lanzar cine si ya estamos en claim post-QTE
+    if (cinemaForKey.current?.startsWith('claim-')) return;
+    const key = `lanes-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}-${res.pendingObjectiveQte ? 'qte' : 'ok'}`;
+    if (cinemaForKey.current === key || cinemaForKey.current === `${key}-qte-pending`) return;
+    cinemaForKey.current = res.pendingObjectiveQte ? `${key}-qte-pending` : key;
     playCinema(res);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tm?.lastResolution]);
@@ -250,8 +346,9 @@ export default function LiveMatch() {
 
   if (!tm) return null;
 
-  const res = cinemaRes || tm.lastResolution;
-  const objLabel = tm.objective ? objectiveName(tm.objective) : null;
+  const objLabel = (cinemaRes?.objective ?? tm.objective)
+    ? objectiveName(cinemaRes?.objective ?? tm.objective)
+    : null;
   const focusLane = phase?.t === 'lane' ? phase.lane : null;
   const cinemaApproach = phase?.t === 'lane';
   const attackBeams: AttackBeam[] = (() => {
@@ -265,23 +362,24 @@ export default function LiveMatch() {
     !phase || phase.t === 'idle' ? `Ronda ${tm.round}` :
     phase.t === 'prompt' ? 'Tu decisión…' :
     phase.t === 'lane' ? `Línea ${['Top', 'Mid', 'Bot'][phase.lane]}${phase.fight ? ' · Combate' : ''}` :
-    phase.t === 'objective' ? `Objetivo · ${objLabel || objectiveName(res?.objective ?? null)}` :
+    phase.t === 'qte' ? '¡Pelea el objetivo!' :
+    phase.t === 'objective' ? `Objetivo · ${objLabel || '…'}` :
     '…';
 
-  const slot = Math.round(MAP_SIZE * 1.15);
-  const displayRound = cinemaRes ? cinemaRes.round : Math.max(1, tm.round - (awaitingCinema.current ? 1 : 0));
+  const slot = Math.round(mapSize * 1.12);
+  const displayRound = cinemaRes ? cinemaRes.round : tm.round;
 
   return (
     <div className={`flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden relative ${shake ? 'animate-screen-shake' : ''}`}>
       <CombatScreenFX signal={fx} />
 
-      <div className="shrink-0 px-4 py-3 safe-top border-b border-[#1E2740] max-w-lg mx-auto w-full pr-14">
+      <div className="shrink-0 px-4 py-3 safe-top border-b border-[#1E2740] max-w-lg md:max-w-6xl mx-auto w-full pr-14">
         <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Partida en vivo</p>
         <div className="flex justify-between items-end gap-2">
-          <h1 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+          <h1 className="text-lg md:text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
             Ronda {displayRound}/{tm.maxRounds}
           </h1>
-          <p className="text-sm font-bold">
+          <p className="text-sm md:text-base font-bold">
             <span className="text-[#3498DB]">{tm.blue.score}</span>
             <span className="text-[#8B9BB4]"> – </span>
             <span className="text-[#E74C3C]">{tm.red.score}</span>
@@ -289,16 +387,16 @@ export default function LiveMatch() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 max-w-lg mx-auto w-full md:max-w-5xl md:overflow-hidden md:flex md:flex-row md:items-center md:gap-8">
-        <div className="flex flex-col items-center gap-3 w-full md:flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 max-w-lg mx-auto w-full md:max-w-6xl md:overflow-hidden md:flex md:flex-row md:items-center md:justify-center md:gap-10">
+        <div className="flex flex-col items-center gap-3 w-full md:w-auto md:shrink-0">
           <div className="rounded-full border border-[#C9A84C]/40 bg-[#141B2D] px-3 py-1">
             <p className="text-[11px] font-bold uppercase tracking-wider text-[#C9A84C]">{capsule}</p>
           </div>
 
           <div className="relative flex items-center justify-center overflow-hidden" style={{ width: slot, height: slot }}>
-            <div className="transition-transform duration-700 ease-out" style={{ transform: `scale(${scale})`, width: MAP_SIZE, height: MAP_SIZE }}>
+            <div className="transition-transform duration-700 ease-out" style={{ transform: `scale(${scale})`, width: mapSize, height: mapSize }}>
               <Minimap
-                size={MAP_SIZE}
+                size={mapSize}
                 blueChampions={tm.blue.champions}
                 redChampions={tm.red.champions}
                 structures={tm.structures}
@@ -309,7 +407,7 @@ export default function LiveMatch() {
                 showHp
                 focusLane={focusLane}
                 cinemaApproach={!!cinemaApproach}
-                highlightObjective={phase?.t === 'objective'}
+                highlightObjective={phase?.t === 'objective' || phase?.t === 'qte'}
                 objectiveAnim={phase?.t === 'objective' ? phase.anim : 'none'}
                 objectiveWinner={cinemaRes?.objectiveWinner ?? null}
                 attackBeams={attackBeams}
@@ -317,18 +415,26 @@ export default function LiveMatch() {
               />
             </div>
           </div>
+
+          <div className="w-full space-y-2 rounded-xl border border-[#1E2740] bg-[#0D1220] p-2.5" style={{ maxWidth: mapSize }}>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4] text-center">
+              Estructuras
+            </p>
+            <StructureHpRow structures={tm.structures} team="blue" />
+            <StructureHpRow structures={tm.structures} team="red" />
+          </div>
         </div>
 
-        <div className="w-full grid grid-cols-2 gap-2 text-[11px] md:w-56 md:grid-cols-1 shrink-0">
-          <div className="rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1.5 md:py-3">
+        <div className="w-full grid grid-cols-2 gap-2 text-[11px] md:w-64 md:grid-cols-1 shrink-0 md:gap-3">
+          <div className="rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1.5 md:py-4 md:px-3">
             <p className="text-[#8B9BB4]">Azul</p>
-            <p className="font-bold text-[#F0E6D2] truncate">{tm.blue.name}</p>
-            <p className="text-lg font-bold text-[#3498DB] mt-1">{tm.blue.score}</p>
+            <p className="font-bold text-[#F0E6D2] truncate md:text-sm">{tm.blue.name}</p>
+            <p className="text-lg md:text-2xl font-bold text-[#3498DB] mt-1">{tm.blue.score}</p>
           </div>
-          <div className="rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1.5 text-right md:text-left md:py-3">
+          <div className="rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1.5 text-right md:text-left md:py-4 md:px-3">
             <p className="text-[#8B9BB4]">Rojo</p>
-            <p className="font-bold text-[#F0E6D2] truncate">{tm.red.name}</p>
-            <p className="text-lg font-bold text-[#E74C3C] mt-1">{tm.red.score}</p>
+            <p className="font-bold text-[#F0E6D2] truncate md:text-sm">{tm.red.name}</p>
+            <p className="text-lg md:text-2xl font-bold text-[#E74C3C] mt-1">{tm.red.score}</p>
           </div>
         </div>
       </div>
@@ -341,6 +447,10 @@ export default function LiveMatch() {
           secondsLeft={promptLeft}
           onPick={acceptPick}
         />
+      )}
+
+      {phase?.t === 'qte' && tm.pendingObjective && (
+        <ObjectiveMinigame pending={tm.pendingObjective} onComplete={onQteComplete} />
       )}
     </div>
   );

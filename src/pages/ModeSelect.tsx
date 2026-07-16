@@ -60,7 +60,7 @@ export default function ModeSelect() {
       </div>
 
       <p className="shrink-0 text-[11px] text-center text-[#4A5570] pb-4 px-4">
-        16 equipos · combate 100% simulado · HOMEBOYS PROD.
+        Todos los derechos reservados · HOMEBOYS PROD. · 2026
       </p>
     </div>
   );

@@ -10,10 +10,6 @@ const REGIONS = ['LEC', 'LCK', 'LPL', 'LCS', 'PCS/LJL'] as const;
 
 export default function RosterSelect() {
   const { state, dispatch } = useGame();
-  const bannerOrg =
-    FAN_ORGS.find(o => o.id === state.selectedFanOrgId) ||
-    FAN_ORGS.find(o => fanOrgDisplayName(o) === state.playerTeamName);
-
   const allMembers = useMemo(() => buildAllRosters(FAN_ORGS), []);
   const [roleFilter, setRoleFilter] = useState<Role | 'all'>('all');
   const [regionFilter, setRegionFilter] = useState<(typeof REGIONS)[number] | 'all'>('all');
@@ -44,10 +40,10 @@ export default function RosterSelect() {
 
   const canConfirm = state.selectedRoster.length === 5 && ROLES.every(r => selectedByRole[r]);
 
-  if (!bannerOrg && !state.playerTeamName) {
+  if (!state.playerTeamName) {
     return (
       <div className="screen-center p-6 text-center">
-        <p className="text-[#8B9BB4]">Elige primero una org.</p>
+        <p className="text-[#8B9BB4]">Escribe primero el nombre de tu equipo.</p>
         <button
           type="button"
           className="mt-4 text-[#C9A84C] font-bold"
@@ -64,10 +60,10 @@ export default function RosterSelect() {
       <div className="shrink-0 border-b border-[#1E2740] px-4 py-2.5 safe-top max-w-6xl mx-auto w-full">
         <p className="text-[#C9A84C] text-xs uppercase tracking-wider">Integrantes</p>
         <h1 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-          Dream team · {state.playerTeamName || fanOrgDisplayName(bannerOrg!)}
+          Dream team · {state.playerTeamName}
         </h1>
         <p className="text-xs text-[#8B9BB4]">
-          Elige 1 por rol de cualquier org ({state.selectedRoster.length}/5)
+          Elige 1 por rol de cualquier equipo ({state.selectedRoster.length}/5)
         </p>
 
         <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 scrollbar-hide">
@@ -96,16 +92,16 @@ export default function RosterSelect() {
             onClick={() => setOrgFilter('all')}
             className={`px-2 py-1 rounded-lg text-[10px] font-bold shrink-0 ${orgFilter === 'all' ? 'bg-[#2A3550] text-[#F0E6D2]' : 'bg-[#0D1220] text-[#8B9BB4]'}`}
           >
-            Cualquier org
+            Cualquier equipo
           </button>
-          {orgsInRegion.slice(0, 16).map(o => (
+          {orgsInRegion.map(o => (
             <button
               key={o.id}
               type="button"
               onClick={() => setOrgFilter(o.id)}
-              className={`px-2 py-1 rounded-lg text-[10px] font-bold shrink-0 max-w-[120px] truncate ${orgFilter === o.id ? 'bg-[#2A3550] text-[#F0E6D2]' : 'bg-[#0D1220] text-[#8B9BB4]'}`}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold shrink-0 max-w-[140px] truncate ${orgFilter === o.id ? 'bg-[#2A3550] text-[#F0E6D2]' : 'bg-[#0D1220] text-[#8B9BB4]'}`}
             >
-              {o.name}
+              {fanOrgDisplayName(o)}
             </button>
           ))}
         </div>

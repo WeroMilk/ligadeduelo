@@ -81,7 +81,7 @@ export default function ChampionSelect() {
               Campeón por integrante
             </h2>
             <p className="text-xs text-[#C9A84C] truncate">
-              {memberName || state.playerTeamName || 'Tu org'} · {state.selectedChampions.length}/5
+              {memberName || state.playerTeamName || 'Tu equipo'} · {state.selectedChampions.length}/5
             </p>
           </div>
           <span className={`text-sm font-bold shrink-0 ${canConfirm ? 'text-[#2ECC71]' : 'text-[#8B9BB4]'}`}>
@@ -119,9 +119,9 @@ export default function ChampionSelect() {
         </div>
       )}
 
-      {/* Mobile: grid 2 cols con scroll; Desktop: fila horizontal sin scroll */}
-      <div className="flex-1 min-h-0 max-w-6xl mx-auto w-full px-4 py-3 overflow-y-auto md:overflow-hidden md:flex md:flex-col">
-        <div className="grid grid-cols-2 gap-2.5 pb-2 md:pb-0 md:grid-cols-3 lg:grid-cols-6 md:gap-3 md:h-full md:min-h-0 md:content-stretch">
+      {/* Mobile: grid 2 cols con scroll; Desktop: fila compacta sin scroll */}
+      <div className="flex-1 min-h-0 max-w-6xl mx-auto w-full px-4 py-2 overflow-y-auto md:overflow-hidden md:flex md:items-center md:justify-center">
+        <div className="grid grid-cols-2 gap-2.5 pb-2 md:pb-0 md:grid-cols-3 lg:grid-cols-6 md:gap-2.5 md:w-full md:content-start md:auto-rows-min">
           {roleChampions.map(champ => {
             const isSelected = selectedIds.includes(champ.id);
             const ult = getUltimate(champ.id);
@@ -130,13 +130,13 @@ export default function ChampionSelect() {
                 key={champ.id}
                 type="button"
                 onClick={() => handleSelect(champ.id)}
-                className={`relative rounded-xl p-2.5 border-2 transition-all text-left active:scale-[0.98] md:h-full md:min-h-0 md:flex md:flex-col ${
+                className={`relative rounded-xl p-2.5 md:p-2 border-2 transition-all text-left active:scale-[0.98] ${
                   isSelected
                     ? 'border-[#C9A84C] bg-[#C9A84C]/10 shadow-[0_0_20px_rgba(201,168,76,0.15)]'
                     : 'border-[#1E2740] bg-[#141B2D] hover:border-[#2A3550] hover:bg-[#1A2035]'
                 }`}
               >
-                <div className="flex flex-col items-center gap-1.5 md:flex-1 md:min-h-0">
+                <div className="flex flex-col items-center gap-1 md:gap-1">
                   {champ.image ? (
                     <img
                       src={champ.image}
@@ -145,7 +145,7 @@ export default function ChampionSelect() {
                       height={56}
                       loading={champ.role === activeRole ? 'eager' : 'lazy'}
                       decoding="async"
-                      className={`w-14 h-14 md:w-16 md:h-16 rounded-full object-cover border-2 shrink-0 ${
+                      className={`w-14 h-14 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-full object-cover border-2 shrink-0 ${
                         isSelected ? 'border-[#C9A84C]' : 'border-[#2A3550]'
                       }`}
                       onError={e => {
@@ -156,7 +156,7 @@ export default function ChampionSelect() {
                     />
                   ) : null}
                   <div
-                    className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-lg font-bold text-white border-2 shrink-0 ${champ.image ? 'hidden' : ''}`}
+                    className={`w-14 h-14 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-full flex items-center justify-center text-lg font-bold text-white border-2 shrink-0 ${champ.image ? 'hidden' : ''}`}
                     style={{
                       backgroundColor: champ.color,
                       borderColor: isSelected ? '#C9A84C' : '#2A3550',
@@ -165,10 +165,10 @@ export default function ChampionSelect() {
                     {champ.initials}
                   </div>
 
-                  <div className="text-center w-full md:flex-1 md:min-h-0 md:flex md:flex-col">
-                    <p className="text-[#F0E6D2] font-bold text-sm truncate">{champ.name}</p>
-                    <p className="text-[#8B9BB4] text-[11px] mb-1">{ROLE_NAMES[champ.role]}</p>
-                    <div className="grid grid-cols-2 gap-x-1 gap-y-0.5 text-[10px] text-left px-0.5 md:text-[11px]">
+                  <div className="text-center w-full">
+                    <p className="text-[#F0E6D2] font-bold text-sm truncate leading-tight">{champ.name}</p>
+                    <p className="text-[#8B9BB4] text-[10px] mb-1">{ROLE_NAMES[champ.role]}</p>
+                    <div className="grid grid-cols-2 gap-x-1 gap-y-0 text-[10px] text-left px-0.5 leading-tight">
                       <span className="text-[#E74C3C]">HP {champ.baseStats.maxHp}</span>
                       <span className="text-[#3498DB]">MN {champ.baseStats.maxMana}</span>
                       <span className="text-[#E67E22]">AD {champ.baseStats.ad}</span>
@@ -176,12 +176,12 @@ export default function ChampionSelect() {
                       <span className="text-[#95A5A6]">ARM {champ.baseStats.armor}</span>
                       <span className="text-[#5DADE2]">MR {champ.baseStats.mr}</span>
                     </div>
-                    <p className="text-[#C9A84C] text-[10px] mt-1.5 leading-snug px-0.5 line-clamp-2 md:line-clamp-3 lg:line-clamp-4">
+                    <p className="text-[#C9A84C] text-[9px] md:text-[10px] mt-1 leading-snug px-0.5 line-clamp-2">
                       <span className="font-bold">{champ.passive.name}</span>
                       {' · '}
                       {champ.passive.description}
                     </p>
-                    <p className="text-[#9B59B6] text-[10px] mt-1 leading-snug px-0.5 line-clamp-2 md:line-clamp-3 hidden sm:block">
+                    <p className="text-[#9B59B6] text-[9px] md:text-[10px] mt-0.5 leading-snug px-0.5 line-clamp-2 hidden sm:block">
                       <span className="font-bold">ULT {ult.name}</span>
                       {' · '}
                       {ult.description}
@@ -190,8 +190,8 @@ export default function ChampionSelect() {
                 </div>
 
                 {isSelected && (
-                  <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#C9A84C] flex items-center justify-center">
-                    <Check className="w-4 h-4 text-[#0A0E1A]" />
+                  <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#C9A84C] flex items-center justify-center">
+                    <Check className="w-3 h-3 text-[#0A0E1A]" />
                   </div>
                 )}
               </button>

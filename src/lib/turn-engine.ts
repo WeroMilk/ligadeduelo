@@ -1,9 +1,9 @@
 import type {
   Champion, TeamData, TeamPlan, CombatAction, LaneId, TeamColor,
   TurnMatchState, RoundResolution, CombatLogLine, Structure,
-  DuelSummary, DuelFighterSummary, CombatFloat,
+  DuelSummary, DuelFighterSummary, CombatFloat, ObjectiveType,
 } from '@/types/game';
-import { CHAMPIONS, getChampionBaseStats, ITEMS, ITEM_PRIORITY_BY_ROLE, MAX_MATCH_ROUNDS, GOLD_PER_ROUND, GOLD_PER_KILL, POINTS_KILL, POINTS_TOWER, POINTS_OBJECTIVE, POINTS_NEXUS, FREE_LANE_SIEGE_BONUS, AI_BASE_DAMAGE_BUFF, objectiveForRound, objectiveName } from './game-data';
+import { CHAMPIONS, getChampionBaseStats, ITEMS, ITEM_PRIORITY_BY_ROLE, MAX_MATCH_ROUNDS, GOLD_PER_ROUND, GOLD_PER_KILL, POINTS_KILL, POINTS_TOWER, POINTS_OBJECTIVE, POINTS_NEXUS, FREE_LANE_SIEGE_BONUS, objectiveForRound, objectiveName } from './game-data';
 import { applyBuffToStats, type BuffId } from './buffs';
 import type { Role } from '@/types/game';
 
@@ -112,14 +112,7 @@ export function createTurnMatch(blue: TeamData, red: TeamData, buffId?: BuffId |
   if (buffId) {
     for (const c of b.champions) c.stats = applyBuffToStats(c.stats, buffId);
   }
-  // Difficulty: red starts slightly stronger
-  r.damageBuff = AI_BASE_DAMAGE_BUFF;
-  for (const c of r.champions) {
-    c.stats.ad = Math.floor(c.stats.ad * 1.06);
-    c.stats.ap = Math.floor(c.stats.ap * 1.06);
-    c.stats.maxHp = Math.floor(c.stats.maxHp * 1.05);
-    c.stats.hp = c.stats.maxHp;
-  }
+  // Fair fight: winner from champs + decisions (no side buff).
   return {
     blue: b,
     red: r,
@@ -131,6 +124,9 @@ export function createTurnMatch(blue: TeamData, red: TeamData, buffId?: BuffId |
     isComplete: false,
     winner: null,
     pendingReward: false,
+    pendingObjective: null,
+    deferredBluePlan: null,
+    deferredRedPlan: null,
   };
 }
 
@@ -189,12 +185,12 @@ function dealDamage(_attacker: Champion, defender: Champion, raw: number, magic:
 function actionDamage(c: Champion, action: CombatAction, teamBuff: number, tearDouble: boolean): { dmg: number; magic: boolean } {
   if (action === 'defend') return { dmg: 0, magic: false };
   if (action === 'attack') {
-    let dmg = Math.floor(c.stats.ad * 0.85) + 20 + teamBuff;
+    let dmg = Math.floor(c.stats.ad * 1.05) + 35 + teamBuff;
     if (hasItem(c, 'long_sword')) dmg += 35;
     return { dmg, magic: false };
   }
   // ability
-  let dmg = Math.floor(c.stats.ap * 1.1) + 30 + teamBuff;
+  let dmg = Math.floor(c.stats.ap * 1.3) + 45 + teamBuff;
   if (hasItem(c, 'blasting_wand')) dmg += 45;
   if (tearDouble) dmg *= 2;
   return { dmg, magic: true };
@@ -245,13 +241,18 @@ function resolveDuel(
 
   const order = [a, b].sort((x, y) => priority(y.champ, y.action, y.ult) - priority(x.champ, x.action, x.ult));
 
+  for (let exchange = 0; exchange < 3; exchange++) {
+    if (!a.champ.isAlive || a.champ.stats.hp <= 0 || !b.champ.isAlive || b.champ.stats.hp <= 0) break;
+
   for (const atk of order) {
     if (!atk.champ.isAlive || atk.champ.stats.hp <= 0) continue;
     const def = atk === a ? b : a;
     if (!def.champ.isAlive) continue;
 
+    const effectiveAction: CombatAction = exchange > 0 && atk.action === 'defend' ? 'attack' : atk.action;
+
     let tearDouble = false;
-    if (atk.action === 'ability' && hasItem(atk.champ, 'tear')) {
+    if (effectiveAction === 'ability' && hasItem(atk.champ, 'tear')) {
       atk.champ.tearStacks += 1;
       if (atk.champ.tearStacks >= 5) {
         tearDouble = true;
@@ -261,17 +262,17 @@ function resolveDuel(
     }
 
     const team = atk.champ.team === 'blue' ? state.blue : state.red;
-    let { dmg, magic } = actionDamage(atk.champ, atk.action, team.damageBuff, tearDouble);
+    let { dmg, magic } = actionDamage(atk.champ, effectiveAction, team.damageBuff, tearDouble);
 
-    if (atk.ult && (atk.champ.defId === 'lux' || atk.champ.defId === 'syndra') && atk.action === 'ability') dmg = Math.floor(dmg * 1.5);
-    if (atk.ult && (atk.champ.defId === 'vi' || atk.champ.defId === 'sett') && atk.action === 'attack') dmg += 50;
-    if (atk.ult && atk.champ.defId === 'aatrox' && atk.action === 'attack') dmg += 55;
-    if (atk.ult && atk.champ.defId === 'graves' && atk.action === 'attack') dmg += 45;
-    if (atk.ult && atk.champ.defId === 'ezreal' && atk.action === 'ability') dmg += 35;
-    if (atk.ult && atk.champ.defId === 'orianna' && atk.action === 'ability') dmg += 40;
-    if (atk.ult && atk.champ.defId === 'jinx' && atk.action === 'ability') dmg += atk.champ.kills * 15;
+    if (atk.ult && (atk.champ.defId === 'lux' || atk.champ.defId === 'syndra') && effectiveAction === 'ability') dmg = Math.floor(dmg * 1.5);
+    if (atk.ult && (atk.champ.defId === 'vi' || atk.champ.defId === 'sett') && effectiveAction === 'attack') dmg += 50;
+    if (atk.ult && atk.champ.defId === 'aatrox' && effectiveAction === 'attack') dmg += 55;
+    if (atk.ult && atk.champ.defId === 'graves' && effectiveAction === 'attack') dmg += 45;
+    if (atk.ult && atk.champ.defId === 'ezreal' && effectiveAction === 'ability') dmg += 35;
+    if (atk.ult && atk.champ.defId === 'orianna' && effectiveAction === 'ability') dmg += 40;
+    if (atk.ult && atk.champ.defId === 'jinx' && effectiveAction === 'ability') dmg += atk.champ.kills * 15;
     if (atk.ult && atk.champ.defId === 'lee_sin') dmg += 40;
-    if (atk.ult && atk.champ.defId === 'garen' && atk.action === 'attack') {
+    if (atk.ult && atk.champ.defId === 'garen' && effectiveAction === 'attack') {
       dmg = Math.floor(dmg * 1.25);
     }
     if (atk.ult && atk.champ.defId === 'generic') dmg += 25;
@@ -280,21 +281,21 @@ function resolveDuel(
       dmg = def.champ.stats.hp;
       pushLog(log, `${champDef(atk.champ).name} ejecuta`, 'kill');
     }
-    if (atk.ult && (atk.champ.defId === 'kaisa' || atk.champ.defId === 'jhin') && atk.action === 'attack' && def.champ.stats.hp / def.champ.stats.maxHp < 0.35) {
+    if (atk.ult && (atk.champ.defId === 'kaisa' || atk.champ.defId === 'jhin') && effectiveAction === 'attack' && def.champ.stats.hp / def.champ.stats.maxHp < 0.35) {
       dmg = def.champ.stats.hp;
       pushLog(log, `${champDef(atk.champ).name} ejecuta por instinto`, 'ulti');
     }
 
-    if (atk.action === 'defend') {
+    if (effectiveAction === 'defend') {
       pushLog(log, `${champDef(atk.champ).name} elige Defender y no ataca`);
       notes.push(`${champDef(atk.champ).name} defiende`);
       continue;
     }
 
     let mitigated = dmg;
-    const ignoreDefend = (atk.ult && (atk.champ.defId === 'caitlyn' || atk.champ.defId === 'ashe') && atk.action === 'attack')
+    const ignoreDefend = (atk.ult && (atk.champ.defId === 'caitlyn' || atk.champ.defId === 'ashe') && effectiveAction === 'attack')
       || (champDef(atk.champ).passive.id === 'headshot' && Math.random() < 0.15);
-    if (def.action === 'defend' && !ignoreDefend) {
+    if (def.action === 'defend' && exchange === 0 && !ignoreDefend) {
       if (def.ult && def.champ.defId === 'malphite') {
         mitigated = 0;
         pushLog(log, `${champDef(def.champ).name} anula el golpe (Inquebrantable)`, 'ulti');
@@ -325,19 +326,19 @@ function resolveDuel(
     const dmgType = magic ? 'daño mágico' : 'daño físico';
     pushLog(
       log,
-      `${champDef(atk.champ).name} ${actionLabelEs(atk.action)} a ${champDef(def.champ).name} · ${dealt} de ${dmgType}`,
+      `${champDef(atk.champ).name} ${actionLabelEs(effectiveAction)} a ${champDef(def.champ).name} · ${dealt} de ${dmgType}`,
     );
     notes.push(
-      `${champDef(atk.champ).name} ${actionLabelEs(atk.action).toLowerCase()}, ${champDef(def.champ).name}${
-        def.action === 'defend' ? ' defiende' : ''
+      `${champDef(atk.champ).name} ${actionLabelEs(effectiveAction).toLowerCase()}, ${champDef(def.champ).name}${
+        def.action === 'defend' && exchange === 0 ? ' defiende' : ''
       } → ${dealt} dmg`,
     );
 
-    if (atk.action === 'attack' && hasItem(atk.champ, 'cloth_armor')) {
+    if (effectiveAction === 'attack' && hasItem(atk.champ, 'cloth_armor')) {
       def.champ.burnPending += 25;
     }
 
-    if (atk.ult && atk.champ.defId === 'yasuo' && atk.action === 'attack' && def.champ.isAlive && def.champ.stats.hp > 0) {
+    if (atk.ult && atk.champ.defId === 'yasuo' && effectiveAction === 'attack' && def.champ.isAlive && def.champ.stats.hp > 0) {
       const second = dealDamage(atk.champ, def.champ, Math.floor(mitigated * 0.6), false);
       if (atk === a) dmgByA += second;
       else dmgByB += second;
@@ -406,6 +407,7 @@ function resolveDuel(
       }
     }
   }
+  } // end exchanges
 
   const blueF = a.champ.team === 'blue' ? a : b;
   const redF = a.champ.team === 'red' ? a : b;
@@ -631,36 +633,69 @@ function siegeTower(
   });
 }
 
-function resolveObjective(
+function objectiveParticipants(team: TeamData, plan: TeamPlan): Champion[] {
+  const list: Champion[] = [];
+  for (const c of living(team)) {
+    const def = champDef(c);
+    if (def.role === 'jungle' && plan.jungleTarget === 'objective') list.push(c);
+    else if (plan.jungleTarget === 'objective' && plan.objectiveAssistId === c.instanceId) list.push(c);
+  }
+  return list;
+}
+
+function grantObjectiveRewards(
+  state: TurnMatchState,
+  winner: TeamColor,
+  obj: NonNullable<ObjectiveType>,
+  log: CombatLogLine[],
+): { freeItem: boolean; ancestral: boolean } {
+  const name = objectiveName(obj);
+  const wTeam = winner === 'blue' ? state.blue : state.red;
+  wTeam.score += POINTS_OBJECTIVE;
+  wTeam.damageBuff += obj === 'dragon_fire' ? 8 : obj === 'dragon_water' ? 6 : obj === 'baron' ? 10 : 12;
+  pushLog(log, `${wTeam.name} conquista el ${name}! +${POINTS_OBJECTIVE} pts`, 'objective');
+  grantFreeItemToTeam(wTeam, log);
+  let ancestral = false;
+  if (obj === 'dragon_ancestral') {
+    applyAncestralBonus(wTeam, log);
+    ancestral = true;
+  }
+  if (winner === 'red') {
+    applyRandomTeamBuff(wTeam, log);
+  }
+  return { freeItem: true, ancestral };
+}
+
+/** Aplica objetivo con resultado del QTE (o auto). */
+export function applyObjectiveWithQte(
   state: TurnMatchState,
   bluePlan: TeamPlan,
   redPlan: TeamPlan,
-  log: CombatLogLine[],
-  duels: DuelSummary[],
-  floats: CombatFloat[],
-): { winner: TeamColor | null; contested: boolean; freeItem: boolean; ancestral: boolean } {
-  if (!state.objective) return { winner: null, contested: false, freeItem: false, ancestral: false };
+  qte: { skirmishWinner: TeamColor | null; attackingTeam: TeamColor; monsterTaken: boolean } | null,
+): {
+  winner: TeamColor | null;
+  contested: boolean;
+  freeItem: boolean;
+  ancestral: boolean;
+  log: CombatLogLine[];
+  duels: DuelSummary[];
+  floats: CombatFloat[];
+} {
+  const log: CombatLogLine[] = [];
+  const duels: DuelSummary[] = [];
+  const floats: CombatFloat[] = [];
+  if (!state.objective) {
+    return { winner: null, contested: false, freeItem: false, ancestral: false, log, duels, floats };
+  }
   const obj = state.objective;
   const name = objectiveName(obj);
-
-  const participants = (team: TeamData, plan: TeamPlan) => {
-    const list: Champion[] = [];
-    for (const c of living(team)) {
-      const def = champDef(c);
-      if (def.role === 'jungle' && plan.jungleTarget === 'objective') list.push(c);
-      else if (plan.jungleTarget === 'objective' && plan.objectiveAssistId === c.instanceId) list.push(c);
-    }
-    return list;
-  };
-
-  const blueP = participants(state.blue, bluePlan);
-  const redP = participants(state.red, redPlan);
-
+  const blueP = objectiveParticipants(state.blue, bluePlan);
+  const redP = objectiveParticipants(state.red, redPlan);
   pushLog(log, `— Objetivo: ${name} —`, 'section');
 
   if (blueP.length === 0 && redP.length === 0) {
     pushLog(log, `${name}: nadie lo contestó esta ronda`);
-    return { winner: null, contested: false, freeItem: false, ancestral: false };
+    return { winner: null, contested: false, freeItem: false, ancestral: false, log, duels, floats };
   }
 
   const contested = blueP.length > 0 && redP.length > 0;
@@ -670,77 +705,283 @@ function resolveObjective(
     pushLog(log, `¡Asalto al ${name}!`, 'objective');
   }
 
-  const power = (arr: Champion[]) => arr.reduce((s, c) => s + c.stats.ad + c.stats.ap + c.stats.hp * 0.08, 0);
-  let bp = power(blueP);
-  let rp = power(redP);
+  let winner: TeamColor | null = null;
 
-  // Fight the objective itself (HP check based on team power)
-  const objHp = contested ? 420 : 280;
-  if (blueP.length > 0 && redP.length === 0) {
-    if (bp < objHp * 0.35) {
-      pushLog(log, `El equipo azul falla el ${name} (poco daño)`);
-      return { winner: null, contested: false, freeItem: false, ancestral: false };
+  if (qte) {
+    if (contested && qte.skirmishWinner) {
+      pushLog(log, `Escaramuza: gana el equipo ${qte.skirmishWinner === 'blue' ? 'azul' : 'rojo'}`, 'objective');
+    }
+    if (qte.monsterTaken) {
+      winner = qte.attackingTeam;
+    } else {
+      pushLog(log, `El ${name} resiste el asalto`);
+      if (contested) {
+        winner = qte.attackingTeam === 'blue' ? 'red' : 'blue';
+        pushLog(log, `El otro equipo aprovecha y se lleva el ${name}`, 'objective');
+      } else {
+        winner = null;
+      }
+    }
+  } else {
+    // Auto (IA sola o fallback)
+    const power = (arr: Champion[]) => arr.reduce((s, c) => s + c.stats.ad + c.stats.ap + c.stats.hp * 0.08, 0);
+    let bp = power(blueP);
+    let rp = power(redP);
+    const objHp = contested ? 420 : 280;
+    if (blueP.length > 0 && redP.length === 0) {
+      if (bp < objHp * 0.35) {
+        pushLog(log, `El equipo azul falla el ${name} (poco daño)`);
+        return { winner: null, contested: false, freeItem: false, ancestral: false, log, duels, floats };
+      }
+      winner = 'blue';
+    } else if (redP.length > 0 && blueP.length === 0) {
+      if (rp < objHp * 0.35) {
+        pushLog(log, `El equipo rojo falla el ${name} (poco daño)`);
+        return { winner: null, contested: false, freeItem: false, ancestral: false, log, duels, floats };
+      }
+      winner = 'red';
+    } else {
+      if (blueP[0] && redP[0]) {
+        resolveDuel(
+          { champ: blueP[0], action: bluePlan.actions[blueP[0].instanceId] || 'attack', ult: bluePlan.ultimates.includes(blueP[0].instanceId), lane: 1 },
+          { champ: redP[0], action: redPlan.actions[redP[0].instanceId] || 'attack', ult: redPlan.ultimates.includes(redP[0].instanceId), lane: 1 },
+          state, log, duels, floats, 1,
+        );
+      }
+      if (blueP[1] && redP[1] && blueP[1].isAlive && redP[1].isAlive) {
+        resolveDuel(
+          { champ: blueP[1], action: bluePlan.actions[blueP[1].instanceId] || 'attack', ult: bluePlan.ultimates.includes(blueP[1].instanceId), lane: 1 },
+          { champ: redP[1], action: redPlan.actions[redP[1].instanceId] || 'attack', ult: redPlan.ultimates.includes(redP[1].instanceId), lane: 1 },
+          state, log, duels, floats, 1,
+        );
+      }
+      bp = power(blueP.filter(c => c.isAlive));
+      rp = power(redP.filter(c => c.isAlive));
+      winner =
+        blueP.filter(c => c.isAlive).length === 0 && redP.filter(c => c.isAlive).length > 0 ? 'red' :
+        redP.filter(c => c.isAlive).length === 0 && blueP.filter(c => c.isAlive).length > 0 ? 'blue' :
+        bp === rp ? (Math.random() < 0.45 ? 'blue' : 'red') :
+        bp > rp ? 'blue' : 'red';
     }
   }
-  if (redP.length > 0 && blueP.length === 0) {
-    if (rp < objHp * 0.35) {
-      pushLog(log, `El equipo rojo falla el ${name} (poco daño)`);
-      return { winner: null, contested: false, freeItem: false, ancestral: false };
+
+  if (!winner) {
+    return { winner: null, contested, freeItem: false, ancestral: false, log, duels, floats };
+  }
+  const rewards = grantObjectiveRewards(state, winner, obj, log);
+  return { winner, contested, freeItem: rewards.freeItem, ancestral: rewards.ancestral, log, duels, floats };
+}
+
+function resolveObjective(
+  state: TurnMatchState,
+  bluePlan: TeamPlan,
+  redPlan: TeamPlan,
+  log: CombatLogLine[],
+  duels: DuelSummary[],
+  floats: CombatFloat[],
+): { winner: TeamColor | null; contested: boolean; freeItem: boolean; ancestral: boolean } {
+  const r = applyObjectiveWithQte(state, bluePlan, redPlan, null);
+  log.push(...r.log);
+  duels.push(...r.duels);
+  floats.push(...r.floats);
+  return {
+    winner: r.winner,
+    contested: r.contested,
+    freeItem: r.freeItem,
+    ancestral: r.ancestral,
+  };
+}
+
+function finalizeRoundBookkeeping(
+  next: TurnMatchState,
+  log: CombatLogLine[],
+  scoreBeforeB: number,
+  scoreBeforeR: number,
+  killsBeforeB: number,
+  killsBeforeR: number,
+  towerStats: { blue: number; red: number },
+  duels: DuelSummary[],
+  floats: CombatFloat[],
+  objResult: { winner: TeamColor | null; contested: boolean; freeItem: boolean; ancestral: boolean },
+  pendingQte: boolean,
+): TurnMatchState {
+  if (!pendingQte) {
+    onDeathSetRespawn(next);
+    income(next);
+    reviveDead(next, log);
+  }
+
+  let matchOver = false;
+  let winner: TeamColor | null = null;
+  let autoNexus = false;
+
+  const nexusBlue = next.structures.find(s => s.id === 'nexus_blue');
+  const nexusRed = next.structures.find(s => s.id === 'nexus_red');
+  if (!pendingQte) {
+    if (nexusRed?.isDestroyed) { matchOver = true; winner = 'blue'; autoNexus = true; next.blue.score += POINTS_NEXUS; }
+    if (nexusBlue?.isDestroyed) { matchOver = true; winner = 'red'; autoNexus = true; next.red.score += POINTS_NEXUS; }
+
+    if (!matchOver && next.round >= next.maxRounds) {
+      matchOver = true;
+      winner = next.blue.score >= next.red.score ? 'blue' : 'red';
+      if (next.blue.score === next.red.score) {
+        winner = next.blue.kills >= next.red.kills ? 'blue' : 'red';
+      }
+      pushLog(log, `Fin de las ${next.maxRounds} rondas. Marcador ${next.blue.score}–${next.red.score}`);
     }
   }
 
-  // Pair skirmish when contested
-  if (blueP[0] && redP[0]) {
-    resolveDuel(
-      { champ: blueP[0], action: bluePlan.actions[blueP[0].instanceId] || 'attack', ult: bluePlan.ultimates.includes(blueP[0].instanceId), lane: 1 },
-      { champ: redP[0], action: redPlan.actions[redP[0].instanceId] || 'attack', ult: redPlan.ultimates.includes(redP[0].instanceId), lane: 1 },
-      state,
-      log,
-      duels,
-      floats,
-      1,
+  const resolution: RoundResolution = {
+    round: next.round,
+    log,
+    duels,
+    floats,
+    blueScoreDelta: next.blue.score - scoreBeforeB,
+    redScoreDelta: next.red.score - scoreBeforeR,
+    blueKillsDelta: next.blue.kills - killsBeforeB,
+    redKillsDelta: next.red.kills - killsBeforeR,
+    towersTakenBlue: towerStats.blue,
+    towersTakenRed: towerStats.red,
+    objective: next.objective,
+    objectiveWinner: objResult.winner,
+    contestedObjective: objResult.contested,
+    awardedFreeItem: objResult.freeItem,
+    ancestralGranted: objResult.ancestral,
+    pendingObjectiveQte: pendingQte,
+    matchOver,
+    winner,
+    autoNexus,
+  };
+
+  next.lastResolution = resolution;
+  next.pendingReward = objResult.winner === 'blue' && !matchOver && !pendingQte;
+  if (pendingQte) {
+    return next;
+  }
+  if (matchOver) {
+    next.isComplete = true;
+    next.winner = winner;
+    next.pendingReward = false;
+  } else {
+    next.round += 1;
+    next.objective = objectiveForRound(next.round);
+  }
+  next.pendingObjective = null;
+  next.deferredBluePlan = null;
+  next.deferredRedPlan = null;
+  return next;
+}
+
+export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan: TeamPlan): TurnMatchState {
+  const next = {
+    ...state,
+    blue: deepCloneTeam(state.blue),
+    red: deepCloneTeam(state.red),
+    structures: state.structures.map(s => ({ ...s })),
+    pendingObjective: null as TurnMatchState['pendingObjective'],
+    deferredBluePlan: null as TeamPlan | null,
+    deferredRedPlan: null as TeamPlan | null,
+  };
+  const log: CombatLogLine[] = [];
+  const duels: DuelSummary[] = [];
+  const floats: CombatFloat[] = [];
+  const towerStats = { blue: 0, red: 0 };
+  const scoreBeforeB = next.blue.score;
+  const scoreBeforeR = next.red.score;
+  const killsBeforeB = next.blue.kills;
+  const killsBeforeR = next.red.kills;
+
+  applyBurn([...next.blue.champions, ...next.red.champions], log);
+  applyBootsLanes(next, bluePlan, redPlan);
+  markUltimatesUsed(next, bluePlan, redPlan);
+
+  pushLog(log, `— Ronda ${next.round} —`, 'section');
+
+  for (const c of living(next.blue)) {
+    const a = bluePlan.actions[c.instanceId];
+    if (a) c.revealedAction = a;
+  }
+  for (const c of living(next.red)) {
+    const a = redPlan.actions[c.instanceId];
+    if (a) c.revealedAction = a;
+  }
+
+  resolveLaneGroup(next, 0, bluePlan, redPlan, log, duels, floats, towerStats);
+  resolveLaneGroup(next, 1, bluePlan, redPlan, log, duels, floats, towerStats);
+  resolveLaneGroup(next, 2, bluePlan, redPlan, log, duels, floats, towerStats);
+
+  applyFreeLaneAdvantage(next, bluePlan, redPlan, log, floats, towerStats);
+
+  const blueWants = bluePlan.jungleTarget === 'objective' && !!next.objective;
+  const redWants = redPlan.jungleTarget === 'objective' && !!next.objective;
+
+  // Si el jugador va al objetivo (solo o contested), diferir a QTE.
+  if (blueWants) {
+    const blueP = objectiveParticipants(next.blue, bluePlan);
+    const redP = objectiveParticipants(next.red, redPlan);
+    next.pendingObjective = {
+      contested: redWants && redP.length > 0,
+      blueIds: blueP.map(c => c.instanceId),
+      redIds: redP.map(c => c.instanceId),
+      objective: next.objective,
+    };
+    next.deferredBluePlan = bluePlan;
+    next.deferredRedPlan = redPlan;
+    return finalizeRoundBookkeeping(
+      next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
+      towerStats, duels, floats,
+      { winner: null, contested: !!next.pendingObjective.contested, freeItem: false, ancestral: false },
+      true,
     );
-    bp = power(blueP.filter(c => c.isAlive));
-    rp = power(redP.filter(c => c.isAlive));
-  }
-  if (blueP[1] && redP[1] && blueP[1].isAlive && redP[1].isAlive) {
-    resolveDuel(
-      { champ: blueP[1], action: bluePlan.actions[blueP[1].instanceId] || 'attack', ult: bluePlan.ultimates.includes(blueP[1].instanceId), lane: 1 },
-      { champ: redP[1], action: redPlan.actions[redP[1].instanceId] || 'attack', ult: redPlan.ultimates.includes(redP[1].instanceId), lane: 1 },
-      state,
-      log,
-      duels,
-      floats,
-      1,
-    );
-    bp = power(blueP.filter(c => c.isAlive));
-    rp = power(redP.filter(c => c.isAlive));
   }
 
-  const winner: TeamColor | null =
-    blueP.filter(c => c.isAlive).length === 0 && redP.filter(c => c.isAlive).length > 0 ? 'red' :
-    redP.filter(c => c.isAlive).length === 0 && blueP.filter(c => c.isAlive).length > 0 ? 'blue' :
-    bp === rp ? (Math.random() < 0.45 ? 'blue' : 'red') : // slight red edge
-    bp > rp ? 'blue' : 'red';
+  const objResult = resolveObjective(next, bluePlan, redPlan, log, duels, floats);
+  return finalizeRoundBookkeeping(
+    next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
+    towerStats, duels, floats, objResult, false,
+  );
+}
 
-  const wTeam = winner === 'blue' ? state.blue : state.red;
-  wTeam.score += POINTS_OBJECTIVE;
-  wTeam.damageBuff += obj === 'dragon_fire' ? 8 : obj === 'dragon_water' ? 6 : obj === 'baron' ? 10 : 12;
-  pushLog(log, `${wTeam.name} conquista el ${name}! +${POINTS_OBJECTIVE} pts`, 'objective');
+/** Completa una ronda con pendingObjective tras el QTE. */
+export function finishPendingObjective(
+  state: TurnMatchState,
+  qte: { skirmishWinner: TeamColor | null; attackingTeam: TeamColor; monsterTaken: boolean },
+): TurnMatchState {
+  if (!state.pendingObjective || !state.deferredBluePlan || !state.deferredRedPlan) return state;
+  const next = {
+    ...state,
+    blue: deepCloneTeam(state.blue),
+    red: deepCloneTeam(state.red),
+    structures: state.structures.map(s => ({ ...s })),
+  };
+  const prev = state.lastResolution;
+  const log: CombatLogLine[] = [...(prev?.log || [])];
+  const duels: DuelSummary[] = [...(prev?.duels || [])];
+  const floats: CombatFloat[] = [...(prev?.floats || [])];
+  const scoreBeforeB = next.blue.score - (prev?.blueScoreDelta || 0);
+  const scoreBeforeR = next.red.score - (prev?.redScoreDelta || 0);
+  const killsBeforeB = next.blue.kills - (prev?.blueKillsDelta || 0);
+  const killsBeforeR = next.red.kills - (prev?.redKillsDelta || 0);
+  const towerStats = {
+    blue: prev?.towersTakenBlue || 0,
+    red: prev?.towersTakenRed || 0,
+  };
 
-  // Free item for winners
-  grantFreeItemToTeam(wTeam, log);
-  let ancestral = false;
-  if (obj === 'dragon_ancestral') {
-    applyAncestralBonus(wTeam, log);
-    ancestral = true;
-  }
-  // AI auto-picks a mid-match buff when they win (player chooses in UI)
-  if (winner === 'red') {
-    applyRandomTeamBuff(wTeam, log);
-  }
+  const r = applyObjectiveWithQte(next, state.deferredBluePlan, state.deferredRedPlan, qte);
+  log.push(...r.log);
+  duels.push(...r.duels);
+  floats.push(...r.floats);
 
-  return { winner, contested, freeItem: true, ancestral };
+  next.pendingObjective = null;
+  next.deferredBluePlan = null;
+  next.deferredRedPlan = null;
+
+  return finalizeRoundBookkeeping(
+    next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
+    towerStats, duels, floats,
+    { winner: r.winner, contested: r.contested, freeItem: r.freeItem, ancestral: r.ancestral },
+    false,
+  );
 }
 
 function applyRandomTeamBuff(team: TeamData, log: CombatLogLine[]) {
@@ -885,106 +1126,9 @@ function reviveDead(state: TurnMatchState, log: CombatLogLine[]) {
 function onDeathSetRespawn(state: TurnMatchState) {
   for (const c of [...state.blue.champions, ...state.red.champions]) {
     if (!c.isAlive && c.stats.hp <= 0 && c.respawnTimer <= 0) {
-      c.respawnTimer = 2;
+      c.respawnTimer = 1;
     }
   }
-}
-
-export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan: TeamPlan): TurnMatchState {
-  const next = {
-    ...state,
-    blue: deepCloneTeam(state.blue),
-    red: deepCloneTeam(state.red),
-    structures: state.structures.map(s => ({ ...s })),
-  };
-  const log: CombatLogLine[] = [];
-  const duels: DuelSummary[] = [];
-  const floats: CombatFloat[] = [];
-  const towerStats = { blue: 0, red: 0 };
-  const scoreBeforeB = next.blue.score;
-  const scoreBeforeR = next.red.score;
-  const killsBeforeB = next.blue.kills;
-  const killsBeforeR = next.red.kills;
-
-  applyBurn([...next.blue.champions, ...next.red.champions], log);
-  applyBootsLanes(next, bluePlan, redPlan);
-  markUltimatesUsed(next, bluePlan, redPlan);
-
-  pushLog(log, `— Ronda ${next.round} —`, 'section');
-
-  // Reveal flavor
-  for (const c of living(next.blue)) {
-    const a = bluePlan.actions[c.instanceId];
-    if (a) c.revealedAction = a;
-  }
-  for (const c of living(next.red)) {
-    const a = redPlan.actions[c.instanceId];
-    if (a) c.revealedAction = a;
-  }
-
-  resolveLaneGroup(next, 0, bluePlan, redPlan, log, duels, floats, towerStats);
-  resolveLaneGroup(next, 1, bluePlan, redPlan, log, duels, floats, towerStats);
-  resolveLaneGroup(next, 2, bluePlan, redPlan, log, duels, floats, towerStats);
-
-  applyFreeLaneAdvantage(next, bluePlan, redPlan, log, floats, towerStats);
-
-  const objResult = resolveObjective(next, bluePlan, redPlan, log, duels, floats);
-
-  onDeathSetRespawn(next);
-  income(next);
-  reviveDead(next, log);
-
-  let matchOver = false;
-  let winner: TeamColor | null = null;
-  let autoNexus = false;
-
-  const nexusBlue = next.structures.find(s => s.id === 'nexus_blue');
-  const nexusRed = next.structures.find(s => s.id === 'nexus_red');
-  if (nexusRed?.isDestroyed) { matchOver = true; winner = 'blue'; autoNexus = true; next.blue.score += POINTS_NEXUS; }
-  if (nexusBlue?.isDestroyed) { matchOver = true; winner = 'red'; autoNexus = true; next.red.score += POINTS_NEXUS; }
-
-  if (!matchOver && next.round >= next.maxRounds) {
-    matchOver = true;
-    winner = next.blue.score >= next.red.score ? 'blue' : 'red';
-    if (next.blue.score === next.red.score) {
-      winner = next.blue.kills >= next.red.kills ? 'blue' : 'red';
-    }
-    pushLog(log, `Fin de las ${next.maxRounds} rondas. Marcador ${next.blue.score}–${next.red.score}`);
-  }
-
-  const resolution: RoundResolution = {
-    round: next.round,
-    log,
-    duels,
-    floats,
-    blueScoreDelta: next.blue.score - scoreBeforeB,
-    redScoreDelta: next.red.score - scoreBeforeR,
-    blueKillsDelta: next.blue.kills - killsBeforeB,
-    redKillsDelta: next.red.kills - killsBeforeR,
-    towersTakenBlue: towerStats.blue,
-    towersTakenRed: towerStats.red,
-    objective: next.objective,
-    objectiveWinner: objResult.winner,
-    contestedObjective: objResult.contested,
-    awardedFreeItem: objResult.freeItem,
-    ancestralGranted: objResult.ancestral,
-    matchOver,
-    winner,
-    autoNexus,
-  };
-
-  next.lastResolution = resolution;
-  next.pendingReward = objResult.winner === 'blue' && !matchOver;
-  if (matchOver) {
-    next.isComplete = true;
-    next.winner = winner;
-    next.pendingReward = false;
-  } else {
-    next.round += 1;
-    next.objective = objectiveForRound(next.round);
-  }
-
-  return next;
 }
 
 /** Plan IA agresivo. */
@@ -1081,6 +1225,16 @@ export function simulateAITurnMatch(teamA: TeamData, teamB: TeamData): TurnMatch
     const bluePlan = generateAIPlan(state, 'blue');
     const redPlan = generateAIPlan(state, 'red');
     state = resolveRound(state, bluePlan, redPlan);
+    if (state.pendingObjective) {
+      const attacking: 'blue' | 'red' =
+        bluePlan.jungleTarget === 'objective' ? 'blue' :
+        redPlan.jungleTarget === 'objective' ? 'red' : 'blue';
+      state = finishPendingObjective(state, {
+        skirmishWinner: state.pendingObjective.contested ? (Math.random() < 0.5 ? 'blue' : 'red') : null,
+        attackingTeam: attacking,
+        monsterTaken: Math.random() < 0.7,
+      });
+    }
     state = { ...state, pendingReward: false };
     if (!state.isComplete) {
       aiBuyItems(state.blue);

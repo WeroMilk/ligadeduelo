@@ -199,9 +199,6 @@ export const CHAMPIONS: ChampionDef[] = [
   },
 ];
 
-export const RIVAL_TEAM_ID = 'rival_shadow';
-export const RIVAL_TEAM_NAME = 'La Sombra Eterna';
-
 export function getChampionBaseStats(defId: string): Stats {
   const def = CHAMPIONS.find(c => c.id === defId);
   return def ? { ...def.baseStats } : { ...BASE_STATS };
@@ -284,8 +281,6 @@ export const POINTS_OBJECTIVE = 5;
 export const POINTS_NEXUS = 10;
 /** Extra siege stacks when a lane is left empty for objective help */
 export const FREE_LANE_SIEGE_BONUS = 1;
-/** AI team flat damage buff at match start (difficulty) */
-export const AI_BASE_DAMAGE_BUFF = 10;
 
 /** Orgs que el jugador puede apoyar como fanático (solo elige nombre de equipo). */
 export interface FanOrg {
@@ -356,6 +351,14 @@ export const AI_TEAM_NAMES = [
   'Top Esports',
   'PSG Talon',
   'DetonatioN FocusMe',
+  'MAD Lions',
+  'Evil Geniuses',
+  '100 Thieves',
+  'SK Gaming',
+  'Rogue',
+  'Anyone\'s Legend',
+  'Invictus Gaming',
+  'Rare Atom',
 ];
 
 // ========== PRIORIDAD DE ÍTEMS POR ROL (IA) ==========

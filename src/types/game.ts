@@ -187,6 +187,22 @@ export interface CombatFloat {
   lane?: LaneId;
 }
 
+export interface PendingObjective {
+  contested: boolean;
+  blueIds: string[];
+  redIds: string[];
+  objective: ObjectiveType;
+}
+
+export interface ObjectiveQteResult {
+  /** Quién gana la escaramuza 2v2; null si no hubo contested. */
+  skirmishWinner: TeamColor | null;
+  /** Equipo que pelea al monstruo. */
+  attackingTeam: TeamColor;
+  /** true si el monstruo cae. */
+  monsterTaken: boolean;
+}
+
 export interface RoundResolution {
   round: number;
   log: CombatLogLine[];
@@ -203,6 +219,8 @@ export interface RoundResolution {
   contestedObjective?: boolean;
   awardedFreeItem?: boolean;
   ancestralGranted?: boolean;
+  /** Necesita QTE del jugador antes de cerrar la ronda. */
+  pendingObjectiveQte?: boolean;
   matchOver: boolean;
   winner: TeamColor | null;
   autoNexus: boolean;
@@ -219,6 +237,10 @@ export interface TurnMatchState {
   isComplete: boolean;
   winner: TeamColor | null;
   pendingReward: boolean;
+  pendingObjective: PendingObjective | null;
+  /** Planes guardados hasta resolver el objetivo diferido. */
+  deferredBluePlan: TeamPlan | null;
+  deferredRedPlan: TeamPlan | null;
 }
 
 export interface Match {
@@ -245,6 +267,7 @@ export interface Tournament {
   isComplete: boolean;
   champion: TeamData | null;
   rivalTeamId: string;
+  rivalTeamName: string;
   titles: string[];
   championFrame: 'none' | 'gold' | 'obsidian';
 }

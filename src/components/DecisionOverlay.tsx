@@ -60,7 +60,7 @@ export default function DecisionOverlay({
                 <button
                   type="button"
                   onClick={() => onPick({ kind: 'jungle', target: 'objective' })}
-                  className="min-h-11 rounded-xl border border-[#E67E22]/50 bg-[#E67E22]/15 font-bold text-[#F5B041] flex items-center justify-center gap-2 col-span-2"
+                  className="min-h-11 rounded-xl border border-[#E67E22]/50 bg-[#E67E22]/15 font-bold text-[#F5B041] flex items-center justify-center gap-2 col-span-2 animate-obj-breathe"
                 >
                   <Ghost className="w-4 h-4" />
                   Objetivo {objectiveLabel ? `· ${objectiveLabel}` : ''}

@@ -99,7 +99,7 @@ export default function LobbyScreen() {
           style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
         >
           <Play className="w-5 h-5" />
-          CONTINUAR · ELEGIR ORG
+          CONTINUAR · NOMBRE DE EQUIPO
         </button>
         <button
           type="button"
