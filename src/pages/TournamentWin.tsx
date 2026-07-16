@@ -140,7 +140,7 @@ export default function TournamentWin() {
           <p className={`text-xs uppercase tracking-wider text-center mb-2 ${
             frame === 'obsidian' ? 'text-[#C39BD3]' : 'text-[#C9A84C]'
           }`}>
-            Marco {frame === 'obsidian' ? 'Obsidiana' : 'Dorado'} · Tu equipo
+            Marco {frame === 'obsidian' ? 'Challenger' : 'Dorado'} · Tu equipo
           </p>
           <div className="flex justify-center flex-wrap gap-2">
             {champions.map(c => {

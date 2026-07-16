@@ -28,20 +28,20 @@ type QteProfile = {
   missPenalty: number;
 };
 
-const ENEMY_ESCAPE_CHANCE = 0.38;
+const ENEMY_ESCAPE_CHANCE = 0.42;
 
 function profileFor(obj: ObjectiveType, isGank = false): QteProfile {
   // Más difícil: zonas más rápidas y fallos más castigan
   if (isGank) {
-    return { zoneMs: 640, zoneSizePx: 32, spawnGapMs: 980, hitDmg: 12, missPenalty: 22 };
+    return { zoneMs: 580, zoneSizePx: 30, spawnGapMs: 920, hitDmg: 11, missPenalty: 24 };
   }
   if (obj === 'baron' || obj === 'dragon_ancestral') {
-    return { zoneMs: 620, zoneSizePx: 30, spawnGapMs: 950, hitDmg: 12, missPenalty: 23 };
+    return { zoneMs: 560, zoneSizePx: 28, spawnGapMs: 900, hitDmg: 11, missPenalty: 25 };
   }
   if (obj === 'dragon_fire') {
-    return { zoneMs: 700, zoneSizePx: 32, spawnGapMs: 1000, hitDmg: 13, missPenalty: 20 };
+    return { zoneMs: 640, zoneSizePx: 30, spawnGapMs: 960, hitDmg: 12, missPenalty: 22 };
   }
-  return { zoneMs: 760, zoneSizePx: 34, spawnGapMs: 1050, hitDmg: 14, missPenalty: 19 };
+  return { zoneMs: 700, zoneSizePx: 32, spawnGapMs: 1000, hitDmg: 13, missPenalty: 21 };
 }
 
 function monsterColor(obj: ObjectiveType): string {

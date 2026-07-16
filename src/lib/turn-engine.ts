@@ -59,19 +59,19 @@ function aggregateKillAnnounces(raw: RawKill[]): KillAnnounce[] {
   });
 }
 
-const TOWER_MAX_HP = 1400;
-const NEXUS_MAX_HP = 2200;
-/** ~5 golpes por torre: no se tumba asediando una sola línea en 1–2 rondas */
-const SIEGE_TOWER_DMG = 280;
-const SIEGE_NEXUS_DMG = 400;
-
 /** Ritmo de combate: menos intercambios y daño → partidas con pocas kills. */
 const DUEL_MAX_EXCHANGES = 3;
-const COMBAT_DAMAGE_MULT = 0.88;
+const COMBAT_DAMAGE_MULT = 0.9;
 /** Multiplicador extra de daño para el equipo rojo (IA). */
-const AI_DAMAGE_MULT = 1.12;
-const DEFEND_DAMAGE_MULT = 0.52;
+const AI_DAMAGE_MULT = 1.24;
+const DEFEND_DAMAGE_MULT = 0.48;
 const BURN_ARMOR_DMG = 12;
+/** Torres un poco más duras → asediar hasta el nexo cuesta más. */
+const TOWER_MAX_HP = 1550;
+const NEXUS_MAX_HP = 2400;
+/** ~5–6 golpes por torre */
+const SIEGE_TOWER_DMG = 260;
+const SIEGE_NEXUS_DMG = 360;
 
 function pushFloat(
   floats: CombatFloat[],
@@ -518,6 +518,124 @@ function resolveDuel(
   return { blueKill, redKill };
 }
 
+/**
+ * Golpe de superioridad numérica (2v1, 3v1…): el extra enfoca al rival
+ * sin pelea justa 1v1. En 3v1 es muy probable que caiga.
+ */
+function resolveFocusStrike(
+  atk: Fighter,
+  def: Fighter,
+  state: TurnMatchState,
+  log: CombatLogLine[],
+  duels: DuelSummary[],
+  floats: CombatFloat[],
+  lane: LaneId,
+  killEvents: RawKill[],
+  allyCount: number,
+  enemyCount: number,
+): { blueKill: boolean; redKill: boolean } {
+  let blueKill = false;
+  let redKill = false;
+  if (!atk.champ.isAlive || atk.champ.stats.hp <= 0) return { blueKill, redKill };
+  if (!def.champ.isAlive || def.champ.stats.hp <= 0) return { blueKill, redKill };
+
+  const ratio = allyCount / Math.max(1, enemyCount);
+  // 2v1 ≈ 1.55× · 3v1 ≈ 1.95× · 4v1+ tope 2.35×
+  const pileMult = Math.min(2.35, 1.15 + ratio * 0.4);
+  const executeChance = ratio >= 3 ? 0.88 : ratio >= 2 ? 0.58 : 0.28;
+
+  const hpBeforeAtk = atk.champ.stats.hp;
+  const hpBeforeDef = def.champ.stats.hp;
+  const team = atk.champ.team === 'blue' ? state.blue : state.red;
+  const action: CombatAction = atk.action === 'defend' ? 'attack' : atk.action;
+  let { dmg, magic } = actionDamage(atk.champ, action, team.damageBuff, false);
+  dmg = Math.floor(dmg * pileMult);
+
+  // Defensa parcial: en superioridad numérica Defender ayuda menos
+  if (def.action === 'defend') {
+    dmg = Math.floor(dmg * Math.max(0.35, DEFEND_DAMAGE_MULT + 0.15));
+  }
+
+  // Ejecución casi segura en 3v1+ si sigue vivo tras el golpe base
+  const willExecute = Math.random() < executeChance;
+  if (willExecute && def.champ.stats.hp <= dmg * 1.35) {
+    dmg = Math.max(dmg, def.champ.stats.hp);
+  }
+
+  const dealt = dealDamage(atk.champ, def.champ, dmg, magic);
+  if (dealt > 0) {
+    pushFloat(floats, {
+      kind: 'damage',
+      amount: dealt,
+      targetType: 'champ',
+      targetId: def.champ.instanceId,
+      sourceName: champDef(atk.champ).name,
+      lane,
+    });
+  }
+
+  const oddsLabel = ratio >= 3 ? '3 vs 1' : ratio >= 2 ? '2 vs 1' : 'superioridad';
+  pushLog(
+    log,
+    `${champDef(atk.champ).name} enfoca a ${champDef(def.champ).name} (${oddsLabel}) · ${dealt} de daño`,
+    'kill',
+  );
+
+  // Si sobrevivió el primer golpe pero la superioridad es grande, remate
+  if (def.champ.isAlive && def.champ.stats.hp > 0 && ratio >= 3 && Math.random() < 0.72) {
+    const finish = dealDamage(atk.champ, def.champ, def.champ.stats.hp, false);
+    if (finish > 0) {
+      pushFloat(floats, {
+        kind: 'damage',
+        amount: finish,
+        targetType: 'champ',
+        targetId: def.champ.instanceId,
+        sourceName: champDef(atk.champ).name,
+        lane,
+      });
+      pushLog(log, `${champDef(atk.champ).name} remata por superioridad numérica`, 'kill');
+    }
+  }
+
+  if (def.champ.stats.hp <= 0) {
+    def.champ.isAlive = false;
+    atk.champ.kills += 1;
+    atk.champ.gold += GOLD_PER_KILL;
+    if (atk.champ.team === 'blue') {
+      state.blue.kills += 1;
+      state.blue.score += POINTS_KILL;
+      blueKill = true;
+    } else {
+      state.red.kills += 1;
+      state.red.score += POINTS_KILL;
+      redKill = true;
+    }
+    pushLog(log, `¡${champDef(atk.champ).name} elimina a ${champDef(def.champ).name}! (+1 baja)`, 'kill');
+    pushKill(killEvents, atk.champ, def.champ);
+  }
+
+  const blueF = atk.champ.team === 'blue' ? atk : def;
+  const redF = atk.champ.team === 'red' ? atk : def;
+  duels.push({
+    id: duelId(),
+    lane,
+    kind: 'duel',
+    blue: fighterSnap(
+      blueF,
+      atk.champ.team === 'blue' ? hpBeforeAtk : hpBeforeDef,
+      atk.champ.team === 'blue' ? dealt : 0,
+    ),
+    red: fighterSnap(
+      redF,
+      atk.champ.team === 'red' ? hpBeforeAtk : hpBeforeDef,
+      atk.champ.team === 'red' ? dealt : 0,
+    ),
+    summary: `${champDef(atk.champ).name} enfoca (${oddsLabel}) a ${champDef(def.champ).name}`,
+  });
+
+  return { blueKill, redKill };
+}
+
 function fightersInLane(
   state: TurnMatchState,
   lane: LaneId,
@@ -613,22 +731,61 @@ function resolveLaneGroup(
     }
   }
 
-  const fought = new Set<string>();
-  const redQ = [...red];
+  const pairedBlue = new Set<string>();
+  const pairedRed = new Set<string>();
+  const redPool = [...red];
+
+  // 1) Emparejar 1v1 mientras haya rivales
   for (const bf of blue) {
-    const enemy = redQ.find(r => r.champ.isAlive && r.champ.stats.hp > 0 && !fought.has(r.champ.instanceId));
-    if (enemy && enemy.champ.isAlive) {
-      fought.add(bf.champ.instanceId);
-      fought.add(enemy.champ.instanceId);
-      resolveDuel(bf, enemy, state, log, duels, floats, lane, killEvents);
-    } else if (bf.action !== 'defend') {
+    const enemy = redPool.find(r =>
+      r.champ.isAlive && r.champ.stats.hp > 0 && !pairedRed.has(r.champ.instanceId),
+    );
+    if (!enemy) break;
+    pairedBlue.add(bf.champ.instanceId);
+    pairedRed.add(enemy.champ.instanceId);
+    resolveDuel(bf, enemy, state, log, duels, floats, lane, killEvents);
+  }
+
+  // 2) Superioridad numérica: los sobrantes enfocan al rival (3v1 muy letal)
+  const blueExtras = blue.filter(
+    f => !pairedBlue.has(f.champ.instanceId) && f.champ.isAlive && f.champ.stats.hp > 0,
+  );
+  const redExtras = red.filter(
+    f => !pairedRed.has(f.champ.instanceId) && f.champ.isAlive && f.champ.stats.hp > 0,
+  );
+
+  const focusExtras = (extras: Fighter[], enemies: Fighter[], allyTotal: number, enemyTotal: number) => {
+    for (const atk of extras) {
+      if (!atk.champ.isAlive || atk.champ.stats.hp <= 0) continue;
+      const target = enemies.find(e => e.champ.isAlive && e.champ.stats.hp > 0);
+      if (target) {
+        resolveFocusStrike(
+          atk, target, state, log, duels, floats, lane, killEvents, allyTotal, enemyTotal,
+        );
+      } else if (atk.action !== 'defend') {
+        const towerTeam: TeamColor = atk.champ.team === 'blue' ? 'red' : 'blue';
+        siegeTower(state, towerTeam, lane, atk.champ, log, duels, floats, towerStats);
+      }
+    }
+  };
+
+  focusExtras(blueExtras, red, blue.length, red.length);
+  focusExtras(redExtras, blue, red.length, blue.length);
+
+  // Si un bando limpió la línea, quienes pelearon 1v1 y siguen vivos pueden asediar
+  const redLeft = red.some(r => r.champ.isAlive && r.champ.stats.hp > 0);
+  const blueLeft = blue.some(b => b.champ.isAlive && b.champ.stats.hp > 0);
+  if (!redLeft) {
+    for (const bf of blue) {
+      if (!bf.champ.isAlive || bf.champ.stats.hp <= 0 || bf.action === 'defend') continue;
+      if (!pairedBlue.has(bf.champ.instanceId)) continue; // extras ya asediaron si no había blanco
       siegeTower(state, 'red', lane, bf.champ, log, duels, floats, towerStats);
     }
   }
-  for (const rf of red) {
-    if (!rf.champ.isAlive || fought.has(rf.champ.instanceId)) continue;
-    const hasBlue = blue.some(b => b.champ.isAlive && b.champ.stats.hp > 0);
-    if (!hasBlue && rf.action !== 'defend') {
+  if (!blueLeft) {
+    for (const rf of red) {
+      if (!rf.champ.isAlive || rf.champ.stats.hp <= 0 || rf.action === 'defend') continue;
+      if (!pairedRed.has(rf.champ.instanceId)) continue;
       siegeTower(state, 'blue', lane, rf.champ, log, duels, floats, towerStats);
     }
   }
@@ -1568,17 +1725,18 @@ export function generateAIPlan(
     const def = champDef(c);
     const hpPct = c.stats.hp / c.stats.maxHp;
     let action: CombatAction = 'attack';
-    if (hpPct < 0.45) action = 'defend';
-    else if (defendLane !== null && c.position.lane === defendLane && hpPct < 0.7) action = 'defend';
-    else if (def.baseStats.ap >= def.baseStats.ad) action = Math.random() < 0.55 ? 'ability' : 'attack';
-    else action = Math.random() < 0.65 ? 'attack' : (Math.random() < 0.45 ? 'ability' : 'defend');
+    // IA más agresiva: solo defiende muy baja de vida
+    if (hpPct < 0.32) action = 'defend';
+    else if (defendLane !== null && c.position.lane === defendLane && hpPct < 0.55) action = 'defend';
+    else if (def.baseStats.ap >= def.baseStats.ad) action = Math.random() < 0.6 ? 'ability' : 'attack';
+    else action = Math.random() < 0.72 ? 'attack' : (Math.random() < 0.55 ? 'ability' : 'defend');
     actions[c.instanceId] = action;
 
-    if (!c.ultimateUsed && Math.random() < 0.48) {
+    if (!c.ultimateUsed && Math.random() < 0.58) {
       ultimates.push(c.instanceId);
     }
 
-    if (hasItem(c, 'boots') && Math.random() < 0.5) {
+    if (hasItem(c, 'boots') && Math.random() < 0.55) {
       bootsLane[c.instanceId] = defendLane ?? ([0, 1, 2] as LaneId[])[Math.floor(Math.random() * 3)];
     }
   }
@@ -1588,17 +1746,17 @@ export function generateAIPlan(
     const enemyJt = enemyPlan?.jungleTarget;
     const enemyCanContest = !!livingJungler(enemy) && enemyJt !== undefined;
     // Counter: si el rival gankea una línea, a menudo contestamos
-    if (enemyCanContest && typeof enemyJt === 'number' && Math.random() < 0.72) {
+    if (enemyCanContest && typeof enemyJt === 'number' && Math.random() < 0.8) {
       jungleTarget = enemyJt;
-    } else if (enemyCanContest && enemyJt === 'objective' && state.objective && Math.random() < 0.72) {
+    } else if (enemyCanContest && enemyJt === 'objective' && state.objective && Math.random() < 0.78) {
       jungleTarget = 'objective';
       const candidates = living(t).filter(x => champDef(x).role !== 'jungle');
       if (candidates.length) {
         objectiveAssistId = candidates[Math.floor(Math.random() * candidates.length)].instanceId;
       }
-    } else if (defendLane !== null && Math.random() < 0.55) {
+    } else if (defendLane !== null && Math.random() < 0.45) {
       jungleTarget = defendLane;
-    } else if (state.objective && Math.random() < 0.58) {
+    } else if (state.objective && Math.random() < 0.62) {
       jungleTarget = 'objective';
       const candidates = living(t).filter(x => champDef(x).role !== 'jungle');
       if (candidates.length) {
