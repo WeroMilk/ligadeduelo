@@ -483,9 +483,10 @@ export default function LiveMatch() {
             Ronda {displayRound}/{tm.maxRounds}
           </h1>
           <p className="text-sm md:text-base font-bold">
-            <span className="text-[#3498DB]">{tm.blue.score}</span>
+            <span className="text-[#3498DB]">{tm.blue.kills}</span>
             <span className="text-[#8B9BB4]"> – </span>
-            <span className="text-[#E74C3C]">{tm.red.score}</span>
+            <span className="text-[#E74C3C]">{tm.red.kills}</span>
+            <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">kills</span>
           </p>
         </div>
       </div>
@@ -532,12 +533,14 @@ export default function LiveMatch() {
           <div className="rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1.5 md:py-4 md:px-3">
             <p className="text-[#8B9BB4]">Azul</p>
             <p className="font-bold text-[#F0E6D2] truncate md:text-sm">{tm.blue.name}</p>
-            <p className="text-lg md:text-2xl font-bold text-[#3498DB] mt-1">{tm.blue.score}</p>
+            <p className="text-lg md:text-2xl font-bold text-[#3498DB] mt-1">{tm.blue.kills}</p>
+            <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Kills</p>
           </div>
           <div className="rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1.5 text-right md:text-left md:py-4 md:px-3">
             <p className="text-[#8B9BB4]">Rojo</p>
             <p className="font-bold text-[#F0E6D2] truncate md:text-sm">{tm.red.name}</p>
-            <p className="text-lg md:text-2xl font-bold text-[#E74C3C] mt-1">{tm.red.score}</p>
+            <p className="text-lg md:text-2xl font-bold text-[#E74C3C] mt-1">{tm.red.kills}</p>
+            <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Kills</p>
           </div>
         </div>
       </div>

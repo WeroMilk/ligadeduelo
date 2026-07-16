@@ -186,13 +186,13 @@ function dealDamage(_attacker: Champion, defender: Champion, raw: number, magic:
 function actionDamage(c: Champion, action: CombatAction, teamBuff: number, tearDouble: boolean): { dmg: number; magic: boolean } {
   if (action === 'defend') return { dmg: 0, magic: false };
   if (action === 'attack') {
-    let dmg = Math.floor(c.stats.ad * 1.05) + 35 + teamBuff;
-    if (hasItem(c, 'long_sword')) dmg += 35;
+    let dmg = Math.floor(c.stats.ad * 1.35) + 55 + teamBuff;
+    if (hasItem(c, 'long_sword')) dmg += 45;
     return { dmg, magic: false };
   }
   // ability
-  let dmg = Math.floor(c.stats.ap * 1.3) + 45 + teamBuff;
-  if (hasItem(c, 'blasting_wand')) dmg += 45;
+  let dmg = Math.floor(c.stats.ap * 1.55) + 65 + teamBuff;
+  if (hasItem(c, 'blasting_wand')) dmg += 55;
   if (tearDouble) dmg *= 2;
   return { dmg, magic: true };
 }
@@ -242,7 +242,7 @@ function resolveDuel(
 
   const order = [a, b].sort((x, y) => priority(y.champ, y.action, y.ult) - priority(x.champ, x.action, x.ult));
 
-  for (let exchange = 0; exchange < 3; exchange++) {
+  for (let exchange = 0; exchange < 5; exchange++) {
     if (!a.champ.isAlive || a.champ.stats.hp <= 0 || !b.champ.isAlive || b.champ.stats.hp <= 0) break;
 
   for (const atk of order) {
@@ -301,7 +301,7 @@ function resolveDuel(
         mitigated = 0;
         pushLog(log, `${champDef(def.champ).name} anula el golpe (Inquebrantable)`, 'ulti');
       } else {
-        mitigated = Math.floor(dmg * 0.4);
+        mitigated = Math.floor(dmg * 0.65);
         pushLog(log, `${champDef(def.champ).name} Defiende y reduce el golpe a ${mitigated}`);
       }
     }
@@ -369,7 +369,7 @@ function resolveDuel(
         state.red.score += POINTS_KILL;
         redKill = true;
       }
-      pushLog(log, `¡${champDef(atk.champ).name} elimina a ${champDef(def.champ).name}! (+${POINTS_KILL} pts)`, 'kill');
+      pushLog(log, `¡${champDef(atk.champ).name} elimina a ${champDef(def.champ).name}! (+1 kill)`, 'kill');
       notes.push(`${champDef(def.champ).name} KO`);
 
       if (atk.ult && atk.champ.defId === 'darius') {
@@ -624,7 +624,7 @@ function siegeTower(
       state.red.score += POINTS_TOWER;
       towerStats.red += 1;
     }
-    pushLog(log, `¡Torreta destruida! +${POINTS_TOWER} pts para ${sieger.team === 'blue' ? state.blue.name : state.red.name}`, 'tower');
+    pushLog(log, `¡Torreta destruida! (${sieger.team === 'blue' ? state.blue.name : state.red.name})`, 'tower');
     summary = `${champDef(sieger).name} destruye la torre ${laneLabel(lane)}`;
   }
   duels.push({
@@ -657,7 +657,7 @@ function grantObjectiveRewards(
   const wTeam = winner === 'blue' ? state.blue : state.red;
   wTeam.score += POINTS_OBJECTIVE;
   wTeam.damageBuff += obj === 'dragon_fire' ? 8 : obj === 'dragon_water' ? 6 : obj === 'baron' ? 10 : 12;
-  pushLog(log, `${wTeam.name} conquista el ${name}! +${POINTS_OBJECTIVE} pts`, 'objective');
+  pushLog(log, `${wTeam.name} conquista el ${name}!`, 'objective');
   grantFreeItemToTeam(wTeam, log);
   let ancestral = false;
   if (obj === 'dragon_ancestral') {
@@ -839,20 +839,20 @@ function finalizeRoundBookkeeping(
       // Ambos nexos caen en la misma ronda: gana quien iba mejor en marcador (sin sumar nexo 2 veces)
       matchOver = true;
       autoNexus = true;
-      winner = next.blue.score > next.red.score ? 'blue'
-        : next.red.score > next.blue.score ? 'red'
-        : next.blue.kills >= next.red.kills ? 'blue' : 'red';
+      winner = next.blue.kills > next.red.kills ? 'blue'
+        : next.red.kills > next.blue.kills ? 'red'
+        : next.blue.score >= next.red.score ? 'blue' : 'red';
       if (winner === 'blue') next.blue.score += POINTS_NEXUS;
       else next.red.score += POINTS_NEXUS;
-      pushLog(log, `Ambos nexos caen · gana ${winner === 'blue' ? next.blue.name : next.red.name} por marcador`);
+      pushLog(log, `Ambos nexos caen · gana ${winner === 'blue' ? next.blue.name : next.red.name} por kills`);
     }
 
     if (!matchOver && next.round >= next.maxRounds) {
       matchOver = true;
-      winner = next.blue.score > next.red.score ? 'blue'
-        : next.red.score > next.blue.score ? 'red'
-        : next.blue.kills >= next.red.kills ? 'blue' : 'red';
-      pushLog(log, `Fin de las ${next.maxRounds} rondas. Marcador ${next.blue.score}–${next.red.score}`);
+      winner = next.blue.kills > next.red.kills ? 'blue'
+        : next.red.kills > next.blue.kills ? 'red'
+        : next.blue.score >= next.red.score ? 'blue' : 'red';
+      pushLog(log, `Fin de las ${next.maxRounds} rondas. Kills ${next.blue.kills}–${next.red.kills}`);
     }
   }
 

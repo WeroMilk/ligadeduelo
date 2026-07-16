@@ -45,9 +45,9 @@ export default function DefeatScreen() {
 
         {/* Stats */}
         <div className="w-full bg-[#141B2D] rounded-xl border border-[#E74C3C]/30 p-4 text-center">
-          <p className="text-[#8B9BB4] text-sm">Marcador final</p>
+          <p className="text-[#8B9BB4] text-sm">Kills finales</p>
           <p className="text-2xl font-bold text-[#E74C3C] mt-1">
-            {state.turnMatch?.blue.score ?? 0} – {state.turnMatch?.red.score ?? 0}
+            {state.turnMatch?.blue.kills ?? 0} – {state.turnMatch?.red.kills ?? 0}
           </p>
           <p className="text-[#8B9BB4] text-xs mt-2">Ronda: {roundNames[currentRound] || 'Octavos'}</p>
         </div>

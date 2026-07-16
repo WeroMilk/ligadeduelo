@@ -275,91 +275,309 @@ export const ITEMS: ItemDef[] = [
 export const MAX_MATCH_ROUNDS = 8;
 export const GOLD_PER_ROUND = 70;
 export const GOLD_PER_KILL = 100;
-export const POINTS_KILL = 2;
-export const POINTS_TOWER = 3;
-export const POINTS_OBJECTIVE = 5;
-export const POINTS_NEXUS = 10;
+export const POINTS_KILL = 1;
+/** Torres/objetivos ya no suman al marcador: el score son las kills. */
+export const POINTS_TOWER = 0;
+export const POINTS_OBJECTIVE = 0;
+export const POINTS_NEXUS = 0;
 /** Extra siege stacks when a lane is left empty for objective help */
 export const FREE_LANE_SIEGE_BONUS = 0;
 
-/** Orgs que el jugador puede apoyar como fanático (solo elige nombre de equipo). */
+/** Orgs eSports con roster explícito (selección de integrantes). */
+export interface FanOrgPlayer {
+  name: string;
+  role: Role;
+}
+
 export interface FanOrg {
   id: string;
   name: string;
-  era: string;
   region: string;
+  players: FanOrgPlayer[];
 }
 
 export const FAN_ORGS: FanOrg[] = [
-  { id: 'fnatic_19', name: 'Fnatic', era: '2019–2020', region: 'LEC' },
-  { id: 'fnatic_23', name: 'Fnatic', era: '2023–2024', region: 'LEC' },
-  { id: 'g2_19', name: 'G2 Esports', era: '2019–2020', region: 'LEC' },
-  { id: 'g2_24', name: 'G2 Esports', era: '2024–2026', region: 'LEC' },
-  { id: 'mad_21', name: 'MAD Lions', era: '2021', region: 'LEC' },
-  { id: 'kc_22', name: 'Karmine Corp', era: '2022–2023', region: 'LEC' },
-  { id: 'heretics_24', name: 'Team Heretics', era: '2024–2025', region: 'LEC' },
-  { id: 'skt_15', name: 'SK Telecom T1', era: '2015–2016', region: 'LCK' },
-  { id: 't1_22', name: 'T1', era: '2022–2024', region: 'LCK' },
-  { id: 't1_25', name: 'T1', era: '2025–2026', region: 'LCK' },
-  { id: 'ssw_14', name: 'Samsung White', era: '2014', region: 'LCK' },
-  { id: 'ssg_17', name: 'Samsung Galaxy', era: '2017', region: 'LCK' },
-  { id: 'gen_22', name: 'Gen.G', era: '2022–2024', region: 'LCK' },
-  { id: 'drx_22', name: 'DRX', era: '2022', region: 'LCK' },
-  { id: 'dwg_20', name: 'DAMWON Gaming', era: '2020', region: 'LCK' },
-  { id: 'dk_21', name: 'DWG KIA', era: '2021', region: 'LCK' },
-  { id: 'kt_18', name: 'KT Rolster', era: '2018', region: 'LCK' },
-  { id: 'hle_24', name: 'Hanwha Life Esports', era: '2024–2025', region: 'LCK' },
-  { id: 'edg_21', name: 'EDward Gaming', era: '2021', region: 'LPL' },
-  { id: 'rng_18', name: 'Royal Never Give Up', era: '2018', region: 'LPL' },
-  { id: 'ig_18', name: 'Invictus Gaming', era: '2018', region: 'LPL' },
-  { id: 'jdg_23', name: 'JD Gaming', era: '2023', region: 'LPL' },
-  { id: 'blg_24', name: 'Bilibili Gaming', era: '2024–2025', region: 'LPL' },
-  { id: 'lng_23', name: 'LNG Esports', era: '2023', region: 'LPL' },
-  { id: 'tes_20', name: 'Top Esports', era: '2020', region: 'LPL' },
-  { id: 'c9_18', name: 'Cloud9', era: '2018', region: 'LCS' },
-  { id: 'tl_19', name: 'Team Liquid', era: '2019', region: 'LCS' },
-  { id: '100t_21', name: '100 Thieves', era: '2021', region: 'LCS' },
-  { id: 'fly_24', name: 'FlyQuest', era: '2024–2025', region: 'LCS' },
-  { id: 'dfm_21', name: 'DetonatioN FocusMe', era: '2021', region: 'PCS/LJL' },
+  {
+    id: 't1',
+    name: 'T1',
+    region: 'LCK',
+    players: [
+      { name: 'Doran', role: 'top' },
+      { name: 'Oner', role: 'jungle' },
+      { name: 'Faker', role: 'mid' },
+      { name: 'Gumayusi', role: 'adc' },
+      { name: 'Keria', role: 'support' },
+    ],
+  },
+  {
+    id: 'geng',
+    name: 'Gen.G',
+    region: 'LCK',
+    players: [
+      { name: 'Kiin', role: 'top' },
+      { name: 'Canyon', role: 'jungle' },
+      { name: 'Chovy', role: 'mid' },
+      { name: 'Ruler', role: 'adc' },
+      { name: 'Duro', role: 'support' },
+    ],
+  },
+  {
+    id: 'hle',
+    name: 'Hanwha Life',
+    region: 'LCK',
+    players: [
+      { name: 'Zeus', role: 'top' },
+      { name: 'Kanavi', role: 'jungle' },
+      { name: 'Zeka', role: 'mid' },
+      { name: 'Viper', role: 'adc' },
+      { name: 'Delight', role: 'support' },
+    ],
+  },
+  {
+    id: 'dk',
+    name: 'Dplus KIA',
+    region: 'LCK',
+    players: [
+      { name: 'Siwoo', role: 'top' },
+      { name: 'Lucid', role: 'jungle' },
+      { name: 'ShowMaker', role: 'mid' },
+      { name: 'Aiming', role: 'adc' },
+      { name: 'BeryL', role: 'support' },
+    ],
+  },
+  {
+    id: 'kt',
+    name: 'KT Rolster',
+    region: 'LCK',
+    players: [
+      { name: 'PerfecT', role: 'top' },
+      { name: 'Cuzz', role: 'jungle' },
+      { name: 'BDD', role: 'mid' },
+      { name: 'Deokdam', role: 'adc' },
+      { name: 'Peter', role: 'support' },
+    ],
+  },
+  {
+    id: 'fearx',
+    name: 'FearX',
+    region: 'LCK',
+    players: [
+      { name: 'Clear', role: 'top' },
+      { name: 'Raptor', role: 'jungle' },
+      { name: 'Clozer', role: 'mid' },
+      { name: 'Diable', role: 'adc' },
+      { name: 'Kellin', role: 'support' },
+    ],
+  },
+  {
+    id: 'blg',
+    name: 'Bilibili Gaming',
+    region: 'LPL',
+    players: [
+      { name: 'Bin', role: 'top' },
+      { name: 'XUN', role: 'jungle' },
+      { name: 'knight', role: 'mid' },
+      { name: 'Elk', role: 'adc' },
+      { name: 'ON', role: 'support' },
+    ],
+  },
+  {
+    id: 'tes',
+    name: 'Top Esports',
+    region: 'LPL',
+    players: [
+      { name: '369', role: 'top' },
+      { name: 'Tian', role: 'jungle' },
+      { name: 'Creme', role: 'mid' },
+      { name: 'JackeyLove', role: 'adc' },
+      { name: 'Crisp', role: 'support' },
+    ],
+  },
+  {
+    id: 'al',
+    name: "Anyone's Legend",
+    region: 'LPL',
+    players: [
+      { name: 'Ale', role: 'top' },
+      { name: 'Tarzan', role: 'jungle' },
+      { name: 'Shanks', role: 'mid' },
+      { name: 'Hope', role: 'adc' },
+      { name: 'Kael', role: 'support' },
+    ],
+  },
+  {
+    id: 'wbg',
+    name: 'Weibo Gaming',
+    region: 'LPL',
+    players: [
+      { name: 'Breathe', role: 'top' },
+      { name: 'Tianzhen', role: 'jungle' },
+      { name: 'Xiaohu', role: 'mid' },
+      { name: 'Light', role: 'adc' },
+      { name: 'Hang', role: 'support' },
+    ],
+  },
+  {
+    id: 'jdg',
+    name: 'JD Gaming',
+    region: 'LPL',
+    players: [
+      { name: 'Flandre', role: 'top' },
+      { name: 'Jiejie', role: 'jungle' },
+      { name: 'Scout', role: 'mid' },
+      { name: 'Peyz', role: 'adc' },
+      { name: 'Missing', role: 'support' },
+    ],
+  },
+  {
+    id: 'edg',
+    name: 'EDward Gaming',
+    region: 'LPL',
+    players: [{ name: 'Meiko', role: 'support' }],
+  },
+  {
+    id: 'g2',
+    name: 'G2 Esports',
+    region: 'LEC',
+    players: [
+      { name: 'BrokenBlade', role: 'top' },
+      { name: 'Yike', role: 'jungle' },
+      { name: 'Caps', role: 'mid' },
+      { name: 'Hans Sama', role: 'adc' },
+      { name: 'Labrov', role: 'support' },
+    ],
+  },
+  {
+    id: 'fnatic',
+    name: 'Fnatic',
+    region: 'LEC',
+    players: [
+      { name: 'Oscarinin', role: 'top' },
+      { name: 'Razork', role: 'jungle' },
+      { name: 'Humanoid', role: 'mid' },
+      { name: 'Noah', role: 'adc' },
+      { name: 'Jun', role: 'support' },
+    ],
+  },
+  {
+    id: 'rogue',
+    name: 'Rogue',
+    region: 'LEC',
+    players: [
+      { name: 'Larssen', role: 'mid' },
+      { name: 'Comp', role: 'adc' },
+    ],
+  },
+  {
+    id: 'bds',
+    name: 'Team BDS',
+    region: 'LEC',
+    players: [
+      { name: 'Adam', role: 'top' },
+      { name: 'Ice', role: 'adc' },
+    ],
+  },
+  {
+    id: 'mkoi',
+    name: 'Movistar KOI',
+    region: 'LEC',
+    players: [
+      { name: 'Elyoya', role: 'jungle' },
+      { name: 'Jojopyun', role: 'mid' },
+      { name: 'Mikyx', role: 'support' },
+    ],
+  },
+  {
+    id: 'tl',
+    name: 'Team Liquid',
+    region: 'LCS',
+    players: [
+      { name: 'Impact', role: 'top' },
+      { name: 'Josedeodo', role: 'jungle' },
+      { name: 'Quid', role: 'mid' },
+      { name: 'Yeon', role: 'adc' },
+      { name: 'CoreJJ', role: 'support' },
+    ],
+  },
+  {
+    id: 'c9',
+    name: 'Cloud9',
+    region: 'LCS',
+    players: [
+      { name: 'Thanatos', role: 'top' },
+      { name: 'Blaber', role: 'jungle' },
+      { name: 'APA', role: 'mid' },
+      { name: 'Vulcan', role: 'support' },
+    ],
+  },
+  {
+    id: 'fly',
+    name: 'FlyQuest',
+    region: 'LCS',
+    players: [
+      { name: 'Bwipo', role: 'top' },
+      { name: 'Quad', role: 'mid' },
+      { name: 'Massu', role: 'adc' },
+    ],
+  },
+  {
+    id: 'lyon',
+    name: 'LYON',
+    region: 'LCS',
+    players: [
+      { name: 'Inspired', role: 'jungle' },
+      { name: 'Saint', role: 'mid' },
+      { name: 'Berserker', role: 'adc' },
+    ],
+  },
+  {
+    id: 'psg',
+    name: 'PSG Talon',
+    region: 'PCS/LJL',
+    players: [
+      { name: 'Azhi', role: 'top' },
+      { name: 'JunJia', role: 'jungle' },
+      { name: 'Maple', role: 'mid' },
+      { name: 'Betty', role: 'adc' },
+      { name: 'Woody', role: 'support' },
+    ],
+  },
+  {
+    id: 'dfm',
+    name: 'DFM',
+    region: 'PCS/LJL',
+    players: [
+      { name: 'Steal', role: 'jungle' },
+      { name: 'Aria', role: 'mid' },
+      { name: 'Yutapon', role: 'adc' },
+    ],
+  },
+  {
+    id: 'libre',
+    name: 'Libre',
+    region: 'LPL',
+    players: [
+      { name: 'TheShy', role: 'top' },
+      { name: 'Evi', role: 'top' },
+      { name: 'Lehends', role: 'support' },
+    ],
+  },
+  {
+    id: 'retirado',
+    name: 'Retirado',
+    region: 'LCK',
+    players: [{ name: 'Nuguri', role: 'top' }],
+  },
 ];
 
 export function fanOrgDisplayName(org: FanOrg): string {
-  return `${org.name} (${org.era})`;
+  return org.name;
 }
 
 /** Pool de rivales IA (orgs eSports). */
-export const AI_TEAM_NAMES = [
-  'T1',
-  'Gen.G',
-  'G2 Esports',
-  'Fnatic',
-  'JD Gaming',
-  'Bilibili Gaming',
-  'EDward Gaming',
-  'DRX',
-  'Hanwha Life',
-  'KT Rolster',
-  'Team Liquid',
-  'Cloud9',
-  'FlyQuest',
-  'Movistar KOI',
-  'Natus Vincere',
-  'Weibo Gaming',
-  'Karmine Corp',
-  'Team Heretics',
-  'LNG Esports',
-  'Top Esports',
-  'PSG Talon',
-  'DetonatioN FocusMe',
-  'MAD Lions',
-  'Evil Geniuses',
-  '100 Thieves',
-  'SK Gaming',
-  'Rogue',
-  'Anyone\'s Legend',
-  'Invictus Gaming',
-  'Rare Atom',
-];
+export const AI_TEAM_NAMES = FAN_ORGS
+  .filter(o => o.id !== 'retirado' && o.players.length >= 3)
+  .map(o => o.name);
 
 // ========== PRIORIDAD DE ÍTEMS POR ROL (IA) ==========
 export const ITEM_PRIORITY_BY_ROLE: Record<Role, string[]> = {

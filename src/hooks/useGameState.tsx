@@ -219,10 +219,10 @@ function resolveLiveWinner(turnMatch: TurnMatchState): 'blue' | 'red' {
   if (redDead && !blueDead) return 'blue';
   if (blueDead && !redDead) return 'red';
 
-  if (turnMatch.blue.score !== turnMatch.red.score) {
-    return turnMatch.blue.score > turnMatch.red.score ? 'blue' : 'red';
+  if (turnMatch.blue.kills !== turnMatch.red.kills) {
+    return turnMatch.blue.kills > turnMatch.red.kills ? 'blue' : 'red';
   }
-  return turnMatch.blue.kills >= turnMatch.red.kills ? 'blue' : 'red';
+  return turnMatch.blue.score >= turnMatch.red.score ? 'blue' : 'red';
 }
 
 function applyMatchEnd(state: GameState, turnMatch: TurnMatchState): GameState {

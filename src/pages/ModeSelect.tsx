@@ -111,8 +111,8 @@ function RulesModal({ onClose }: { onClose: () => void }) {
           <section className="space-y-1.5">
             <h3 className="font-bold text-[#F0E6D2]">6. Cómo ganar una partida</h3>
             <p>
-              Destruye el <span className="text-[#F0E6D2]">Nexo</span> rival (la base) o termina con más puntos
-              al llegar al turno 8. Los puntos salen de kills, torres y objetivos.
+              Destruye el <span className="text-[#F0E6D2]">Nexo</span> rival (la base) o termina con más
+              <span className="text-[#F0E6D2]"> kills</span> al llegar al turno 8. El marcador son las kills.
             </p>
           </section>
 
@@ -193,7 +193,7 @@ export default function ModeSelect() {
       </div>
 
       <p className="shrink-0 text-[11px] text-center text-[#4A5570] px-4 pt-2 pb-3">
-        Todos los derechos reservados · HOMEBOYS PROD. · 2026
+        Todos los derechos reservados · HOMEBOYS PROD ® 2026
       </p>
 
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}

@@ -35,18 +35,14 @@ export default function VictoryScreen() {
           <h1 className="text-4xl font-bold text-[#C9A84C]" style={{ fontFamily: 'Cinzel, serif' }}>¡VICTORIA!</h1>
           <p className="text-[#8B9BB4] mt-2">Victoria en la grieta</p>
         </div>
-        <div className="w-full bg-[#141B2D] rounded-xl border border-[#1E2740] p-4 grid grid-cols-3 gap-3 text-center">
+        <div className="w-full bg-[#141B2D] rounded-xl border border-[#1E2740] p-4 grid grid-cols-2 gap-3 text-center">
           <div>
-            <p className="text-2xl font-bold text-[#C9A84C]">{tm?.blue.score ?? 0}</p>
-            <p className="text-[#8B9BB4] text-xs">Tus pts</p>
+            <p className="text-2xl font-bold text-[#C9A84C]">{tm?.blue.kills ?? 0}</p>
+            <p className="text-[#8B9BB4] text-xs">Tus kills</p>
           </div>
           <div>
-            <p className="text-2xl font-bold text-[#E74C3C]">{tm?.red.score ?? 0}</p>
-            <p className="text-[#8B9BB4] text-xs">Rival</p>
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-[#F0E6D2]">{tm?.blue.kills ?? 0}</p>
-            <p className="text-[#8B9BB4] text-xs">Kills</p>
+            <p className="text-2xl font-bold text-[#E74C3C]">{tm?.red.kills ?? 0}</p>
+            <p className="text-[#8B9BB4] text-xs">Kills rival</p>
           </div>
         </div>
         <button

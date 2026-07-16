@@ -106,7 +106,7 @@ export default function BracketScreen() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 md:py-4 max-w-6xl lg:max-w-7xl mx-auto w-full flex flex-col">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 pb-4 md:py-4 max-w-6xl lg:max-w-7xl mx-auto w-full flex flex-col">
         {simulating && (
           <div className="text-center py-2 mb-3 shrink-0">
             <div className="inline-flex flex-col items-center gap-1 text-[#8B9BB4]">
@@ -160,50 +160,72 @@ export default function BracketScreen() {
                     <Ghost className="w-3 h-3" /> Rivalidad
                   </p>
                 )}
-                <div className="flex items-center justify-between gap-2 md:gap-3">
-                  <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-1.5 sm:gap-2 flex-1 min-w-0 ${winner === 'red' ? 'opacity-40' : ''}`}>
-                    <div className="flex -space-x-1.5 shrink-0">
-                      {match.teamA.champions.slice(0, 3).map(c => {
-                        const def = CHAMPIONS.find(ch => ch.id === c.defId);
-                        return def?.image ? (
-                          <img key={c.defId} src={def.image} alt={def.name} className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-[#0A0E1A] object-cover" />
-                        ) : (
-                          <div key={c.defId} className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-[#0A0E1A] flex items-center justify-center text-[8px] font-bold text-white" style={{ backgroundColor: def?.color || '#333' }}>
-                            <User className="w-3 h-3" />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <span className={`text-sm md:text-base font-bold leading-snug line-clamp-2 min-w-0 ${
+                <div className="flex items-start gap-2 md:gap-3">
+                  <div className={`flex-1 min-w-0 space-y-1.5 ${winner === 'red' ? 'opacity-40' : ''}`}>
+                    <span className={`block text-xs md:text-sm font-bold leading-snug line-clamp-2 ${
                       match.teamA.id === 'player' ? 'text-[#C9A84C]' :
                       isRivalTeam(match.teamA.id) ? 'text-[#C39BD3]' : 'text-[#F0E6D2]'
                     }`}>
                       {match.teamA.name}
                     </span>
+                    <div className="flex flex-wrap gap-1">
+                      {match.teamA.champions.slice(0, 5).map(c => {
+                        const def = CHAMPIONS.find(ch => ch.id === c.defId);
+                        return def?.image ? (
+                          <img
+                            key={c.defId}
+                            src={def.image}
+                            alt={def.name}
+                            title={def.name}
+                            className="w-7 h-7 md:w-8 md:h-8 rounded-full border border-[#2A3550] object-cover shrink-0"
+                          />
+                        ) : (
+                          <div
+                            key={c.defId}
+                            title={def?.name}
+                            className="w-7 h-7 md:w-8 md:h-8 rounded-full border border-[#2A3550] flex items-center justify-center text-[8px] font-bold text-white shrink-0"
+                            style={{ backgroundColor: def?.color || '#333' }}
+                          >
+                            <User className="w-3 h-3" />
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  <div className="mx-1 md:mx-2 flex-shrink-0">
+                  <div className="mx-0.5 pt-5 md:pt-6 flex-shrink-0">
                     {winner ? (
                       <Trophy className="w-4 h-4 md:w-5 md:h-5 text-[#C9A84C]" />
                     ) : (
-                      <span className="text-[#8B9BB4] text-xs md:text-sm font-bold">VS</span>
+                      <span className="text-[#8B9BB4] text-[10px] md:text-xs font-bold">VS</span>
                     )}
                   </div>
 
-                  <div className={`flex flex-col sm:flex-row items-end sm:items-center gap-1.5 sm:gap-2 flex-1 min-w-0 justify-end ${winner === 'blue' ? 'opacity-40' : ''}`}>
-                    <span className={`text-sm md:text-base font-bold leading-snug line-clamp-2 min-w-0 text-right order-2 sm:order-1 ${
+                  <div className={`flex-1 min-w-0 space-y-1.5 text-right ${winner === 'blue' ? 'opacity-40' : ''}`}>
+                    <span className={`block text-xs md:text-sm font-bold leading-snug line-clamp-2 ${
                       match.teamB.id === 'player' ? 'text-[#C9A84C]' :
                       isRivalTeam(match.teamB.id) ? 'text-[#C39BD3]' : 'text-[#F0E6D2]'
                     }`}>
                       {match.teamB.name}
                     </span>
-                    <div className="flex -space-x-1.5 shrink-0 order-1 sm:order-2">
-                      {match.teamB.champions.slice(0, 3).map(c => {
+                    <div className="flex flex-wrap gap-1 justify-end">
+                      {match.teamB.champions.slice(0, 5).map(c => {
                         const def = CHAMPIONS.find(ch => ch.id === c.defId);
                         return def?.image ? (
-                          <img key={c.defId} src={def.image} alt={def.name} className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-[#0A0E1A] object-cover" />
+                          <img
+                            key={c.defId}
+                            src={def.image}
+                            alt={def.name}
+                            title={def.name}
+                            className="w-7 h-7 md:w-8 md:h-8 rounded-full border border-[#2A3550] object-cover shrink-0"
+                          />
                         ) : (
-                          <div key={c.defId} className="w-6 h-6 md:w-8 md:h-8 rounded-full border border-[#0A0E1A] flex items-center justify-center text-[8px] font-bold text-white" style={{ backgroundColor: def?.color || '#333' }}>
+                          <div
+                            key={c.defId}
+                            title={def?.name}
+                            className="w-7 h-7 md:w-8 md:h-8 rounded-full border border-[#2A3550] flex items-center justify-center text-[8px] font-bold text-white shrink-0"
+                            style={{ backgroundColor: def?.color || '#333' }}
+                          >
                             <User className="w-3 h-3" />
                           </div>
                         );
