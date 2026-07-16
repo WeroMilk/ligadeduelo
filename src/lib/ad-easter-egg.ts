@@ -1,4 +1,4 @@
-import { disableAdsForever, getAdsDisabledForever } from '@/lib/ad-premium';
+import { disableAdsForever, enableAdsAgain, getAdsDisabledForever } from '@/lib/ad-premium';
 
 export type EasterEggPhase = 'idle' | 'logo' | 'banner' | 'prompt';
 
@@ -46,10 +46,30 @@ export function resetEasterEgg() {
   notify();
 }
 
-/** 7 toques en el logo de inicio. */
+/**
+ * 7 toques en el logo de inicio.
+ * - Con ads ON: inicia el flujo logo → banner → contraseña (quitar ads).
+ * - Con ads OFF: abre directo el popup de contraseña (restaurar ads).
+ */
 export function registerLogoTap() {
-  if (getAdsDisabledForever()) return;
   if (phase === 'prompt') return;
+
+  // Publicidad ya quitada: solo logo ×7 → popup para volver a activarla
+  if (getAdsDisabledForever()) {
+    if (phase !== 'idle' && phase !== 'logo') {
+      phase = 'logo';
+      logoTaps = 0;
+    }
+    phase = 'logo';
+    logoTaps += 1;
+    if (logoTaps >= TAPS_NEEDED) {
+      phase = 'prompt';
+      logoTaps = 0;
+      bannerTaps = 0;
+    }
+    notify();
+    return;
+  }
 
   if (phase === 'idle' || phase === 'logo') {
     phase = 'logo';
@@ -62,7 +82,7 @@ export function registerLogoTap() {
   }
 }
 
-/** 7 toques en el banner (tras completar el logo). */
+/** 7 toques en el banner (tras completar el logo). Solo con ads visibles. */
 export function registerBannerTap() {
   if (getAdsDisabledForever()) return;
   if (phase !== 'banner') return;
@@ -81,9 +101,14 @@ export function closeEasterEggPrompt() {
   notify();
 }
 
+/** Contraseña correcta: quita ads si están ON, o las restaura si están OFF. */
 export function submitEasterEggCode(code: string): 'ok' | 'bad' {
   if (code.trim() !== '2801') return 'bad';
-  disableAdsForever();
+  if (getAdsDisabledForever()) {
+    enableAdsAgain();
+  } else {
+    disableAdsForever();
+  }
   closeEasterEggPrompt();
   return 'ok';
 }

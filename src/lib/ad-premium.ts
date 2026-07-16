@@ -36,6 +36,19 @@ export function disableAdsForever() {
   notify();
 }
 
+/** Vuelve a mostrar la publicidad (revierte el easter egg). */
+export function enableAdsAgain() {
+  load();
+  if (!disabledForever) return;
+  disabledForever = false;
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+  notify();
+}
+
 export function subscribeAdsDisabledForever(listener: () => void) {
   load();
   listeners.add(listener);

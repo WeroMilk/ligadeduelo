@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { closeEasterEggPrompt, submitEasterEggCode } from '@/lib/ad-easter-egg';
+import { getAdsDisabledForever, subscribeAdsDisabledForever } from '@/lib/ad-premium';
 import { X } from 'lucide-react';
 
 export default function AdUnlockModal({
@@ -10,6 +11,7 @@ export default function AdUnlockModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const adsOff = useSyncExternalStore(subscribeAdsDisabledForever, getAdsDisabledForever, () => false);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -64,9 +66,13 @@ export default function AdUnlockModal({
               className="text-lg font-bold text-[#C9A84C]"
               style={{ fontFamily: 'Cinzel, serif' }}
             >
-              Sin publicidad
+              {adsOff ? 'Restaurar publicidad' : 'Sin publicidad'}
             </h2>
-            <p className="mt-1 text-xs text-[#8B9BB4]">Introduce la contraseña numérica de 4 dígitos.</p>
+            <p className="mt-1 text-xs text-[#8B9BB4]">
+              {adsOff
+                ? 'Introduce la contraseña para volver a mostrar el banner.'
+                : 'Introduce la contraseña numérica de 4 dígitos.'}
+            </p>
           </div>
           <button
             type="button"
