@@ -32,6 +32,10 @@ type MinimapProps = {
   objectiveWinner?: TeamColor | null;
   attackBeams?: AttackBeam[];
   combatFloats?: CombatFloat[];
+  /** Objetivo del golpe activo (anillo de impacto). */
+  impactTargetId?: string | null;
+  /** Atacante del golpe activo (lunge hacia el objetivo). */
+  lungeFromId?: string | null;
 };
 
 type Pt = { x: number; y: number };
@@ -183,6 +187,8 @@ export default function Minimap({
   objectiveWinner = null,
   attackBeams = [],
   combatFloats = [],
+  impactTargetId = null,
+  lungeFromId = null,
 }: MinimapProps) {
   const livingBlue = blueChampions.filter(c => c.isAlive);
   const livingRed = redChampions.filter(c => c.isAlive);
@@ -198,6 +204,20 @@ export default function Minimap({
     if (s.isDestroyed) continue;
     posById.set(s.id, structurePos(s));
   }
+
+  // Lunge: desplazar al atacante un poco hacia el objetivo
+  if (lungeFromId && impactTargetId) {
+    const from = posById.get(lungeFromId);
+    const to = posById.get(impactTargetId);
+    if (from && to) {
+      posById.set(lungeFromId, {
+        x: from.x + (to.x - from.x) * 0.22,
+        y: from.y + (to.y - from.y) * 0.22,
+      });
+    }
+  }
+
+  const impactPos = impactTargetId ? posById.get(impactTargetId) : undefined;
 
   const laneHighlight =
     focusLane === 0 ? TOP_PATH : focusLane === 1 ? MID_PATH : focusLane === 2 ? BOT_PATH : null;
@@ -305,40 +325,73 @@ export default function Minimap({
             if (!a || !b) return null;
             const midX = (a.x + b.x) * 50;
             const midY = (a.y + b.y) * 50;
+            const thick = beam.toKind === 'structure' ? 3.4 : 2.6;
             return (
-              <g key={`beam-${i}`}>
+              <g key={`beam-${beam.fromId}-${beam.toId}-${i}`}>
+                <line
+                  x1={a.x * 100}
+                  y1={a.y * 100}
+                  x2={b.x * 100}
+                  y2={b.y * 100}
+                  stroke="#FF6B35"
+                  strokeWidth={thick + 2.2}
+                  strokeOpacity="0.35"
+                  strokeLinecap="round"
+                />
                 <line
                   x1={a.x * 100}
                   y1={a.y * 100}
                   x2={b.x * 100}
                   y2={b.y * 100}
                   stroke="#F1C40F"
-                  strokeWidth={beam.toKind === 'structure' ? 2.2 : 1.8}
-                  strokeOpacity="0.95"
+                  strokeWidth={thick}
+                  strokeOpacity="0.98"
                   strokeLinecap="round"
                   style={{
-                    filter: 'drop-shadow(0 0 3px #F1C40F)',
-                    animation: 'minimap-beam 0.55s ease-in-out infinite alternate',
+                    filter: 'drop-shadow(0 0 5px #F1C40F)',
+                    animation: 'minimap-beam 0.4s ease-in-out infinite alternate',
                   }}
                 />
-                {/* Flecha hacia el objetivo */}
                 <circle
                   cx={b.x * 100}
                   cy={b.y * 100}
-                  r={beam.toKind === 'structure' ? 2.2 : 1.6}
-                  fill="#F1C40F"
+                  r={beam.toKind === 'structure' ? 3.2 : 2.4}
+                  fill="#FFF3A0"
                   opacity="0.95"
+                  style={{ animation: 'minimap-impact-dot 0.55s ease-out infinite' }}
                 />
                 <circle
                   cx={midX}
                   cy={midY}
-                  r="1.1"
-                  fill="#FFF3A0"
-                  opacity="0.9"
+                  r="1.6"
+                  fill="#FFFFFF"
+                  opacity="0.95"
+                  style={{ animation: 'minimap-beam-spark 0.45s linear infinite' }}
                 />
               </g>
             );
           })}
+
+          {impactPos && (
+            <g key={`impact-${impactTargetId}`}>
+              <circle
+                cx={impactPos.x * 100}
+                cy={impactPos.y * 100}
+                r="6"
+                fill="none"
+                stroke="#E74C3C"
+                strokeWidth="1.8"
+                style={{ animation: 'minimap-impact-ring 0.7s ease-out infinite' }}
+              />
+              <circle
+                cx={impactPos.x * 100}
+                cy={impactPos.y * 100}
+                r="3.5"
+                fill="rgba(231,76,60,0.45)"
+                style={{ animation: 'minimap-impact-flash 0.55s ease-out infinite' }}
+              />
+            </g>
+          )}
         </svg>
 
         {structures.filter(s => !s.isDestroyed).map(s => {
@@ -347,32 +400,47 @@ export default function Minimap({
           const isNexus = s.type === 'nexus';
           const dim = focusLane !== null && !isNexus && s.lane !== focusLane;
           const hpPct = Math.max(0, Math.min(1, s.hp / Math.max(1, s.maxHp)));
+          const beingHit = impactTargetId === s.id;
+          const lowHp = hpPct <= 0.35;
+          const glow = beingHit
+            ? '0 0 14px rgba(241,196,15,0.95), 0 0 28px rgba(231,76,60,0.7)'
+            : lowHp
+              ? `0 0 10px ${isBlue ? 'rgba(52,152,219,0.85)' : 'rgba(231,76,60,0.85)'}`
+              : `0 0 6px ${isBlue ? 'rgba(46,134,193,0.7)' : 'rgba(192,57,43,0.7)'}`;
           return (
             <div
               key={s.id}
               className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity duration-700"
-              style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, opacity: dim ? 0.35 : 1 }}
+              style={{
+                left: `${p.x * 100}%`,
+                top: `${p.y * 100}%`,
+                opacity: dim ? 0.35 : 1,
+                zIndex: beingHit ? 12 : 5,
+                animation: beingHit ? 'minimap-struct-hit 0.45s ease-out' : undefined,
+              }}
               title={`${isBlue ? 'Azul' : 'Rojo'} ${isNexus ? 'Nexo' : 'Torre'} · ${Math.floor(s.hp)}/${s.maxHp}`}
             >
               {isNexus ? (
                 <div
                   className="rounded-full border-2"
                   style={{
-                    width: size * 0.07,
-                    height: size * 0.07,
+                    width: size * (beingHit ? 0.085 : 0.07),
+                    height: size * (beingHit ? 0.085 : 0.07),
                     backgroundColor: isBlue ? '#2E86C1' : '#C0392B',
-                    borderColor: isBlue ? '#85C1E9' : '#F1948A',
-                    boxShadow: `0 0 6px ${isBlue ? 'rgba(46,134,193,0.7)' : 'rgba(192,57,43,0.7)'}`,
+                    borderColor: beingHit ? '#F1C40F' : isBlue ? '#85C1E9' : '#F1948A',
+                    boxShadow: glow,
+                    transition: 'width 0.25s ease, height 0.25s ease',
                   }}
                 />
               ) : (
                 <div
                   style={{
-                    width: size * 0.055,
-                    height: size * 0.055,
+                    width: size * (beingHit ? 0.07 : 0.055),
+                    height: size * (beingHit ? 0.07 : 0.055),
                     backgroundColor: isBlue ? '#2471A3' : '#922B21',
                     clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
-                    boxShadow: '0 0 3px rgba(0,0,0,0.6)',
+                    boxShadow: glow,
+                    transition: 'width 0.25s ease, height 0.25s ease',
                   }}
                 />
               )}
@@ -479,7 +547,9 @@ export default function Minimap({
               : highlightObjective
                 ? !onObj
                 : false;
-          const icon = size * 0.095;
+          const isLunging = lungeFromId === c.instanceId;
+          const isImpacted = impactTargetId === c.instanceId;
+          const icon = size * (isLunging || isImpacted ? 0.115 : 0.095);
           const action = showActions ? plan?.actions?.[c.instanceId] : undefined;
           return (
             <div
@@ -488,9 +558,9 @@ export default function Minimap({
               style={{
                 left: `${p.x * 100}%`,
                 top: `${p.y * 100}%`,
-                zIndex: dim ? 4 : 6,
-                opacity: dim ? 0.28 : 1,
-                transition: 'left 1s ease, top 1s ease, opacity 0.6s ease',
+                zIndex: dim ? 4 : isLunging || isImpacted ? 14 : 6,
+                opacity: dim ? 0.22 : 1,
+                transition: 'left 0.45s cubic-bezier(0.22, 1.2, 0.36, 1), top 0.45s cubic-bezier(0.22, 1.2, 0.36, 1), opacity 0.45s ease',
               }}
               title={`${def.name}${action ? ` · ${actionLabelEs(action)}` : ''}`}
             >
@@ -499,9 +569,24 @@ export default function Minimap({
                 style={{
                   width: icon,
                   height: icon,
-                  borderColor: team === 'blue' ? '#5DADE2' : '#F1948A',
-                  boxShadow: `0 0 0 1px ${team === 'blue' ? '#1A5276' : '#7B241C'}, 0 1px 4px rgba(0,0,0,0.7)`,
+                  borderColor: isLunging
+                    ? '#F1C40F'
+                    : isImpacted
+                      ? '#E74C3C'
+                      : team === 'blue' ? '#5DADE2' : '#F1948A',
+                  boxShadow: isLunging
+                    ? '0 0 12px rgba(241,196,15,0.9)'
+                    : isImpacted
+                      ? '0 0 14px rgba(231,76,60,0.9)'
+                      : `0 0 0 1px ${team === 'blue' ? '#1A5276' : '#7B241C'}, 0 1px 4px rgba(0,0,0,0.7)`,
                   backgroundColor: def.color || '#333',
+                  animation: isLunging
+                    ? 'minimap-lunge 0.5s ease-out'
+                    : isImpacted
+                      ? 'minimap-hit-bounce 0.5s ease-out'
+                      : dim
+                        ? undefined
+                        : 'minimap-idle-bob 2.2s ease-in-out infinite',
                 }}
               >
                 {def.image ? (
@@ -546,15 +631,15 @@ export default function Minimap({
           return (
             <div
               key={`${f.id}-${i}`}
-              className="absolute -translate-x-1/2 pointer-events-none font-black text-[10px] leading-none"
+              className="absolute -translate-x-1/2 pointer-events-none font-black leading-none"
               style={{
                 left: `${p.x * 100}%`,
                 top: `${p.y * 100}%`,
-                color: isHeal ? '#2ECC71' : '#E74C3C',
-                textShadow: '0 1px 2px #000, 0 0 4px rgba(0,0,0,0.9)',
-                animation: 'minimap-float 1.1s ease-out forwards',
-                animationDelay: `${(i % 4) * 0.08}s`,
-                zIndex: 20,
+                fontSize: Math.max(14, size * 0.055),
+                color: isHeal ? '#2ECC71' : '#FF4D4D',
+                textShadow: '0 2px 4px #000, 0 0 10px rgba(0,0,0,0.95)',
+                animation: 'minimap-float-big 1.4s cubic-bezier(0.22, 1.4, 0.36, 1) forwards',
+                zIndex: 22,
               }}
             >
               {isHeal ? '+' : '−'}{f.amount}
@@ -565,13 +650,49 @@ export default function Minimap({
 
       <style>{`
         @keyframes minimap-beam {
-          from { stroke-opacity: 0.45; }
+          from { stroke-opacity: 0.55; }
           to { stroke-opacity: 1; }
         }
-        @keyframes minimap-float {
-          0% { transform: translate(-50%, 0); opacity: 0; }
-          15% { opacity: 1; }
-          100% { transform: translate(-50%, -18px); opacity: 0; }
+        @keyframes minimap-beam-spark {
+          0% { opacity: 0.3; transform: scale(0.6); }
+          50% { opacity: 1; transform: scale(1.2); }
+          100% { opacity: 0.3; transform: scale(0.6); }
+        }
+        @keyframes minimap-impact-dot {
+          0%, 100% { opacity: 0.7; r: 2; }
+          50% { opacity: 1; }
+        }
+        @keyframes minimap-impact-ring {
+          0% { opacity: 0.95; transform: scale(0.4); }
+          100% { opacity: 0; transform: scale(1.8); }
+        }
+        @keyframes minimap-impact-flash {
+          0% { opacity: 0.8; }
+          100% { opacity: 0.15; }
+        }
+        @keyframes minimap-float-big {
+          0% { transform: translate(-50%, 4px) scale(0.4); opacity: 0; }
+          20% { transform: translate(-50%, -6px) scale(1.35); opacity: 1; }
+          70% { transform: translate(-50%, -22px) scale(1); opacity: 1; }
+          100% { transform: translate(-50%, -36px) scale(0.9); opacity: 0; }
+        }
+        @keyframes minimap-idle-bob {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-2px); }
+        }
+        @keyframes minimap-lunge {
+          0% { transform: scale(0.85); }
+          40% { transform: scale(1.2); }
+          100% { transform: scale(1); }
+        }
+        @keyframes minimap-hit-bounce {
+          0% { transform: scale(1.25); }
+          50% { transform: scale(0.9); }
+          100% { transform: scale(1); }
+        }
+        @keyframes minimap-struct-hit {
+          0% { transform: translate(-50%, -50%) scale(1.3); filter: brightness(1.4); }
+          100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
         }
         @keyframes minimap-obj-pulse {
           0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0.9; }

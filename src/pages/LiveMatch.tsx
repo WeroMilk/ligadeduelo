@@ -4,6 +4,7 @@ import Minimap, { type AttackBeam, type ObjectiveAnimPhase } from '@/components/
 import DecisionOverlay, { type DecisionKind, type DecisionPayload } from '@/components/DecisionOverlay';
 import CombatScreenFX, { type ScreenFxKind } from '@/components/CombatScreenFX';
 import CombatAnnounceOverlay, { type AnnounceItem } from '@/components/CombatAnnounceOverlay';
+import CombatHitOverlay, { HIT_PAUSE_MS } from '@/components/CombatHitOverlay';
 import ObjectiveMinigame, { type ObjectiveQtePayload } from '@/components/ObjectiveMinigame';
 import { generateAIPlan, champDef, livingJungler } from '@/lib/turn-engine';
 import { setAdHidden } from '@/lib/ad-visibility';
@@ -12,6 +13,8 @@ import type { CombatFloat, LaneId, RoundResolution, Structure, TeamPlan } from '
 
 const MAP_SIZE_MOBILE_MAX = 280;
 const MAP_SIZE_MOBILE_MIN = 168;
+const LANE_INTRO_MS = 550;
+const CINEMA_BUFFER_MS = 4000;
 
 function useMapSize(containerRef: React.RefObject<HTMLElement | null>) {
   const [size, setSize] = useState(240);
@@ -48,9 +51,14 @@ function useMapSize(containerRef: React.RefObject<HTMLElement | null>) {
   return size;
 }
 const PROMPT_SEC = 8;
-const LANE_MS = 2000;
-const CINEMA_STUCK_MS = 12000;
+const CINEMA_STUCK_MS_MIN = 12000;
 const QTE_STUCK_MS = 55000;
+
+function laneCameraPan(lane: LaneId): { x: number; y: number } {
+  if (lane === 0) return { x: 10, y: 8 };
+  if (lane === 2) return { x: -10, y: -8 };
+  return { x: 0, y: 0 };
+}
 
 type Phase =
   | { t: 'prompt'; kind: DecisionKind }
@@ -141,6 +149,8 @@ export default function LiveMatch() {
   const [shake, setShake] = useState(false);
   const [cinemaRes, setCinemaRes] = useState<RoundResolution | null>(null);
   const [activeFloats, setActiveFloats] = useState<CombatFloat[]>([]);
+  const [activeHit, setActiveHit] = useState<CombatFloat | null>(null);
+  const [camPan, setCamPan] = useState({ x: 0, y: 0 });
   const [announceBatch, setAnnounceBatch] = useState<{ items: AnnounceItem[]; nonce: number } | null>(null);
   const pickQueue = useRef<DecisionKind[]>([]);
   const picksRef = useRef<DecisionPayload[]>([]);
@@ -154,6 +164,7 @@ export default function LiveMatch() {
   const phaseRef = useRef<Phase | null>(null);
   const tmRef = useRef(tm);
   const phaseStartedAt = useRef(Date.now());
+  const cinemaStuckMs = useRef(CINEMA_STUCK_MS_MIN);
   const fxNonce = useRef(0);
   const announceNonce = useRef(0);
   const announcedKeys = useRef<Set<string>>(new Set());
@@ -225,7 +236,10 @@ export default function LiveMatch() {
     awaitingQte.current = false;
     needsPostQteClaim.current = false;
     resetCinemaGuards();
+    cinemaStuckMs.current = CINEMA_STUCK_MS_MIN;
     setActiveFloats([]);
+    setActiveHit(null);
+    setCamPan({ x: 0, y: 0 });
     setCinemaRes(null);
     setPhase({ t: 'idle' });
     markPhaseStart();
@@ -240,6 +254,9 @@ export default function LiveMatch() {
     clearCinema();
     markPhaseStart();
     setCinemaRes(res);
+    setActiveHit(null);
+    setActiveFloats([]);
+    setCamPan({ x: 0, y: 0 });
     setScale(1.12);
     const objItems: AnnounceItem[] = res.objectiveBonus
       ? [{ kind: 'objective', data: res.objectiveBonus }]
@@ -285,6 +302,8 @@ export default function LiveMatch() {
     setCinemaRes(res);
     setScale(1.08);
     setActiveFloats([]);
+    setActiveHit(null);
+    setCamPan({ x: 0, y: 0 });
 
     // Kills de líneas al empezar el cine (aliados y enemigos)
     const laneKills = (res.killAnnounces || []).map(k => ({ kind: 'kill' as const, data: k }));
@@ -292,11 +311,12 @@ export default function LiveMatch() {
       enqueueAnnounces(laneKills, `kills-${res.round}-${res.blueKillsDelta}-${res.redKillsDelta}`);
     }
 
-    // Choque de junglas o defensa de nexo: QTE al instante (sin esperar el cine de líneas)
+    // Choque de junglas o QTE de nexo: al instante (sin esperar el cine de líneas)
     if (
       res.pendingObjectiveQte
       && (current.pendingObjective?.kind === 'gank'
-        || current.pendingObjective?.kind === 'nexus_defense')
+        || current.pendingObjective?.kind === 'nexus_defense'
+        || current.pendingObjective?.kind === 'nexus_assault')
     ) {
       awaitingQte.current = true;
       needsPostQteClaim.current = true;
@@ -304,32 +324,60 @@ export default function LiveMatch() {
       return;
     }
 
-    setPhase({ t: 'lane', lane: 0, fight: false });
+    const damageHits = (res.floats || []).filter(f => f.kind === 'damage');
+    // Orden estable: por lane, manteniendo orden de emisión dentro de cada lane
+    const orderedHits = [...damageHits].sort((a, b) => (a.lane ?? 1) - (b.lane ?? 1));
+
+    const laneCount = new Set(orderedHits.map(h => h.lane ?? 1)).size || 1;
+    const estimatedMs =
+      orderedHits.length * HIT_PAUSE_MS
+      + laneCount * LANE_INTRO_MS
+      + CINEMA_BUFFER_MS;
+    cinemaStuckMs.current = Math.max(CINEMA_STUCK_MS_MIN, estimatedMs);
 
     const schedule = (fn: () => void, ms: number) => {
       cinemaTimers.current.push(window.setTimeout(fn, ms));
     };
 
-    const floatsForLane = (lane: LaneId) =>
-      (res.floats || []).filter(f => f.lane === lane);
+    let t = 0;
+    let lastLane: LaneId | null = null;
 
-    const fightLane = (lane: LaneId, at: number) => {
-      schedule(() => {
-        setPhase({ t: 'lane', lane, fight: true });
-        setActiveFloats(floatsForLane(lane));
-        fireFx('hit', undefined, lane === 1 ? 'neutral' : lane === 0 ? 'blue' : 'red');
-      }, at);
-    };
-
-    fightLane(0, 800);
-    schedule(() => { setPhase({ t: 'lane', lane: 1, fight: false }); setActiveFloats([]); }, LANE_MS);
-    fightLane(1, LANE_MS + 800);
-    schedule(() => { setPhase({ t: 'lane', lane: 2, fight: false }); setActiveFloats([]); }, LANE_MS * 2);
-    fightLane(2, LANE_MS * 2 + 800);
-
-    const t = LANE_MS * 3;
+    if (orderedHits.length === 0) {
+      setPhase({ t: 'lane', lane: 0, fight: false });
+      t = LANE_INTRO_MS;
+    } else {
+      for (const hit of orderedHits) {
+        const lane = (hit.lane ?? 1) as LaneId;
+        if (lastLane !== lane) {
+          schedule(() => {
+            setPhase({ t: 'lane', lane, fight: false });
+            setActiveFloats([]);
+            setActiveHit(null);
+            setScale(1.14);
+            setCamPan(laneCameraPan(lane));
+          }, t);
+          t += LANE_INTRO_MS;
+          lastLane = lane;
+        }
+        schedule(() => {
+          setPhase({ t: 'lane', lane, fight: true });
+          setActiveFloats([hit]);
+          setActiveHit(hit);
+          setScale(1.22);
+          setCamPan(laneCameraPan(lane));
+          fireFx(
+            'hit',
+            undefined,
+            hit.sourceTeam === 'blue' ? 'blue' : hit.sourceTeam === 'red' ? 'red' : 'neutral',
+          );
+        }, t);
+        t += HIT_PAUSE_MS;
+      }
+    }
 
     schedule(() => {
+      setActiveHit(null);
+      setActiveFloats([]);
       const totalKills = (res.blueKillsDelta ?? 0) + (res.redKillsDelta ?? 0);
       if (totalKills > 0) {
         const killerSide = (res.blueKillsDelta ?? 0) >= (res.redKillsDelta ?? 0) ? 'blue' : 'red';
@@ -347,16 +395,19 @@ export default function LiveMatch() {
           playerWon ? 'blue' : 'red',
         );
       }
-    }, Math.max(900, t - 800));
+    }, Math.max(200, t - 100));
 
     schedule(() => {
+      setActiveHit(null);
+      setActiveFloats([]);
+      setCamPan({ x: 0, y: 0 });
+      setScale(1.08);
       const live = tmRef.current;
       if (res.pendingObjectiveQte && live?.pendingObjective) {
         awaitingQte.current = true;
         needsPostQteClaim.current = true;
         markPhaseStart();
         setPhase({ t: 'qte' });
-        setActiveFloats([]);
         return;
       }
       if (res.pendingObjectiveQte && !live?.pendingObjective) {
@@ -427,6 +478,8 @@ export default function LiveMatch() {
     setScale(0.92);
     setCinemaRes(null);
     setActiveFloats([]);
+    setActiveHit(null);
+    setCamPan({ x: 0, y: 0 });
     markPhaseStart();
 
     // Jungla muerto o en skip: no hay decisión de gank este turno
@@ -519,14 +572,14 @@ export default function LiveMatch() {
         if (
           p?.t === 'idle' &&
           promptsForRound.current === current.round &&
-          elapsed > CINEMA_STUCK_MS &&
+          elapsed > cinemaStuckMs.current &&
           !current.pendingObjective
         ) {
           beginPrompts(current.round);
         }
         return;
       }
-      if (elapsed < CINEMA_STUCK_MS) return;
+      if (elapsed < cinemaStuckMs.current) return;
       if (!res) return;
       // Fail-open: cualquier fase si el cine lleva demasiado
       clearCinema();
@@ -543,7 +596,7 @@ export default function LiveMatch() {
       const current = tmRef.current;
       if (!current || !awaitingCinema.current || awaitingQte.current) return;
       const elapsed = Date.now() - phaseStartedAt.current;
-      if (elapsed < CINEMA_STUCK_MS) return;
+      if (elapsed < cinemaStuckMs.current) return;
       const res = current.lastResolution;
       if (res) {
         clearCinema();
@@ -608,22 +661,14 @@ export default function LiveMatch() {
     ? objectiveName(cinemaRes?.objective ?? tm.objective)
     : null;
   const focusLane = phase?.t === 'lane' ? phase.lane : null;
-  const cinemaApproach = phase?.t === 'lane';
+  const cinemaApproach = phase?.t === 'lane' && !!phase.fight;
   const attackBeams: AttackBeam[] = (() => {
-    if (phase?.t !== 'lane' || !phase.fight || !cinemaRes) return [];
-    const beams: AttackBeam[] = [];
-    for (const d of cinemaRes.duels) {
-      if (d.lane !== phase.lane) continue;
-      if (d.kind === 'duel' && d.blue && d.red) {
-        beams.push({ fromId: d.blue.instanceId, toId: d.red.instanceId, toKind: 'champ' });
-      } else if (d.kind === 'siege' && d.siegeTargetId) {
-        const attacker = d.blue || d.red;
-        if (attacker) {
-          beams.push({ fromId: attacker.instanceId, toId: d.siegeTargetId, toKind: 'structure' });
-        }
-      }
-    }
-    return beams;
+    if (!activeHit?.sourceId) return [];
+    return [{
+      fromId: activeHit.sourceId,
+      toId: activeHit.targetId,
+      toKind: activeHit.targetType === 'champ' ? 'champ' : 'structure',
+    }];
   })();
 
   const capsule =
@@ -641,6 +686,7 @@ export default function LiveMatch() {
     <div className={`flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden relative ${shake ? 'animate-screen-shake' : ''}`}>
       <CombatScreenFX signal={fx} />
       <CombatAnnounceOverlay batch={announceBatch} />
+      <CombatHitOverlay hit={activeHit} durationMs={HIT_PAUSE_MS} />
 
       <div className="shrink-0 px-3 pb-2 pt-0 safe-top safe-chrome-x border-b border-[#1E2740] max-w-lg md:max-w-6xl mx-auto w-full md:px-4 md:py-3">
         <p className="text-[#C9A84C] text-[10px] md:text-xs uppercase tracking-wider">Partida en vivo</p>
@@ -667,7 +713,14 @@ export default function LiveMatch() {
           </div>
 
           <div className="relative flex items-center justify-center overflow-hidden shrink-0" style={{ width: slot, height: slot }}>
-            <div className="transition-transform duration-700 ease-out" style={{ transform: `scale(${scale})`, width: mapSize, height: mapSize }}>
+            <div
+              className="transition-transform duration-500 ease-out"
+              style={{
+                transform: `translate(${camPan.x}%, ${camPan.y}%) scale(${scale})`,
+                width: mapSize,
+                height: mapSize,
+              }}
+            >
               <Minimap
                 size={mapSize}
                 blueChampions={tm.blue.champions}
@@ -685,6 +738,8 @@ export default function LiveMatch() {
                 objectiveWinner={cinemaRes?.objectiveWinner ?? null}
                 attackBeams={attackBeams}
                 combatFloats={activeFloats}
+                impactTargetId={activeHit?.targetId ?? null}
+                lungeFromId={activeHit?.sourceId ?? null}
               />
             </div>
           </div>

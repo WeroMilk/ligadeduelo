@@ -1,4 +1,57 @@
-import type { GameEvent } from '@/types/game';
+import type { CombatFloat, GameEvent, LaneId } from '@/types/game';
+
+function laneNameEs(lane: LaneId): string {
+  return lane === 0 ? 'Superior' : lane === 1 ? 'Central' : 'Inferior';
+}
+
+/**
+ * Narrativa de un golpe para el popup cinematográfico.
+ * Ej: "Jhin le hizo -400 de vida a Amumu"
+ *     "Garen le hizo -200 puntos a la torre enemiga del Superior"
+ */
+export function formatCombatHitNarrative(hit: CombatFloat): string {
+  const amount = Math.floor(hit.amount);
+  const source = hit.sourceName?.trim() || null;
+  const target = hit.targetName?.trim() || null;
+
+  if (hit.kind === 'heal') {
+    const t = target || 'un aliado';
+    if (source && hit.sourceId === hit.targetId) {
+      return `${source} recuperó +${amount} de vida`;
+    }
+    if (source) return `${source} curó a ${t} +${amount} de vida`;
+    return `${t} recuperó +${amount} de vida`;
+  }
+
+  if (hit.targetType === 'champ') {
+    const t = target || 'un rival';
+    if (source) return `${source} le hizo -${amount} de vida a ${t}`;
+    return `Daño a ${t} -${amount}`;
+  }
+
+  if (hit.targetType === 'tower') {
+    const lane = hit.lane !== undefined && hit.lane !== null
+      ? laneNameEs(hit.lane as LaneId)
+      : null;
+    const side = hit.targetTeam === 'blue' ? 'aliada' : hit.targetTeam === 'red' ? 'enemiga' : null;
+    const towerPhrase = side && lane
+      ? `la torre ${side} del ${lane}`
+      : side
+        ? `la torre ${side}`
+        : lane
+          ? `la torre del ${lane}`
+          : (target ? `la ${target.toLowerCase()}` : 'la torre');
+    if (source) return `${source} le hizo -${amount} puntos a ${towerPhrase}`;
+    return `Daño a ${towerPhrase} -${amount}`;
+  }
+
+  const side =
+    hit.targetTeam === 'blue' ? 'aliado' :
+    hit.targetTeam === 'red' ? 'enemigo' : null;
+  const nexusPhrase = side ? `el nexo ${side}` : 'el nexo';
+  if (source) return `${source} dañó ${nexusPhrase} -${amount} puntos`;
+  return `Daño a ${nexusPhrase} -${amount}`;
+}
 
 const KILL_LINES = [
   (a: string, v: string) => `${a} mandó a ${v} de vacaciones… permanentes.`,

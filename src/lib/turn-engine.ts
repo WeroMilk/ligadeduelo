@@ -73,9 +73,14 @@ const NEXUS_MAX_HP = 2000;
 const SIEGE_TOWER_DMG = 520;
 const SIEGE_NEXUS_DMG = 700;
 
-/** Contexto de asedio durante resolveRound (amenaza letal al nexo del jugador). */
+/** Contexto de asedio durante resolveRound (amenazas letales a nexos). */
 type SiegeCtx = {
+  bluePlan: TeamPlan;
+  redPlan: TeamPlan;
+  /** Amenaza letal al nexo azul (defensa del jugador). */
   blueNexusThreat: null | { siegerId: string; lane: LaneId };
+  /** Amenaza letal al nexo rojo (asalto del jugador). */
+  redNexusThreat: null | { siegerId: string; lane: LaneId };
 };
 
 function pushFloat(
@@ -91,8 +96,12 @@ export function actionLabelEs(action: CombatAction): string {
   return 'Defender';
 }
 
-function laneLabel(lane: LaneId): string {
+export function laneLabel(lane: LaneId): string {
   return lane === 0 ? 'Superior' : lane === 1 ? 'Central' : 'Inferior';
+}
+
+function structureTargetName(type: 'tower' | 'nexus', lane: LaneId): string {
+  return type === 'nexus' ? 'Nexo' : `Torre ${laneLabel(lane)}`;
 }
 
 function deepCloneChamp(c: Champion): Champion {
@@ -412,6 +421,10 @@ function resolveDuel(
         targetType: 'champ',
         targetId: def.champ.instanceId,
         sourceName: champDef(atk.champ).name,
+        sourceId: atk.champ.instanceId,
+        sourceTeam: atk.champ.team,
+        targetName: champDef(def.champ).name,
+        targetTeam: def.champ.team,
         lane,
       });
     }
@@ -442,6 +455,10 @@ function resolveDuel(
           targetType: 'champ',
           targetId: def.champ.instanceId,
           sourceName: champDef(atk.champ).name,
+          sourceId: atk.champ.instanceId,
+          sourceTeam: atk.champ.team,
+          targetName: champDef(def.champ).name,
+          targetTeam: def.champ.team,
           lane,
         });
       }
@@ -473,6 +490,10 @@ function resolveDuel(
           targetType: 'champ',
           targetId: atk.champ.instanceId,
           sourceName: champDef(atk.champ).name,
+          sourceId: atk.champ.instanceId,
+          sourceTeam: atk.champ.team,
+          targetName: champDef(atk.champ).name,
+          targetTeam: atk.champ.team,
           lane,
         });
         pushLog(log, `${champDef(atk.champ).name} se cura 80`, 'ulti');
@@ -487,6 +508,10 @@ function resolveDuel(
         targetType: 'champ',
         targetId: def.champ.instanceId,
         sourceName: champDef(atk.champ).name,
+        sourceId: atk.champ.instanceId,
+        sourceTeam: atk.champ.team,
+        targetName: champDef(def.champ).name,
+        targetTeam: def.champ.team,
         lane,
       });
       pushLog(log, `Marca Mortal: +30 a ${champDef(def.champ).name}`, 'ulti');
@@ -575,6 +600,10 @@ function resolveFocusStrike(
       targetType: 'champ',
       targetId: def.champ.instanceId,
       sourceName: champDef(atk.champ).name,
+      sourceId: atk.champ.instanceId,
+      sourceTeam: atk.champ.team,
+      targetName: champDef(def.champ).name,
+      targetTeam: def.champ.team,
       lane,
     });
   }
@@ -596,6 +625,10 @@ function resolveFocusStrike(
         targetType: 'champ',
         targetId: def.champ.instanceId,
         sourceName: champDef(atk.champ).name,
+        sourceId: atk.champ.instanceId,
+        sourceTeam: atk.champ.team,
+        targetName: champDef(def.champ).name,
+        targetTeam: def.champ.team,
         lane,
       });
       pushLog(log, `${champDef(atk.champ).name} remata por superioridad numérica`, 'kill');
@@ -677,6 +710,19 @@ function fightersInLane(
   return { blue: collect(state.blue, bluePlan), red: collect(state.red, redPlan) };
 }
 
+/** Hay algún rival vivo en la misma línea (posiciones efectivas del turno, incl. ganks). */
+function hasLivingOpponentInLane(
+  state: TurnMatchState,
+  lane: LaneId,
+  siegerTeam: TeamColor,
+  bluePlan: TeamPlan,
+  redPlan: TeamPlan,
+): boolean {
+  const { blue, red } = fightersInLane(state, lane, bluePlan, redPlan, false);
+  const opponents = siegerTeam === 'blue' ? red : blue;
+  return opponents.some(f => f.champ.isAlive && f.champ.stats.hp > 0);
+}
+
 function resolveLaneGroup(
   state: TurnMatchState,
   lane: LaneId,
@@ -707,6 +753,10 @@ function resolveLaneGroup(
           targetType: 'champ',
           targetId: a.instanceId,
           sourceName: champDef(f.champ).name,
+          sourceId: f.champ.instanceId,
+          sourceTeam: f.champ.team,
+          targetName: champDef(a).name,
+          targetTeam: a.team,
           lane,
         });
       }
@@ -724,6 +774,10 @@ function resolveLaneGroup(
             targetType: 'champ',
             targetId: ally.instanceId,
             sourceName: champDef(f.champ).name,
+            sourceId: f.champ.instanceId,
+            sourceTeam: f.champ.team,
+            targetName: champDef(ally).name,
+            targetTeam: ally.team,
             lane,
           });
           pushLog(log, `${champDef(f.champ).name} escuda a ${champDef(ally).name}`, 'ulti');
@@ -854,6 +908,10 @@ function siegeTower(
           targetType: 'nexus',
           targetId: nexus.id,
           sourceName: champDef(sieger).name,
+          sourceId: sieger.instanceId,
+          sourceTeam: sieger.team,
+          targetName: structureTargetName('nexus', lane),
+          targetTeam: towerTeam,
           lane,
         });
         pushLog(
@@ -883,6 +941,10 @@ function siegeTower(
         targetType: 'nexus',
         targetId: nexus.id,
         sourceName: champDef(sieger).name,
+        sourceId: sieger.instanceId,
+        sourceTeam: sieger.team,
+        targetName: structureTargetName('nexus', lane),
+        targetTeam: towerTeam,
         lane,
       });
       pushLog(log, `${champDef(sieger).name} golpea el Nexo · ${dmg} de daño (${nexus.hp}/${nexus.maxHp})`);
@@ -918,6 +980,10 @@ function siegeTower(
     targetType: 'tower',
     targetId: tower.id,
     sourceName: champDef(sieger).name,
+    sourceId: sieger.instanceId,
+    sourceTeam: sieger.team,
+    targetName: structureTargetName('tower', lane),
+    targetTeam: towerTeam,
     lane,
   });
   pushLog(log, `${champDef(sieger).name} asedia la torre ${laneLabel(lane)} · ${dmg} de daño (${tower.hp}/${tower.maxHp})`);
@@ -1294,7 +1360,12 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
   const floats: CombatFloat[] = [];
   const killEvents: RawKill[] = [];
   const towerStats = { blue: 0, red: 0 };
-  const siegeCtx: SiegeCtx = { blueNexusThreat: null };
+  const siegeCtx: SiegeCtx = {
+    bluePlan,
+    redPlan,
+    blueNexusThreat: null,
+    redNexusThreat: null,
+  };
   const scoreBeforeB = next.blue.score;
   const scoreBeforeR = next.red.score;
   const killsBeforeB = next.blue.kills;
@@ -1307,6 +1378,8 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
   // Jungla muerto/skip: no gankea ni va a objetivo, aunque el plan lo diga
   bluePlan = sanitizeJunglePlan(bluePlan, next.blue);
   redPlan = sanitizeJunglePlan(redPlan, next.red);
+  siegeCtx.bluePlan = bluePlan;
+  siegeCtx.redPlan = redPlan;
 
   pushLog(log, `— Ronda ${next.round} —`, 'section');
 
@@ -1380,6 +1453,42 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
       next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
       towerStats, duels, floats,
       { winner: null, contested: true, freeItem: false, ancestral: false, bonus: null },
+      true,
+      killEvents,
+    );
+  }
+
+  // Amenaza letal al nexo enemigo → QTE de asalto (contra el nexo)
+  if (siegeCtx.redNexusThreat) {
+    const threat = siegeCtx.redNexusThreat;
+    const lane = threat.lane;
+    const attackers = living(next.blue)
+      .slice()
+      .sort((a, b) => {
+        const la = a.position.lane === lane ? 0 : 1;
+        const lb = b.position.lane === lane ? 0 : 1;
+        if (la !== lb) return la - lb;
+        return (b.stats.hp / b.stats.maxHp) - (a.stats.hp / a.stats.maxHp);
+      })
+      .slice(0, 2);
+    const blueIds = attackers.length > 0
+      ? attackers.map(c => c.instanceId)
+      : [threat.siegerId];
+    next.pendingObjective = {
+      kind: 'nexus_assault',
+      contested: false,
+      blueIds,
+      redIds: [],
+      objective: null,
+      lane,
+    };
+    next.deferredBluePlan = bluePlan;
+    next.deferredRedPlan = redPlan;
+    pushLog(log, `¡Nexo enemigo vulnerable en ${laneLabel(lane)}! Derriba la base con bolitas amarillas`, 'section');
+    return finalizeRoundBookkeeping(
+      next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
+      towerStats, duels, floats,
+      { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null },
       true,
       killEvents,
     );
@@ -1527,6 +1636,10 @@ function applySkirmishLoserFate(
       targetType: 'champ',
       targetId: victim.instanceId,
       sourceName: killer ? champDef(killer).name : wTeam.name,
+      sourceId: killer?.instanceId,
+      sourceTeam: winner,
+      targetName: champDef(victim).name,
+      targetTeam: victim.team,
       lane,
     });
     pushLog(
@@ -1966,18 +2079,23 @@ export function simulateAITurnMatch(teamA: TeamData, teamB: TeamData): TurnMatch
     state = resolveRound(state, bluePlan, redPlan);
     if (state.pendingObjective) {
       const kind = state.pendingObjective.kind;
+      const isNexusAssault = kind === 'nexus_assault';
       const isSkirmishOnly = kind === 'gank' || kind === 'nexus_defense';
-      const attacking: 'blue' | 'red' = isSkirmishOnly
-        ? (Math.random() < 0.5 ? 'blue' : 'red')
-        : bluePlan.jungleTarget === 'objective' ? 'blue' :
-          redPlan.jungleTarget === 'objective' ? 'red' : 'blue';
+      const attacking: 'blue' | 'red' = isNexusAssault
+        ? 'blue'
+        : isSkirmishOnly
+          ? (Math.random() < 0.5 ? 'blue' : 'red')
+          : bluePlan.jungleTarget === 'objective' ? 'blue' :
+            redPlan.jungleTarget === 'objective' ? 'red' : 'blue';
       const skirmishWinner = state.pendingObjective.contested
         ? (Math.random() < 0.5 ? 'blue' : 'red')
         : (isSkirmishOnly ? attacking : null);
       state = finishPendingObjective(state, {
         skirmishWinner,
         attackingTeam: skirmishWinner || attacking,
-        monsterTaken: isSkirmishOnly ? true : Math.random() < 0.7,
+        monsterTaken: isNexusAssault
+          ? Math.random() < 0.65
+          : isSkirmishOnly ? true : Math.random() < 0.7,
       });
     }
     state = { ...state, pendingReward: false };

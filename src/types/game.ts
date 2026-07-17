@@ -190,12 +190,19 @@ export interface CombatFloat {
   targetType: 'champ' | 'tower' | 'nexus';
   targetId: string;
   sourceName?: string;
+  /** Atacante / sanador (para beam cinematográfico). */
+  sourceId?: string;
+  sourceTeam?: TeamColor;
+  /** Nombre legible del objetivo: "Amumu", "Torre Superior", "Nexo". */
+  targetName?: string;
+  /** Equipo del objetivo (perspectiva aliado/enemigo del jugador azul). */
+  targetTeam?: TeamColor;
   lane?: LaneId;
 }
 
 export interface PendingObjective {
-  /** Objetivo de mapa, pelea jungla, o defensa del nexo. */
-  kind: 'objective' | 'gank' | 'nexus_defense';
+  /** Objetivo de mapa, pelea jungla, defensa del nexo o asalto al nexo enemigo. */
+  kind: 'objective' | 'gank' | 'nexus_defense' | 'nexus_assault';
   contested: boolean;
   blueIds: string[];
   redIds: string[];

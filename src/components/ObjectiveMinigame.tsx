@@ -137,6 +137,44 @@ const MONSTER_HP = 100;
 
 type Phase = 'skirmish' | 'monster' | 'escape-popup';
 
+function NexusTarget({
+  side,
+  anim,
+}: {
+  side: 'blue' | 'red';
+  anim: FighterAnim;
+}) {
+  const color = side === 'blue' ? '#3498DB' : '#E74C3C';
+  const animCls =
+    anim === 'shake' || anim === 'counter' ? 'animate-obj-monster-hit' :
+    anim === 'lunge' ? 'animate-obj-counter' :
+    'animate-obj-monster-idle';
+  return (
+    <div className={`relative flex flex-col items-center ${animCls}`}>
+      <div
+        className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 flex items-center justify-center"
+        style={{
+          borderColor: color,
+          background: side === 'blue'
+            ? 'radial-gradient(circle at 40% 35%, #5DADE2 0%, #1A5276 55%, #0B1C2C 100%)'
+            : 'radial-gradient(circle at 40% 35%, #F1948A 0%, #922B21 55%, #1C0B0B 100%)',
+          boxShadow: `0 0 28px ${color}aa, inset 0 0 16px rgba(241,196,15,0.35)`,
+        }}
+      >
+        <span
+          className="text-lg sm:text-xl font-bold text-[#F1C40F] drop-shadow"
+          style={{ fontFamily: 'Cinzel, serif' }}
+        >
+          N
+        </span>
+      </div>
+      <span className="mt-1 text-[9px] font-bold uppercase tracking-wider text-[#F1C40F]">
+        Nexo
+      </span>
+    </div>
+  );
+}
+
 export default function ObjectiveMinigame({
   pending,
   blueChampions,
@@ -145,14 +183,19 @@ export default function ObjectiveMinigame({
 }: Props) {
   const isGank = pending.kind === 'gank';
   const isNexusDefense = pending.kind === 'nexus_defense';
+  const isNexusAssault = pending.kind === 'nexus_assault';
+  const isNexusQte = isNexusDefense || isNexusAssault;
   const isSkirmishOnly = isGank || isNexusDefense;
   const contested = pending.contested || isSkirmishOnly;
   const profile = useMemo(
-    () => profileFor(pending.objective, isNexusDefense ? 'nexus' : isGank ? 'gank' : 'default'),
-    [pending.objective, isGank, isNexusDefense],
+    () => profileFor(
+      pending.objective,
+      isNexusQte ? 'nexus' : isGank ? 'gank' : 'default',
+    ),
+    [pending.objective, isGank, isNexusQte],
   );
   const [phase, setPhase] = useState<Phase>(
-    contested || isSkirmishOnly ? 'skirmish' : 'monster',
+    isNexusAssault ? 'monster' : contested || isSkirmishOnly ? 'skirmish' : 'monster',
   );
   const [blueBar, setBlueBar] = useState(0);
   const [redBar, setRedBar] = useState(0);
@@ -163,7 +206,11 @@ export default function ObjectiveMinigame({
   const [zone, setZone] = useState<Zone | null>(null);
   const [flash, setFlash] = useState<'hit' | 'miss' | null>(null);
   const [log, setLog] = useState<string>(
-    isNexusDefense ? '¡Toca las bolitas amarillas y salva tu nexo!' : '¡Toca las zonas a tiempo!',
+    isNexusAssault
+      ? '¡Toca las bolitas amarillas y derriba el nexo enemigo!'
+      : isNexusDefense
+        ? '¡Toca las bolitas amarillas y salva tu nexo!'
+        : '¡Toca las zonas a tiempo!',
   );
   const [blueAnim, setBlueAnim] = useState<FighterAnim>('idle');
   const [redAnim, setRedAnim] = useState<FighterAnim>('idle');
@@ -322,7 +369,13 @@ export default function ObjectiveMinigame({
         }
         return next;
       });
-      setLog(simulatingRef.current ? 'Simulado · acierto' : '¡Bien! Dañas al objetivo');
+      setLog(
+        simulatingRef.current
+          ? 'Simulado · acierto'
+          : isNexusAssault
+            ? '¡Bien! El nexo enemigo cruje'
+            : '¡Bien! Dañas al objetivo',
+      );
       pulseAnim(setBlueAnim, 'lunge');
       pulseAnim(setMonsterAnim, 'shake');
     }
@@ -331,7 +384,7 @@ export default function ObjectiveMinigame({
     window.setTimeout(() => {
       if (!completedRef.current && !finishedRef.current) spawnZone();
     }, 280);
-  }, [profile.hitDmg, spawnZone]);
+  }, [profile.hitDmg, spawnZone, isNexusAssault]);
 
   useEffect(() => {
     if (phase !== 'skirmish' && phase !== 'monster') return;
@@ -368,7 +421,13 @@ export default function ObjectiveMinigame({
         pulseAnim(setRedAnim, 'lunge');
       } else if (phase === 'monster') {
         setAllyHp(v => Math.max(0, v - profile.missPenalty));
-        setLog(simulatingRef.current ? 'Simulado · fallo' : 'El objetivo te golpea');
+        setLog(
+          simulatingRef.current
+            ? 'Simulado · fallo'
+            : isNexusAssault
+              ? 'El nexo empuja · tu equipo pierde terreno'
+              : 'El objetivo te golpea',
+        );
         pulseAnim(setBlueAnim, 'shake');
         pulseAnim(setMonsterAnim, 'lunge');
       }
@@ -376,7 +435,7 @@ export default function ObjectiveMinigame({
       window.setTimeout(() => setFlash(null), 280);
     }, profile.zoneMs);
     return () => window.clearTimeout(t);
-  }, [zone, phase, profile.zoneMs, profile.missPenalty]);
+  }, [zone, phase, profile.zoneMs, profile.missPenalty, isNexusAssault]);
 
   // Auto-simulación: 50% acierto por bolita; si falla, el timeout de la zona cuenta miss
   useEffect(() => {
@@ -427,7 +486,7 @@ export default function ObjectiveMinigame({
     if (monsterHp <= 0) {
       finishedRef.current = true;
       setZone(null);
-      setLog('¡Objetivo conquistado!');
+      setLog(isNexusAssault ? '¡Nexo enemigo destruido!' : '¡Objetivo conquistado!');
       window.setTimeout(() => {
         finishOnce({
           skirmishWinner: contested ? 'blue' : null,
@@ -439,7 +498,7 @@ export default function ObjectiveMinigame({
     } else if (allyHp <= 0) {
       finishedRef.current = true;
       setZone(null);
-      setLog('Tu equipo cae ante el monstruo');
+      setLog(isNexusAssault ? 'El nexo enemigo resiste' : 'Tu equipo cae ante el monstruo');
       window.setTimeout(() => {
         finishOnce({
           skirmishWinner: contested ? 'blue' : null,
@@ -449,7 +508,7 @@ export default function ObjectiveMinigame({
         });
       }, 600);
     }
-  }, [monsterHp, allyHp, phase, skirmishWinner, contested, finishOnce]);
+  }, [monsterHp, allyHp, phase, skirmishWinner, contested, finishOnce, isNexusAssault]);
 
   const onZoneClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -466,31 +525,37 @@ export default function ObjectiveMinigame({
     setLog('Simulando… 50% de acierto');
   };
 
-  const label = isNexusDefense
-    ? 'Defensa del Nexo'
-    : isGank
-      ? `Choque · ${pending.lane === 0 ? 'Superior' : pending.lane === 2 ? 'Inferior' : 'Central'}`
-      : objectiveName(pending.objective);
+  const label = isNexusAssault
+    ? 'Nexo enemigo'
+    : isNexusDefense
+      ? 'Defensa del Nexo'
+      : isGank
+        ? `Choque · ${pending.lane === 0 ? 'Superior' : pending.lane === 2 ? 'Inferior' : 'Central'}`
+        : objectiveName(pending.objective);
 
-  const frameBorder = isNexusDefense
+  const frameBorder = isNexusQte
     ? 'border-[#F1C40F]'
     : 'border-[#E67E22]';
-  const frameShadow = isNexusDefense
-    ? 'shadow-[0_0_60px_rgba(241,196,15,0.45),0_0_120px_rgba(52,152,219,0.25)]'
-    : 'shadow-[0_0_50px_rgba(230,126,34,0.35)]';
-  const accent = isNexusDefense ? '#F1C40F' : '#E67E22';
+  const frameShadow = isNexusAssault
+    ? 'shadow-[0_0_60px_rgba(241,196,15,0.45),0_0_120px_rgba(231,76,60,0.3)]'
+    : isNexusDefense
+      ? 'shadow-[0_0_60px_rgba(241,196,15,0.45),0_0_120px_rgba(52,152,219,0.25)]'
+      : 'shadow-[0_0_50px_rgba(230,126,34,0.35)]';
+  const accent = isNexusQte ? '#F1C40F' : '#E67E22';
+  const monsterBarColor = isNexusAssault ? '#E74C3C' : '#E67E22';
 
   const body = (
     <div className="fixed inset-0 z-[95] flex items-center justify-center px-3 bg-black/85 backdrop-blur-[2px]">
       <div
         className={`relative w-full max-w-lg rounded-2xl border-2 bg-[#0D1220] overflow-hidden ${frameBorder} ${frameShadow}`}
       >
-        {isNexusDefense && (
+        {isNexusQte && (
           <div
             className="pointer-events-none absolute inset-0 opacity-40"
             style={{
-              background:
-                'radial-gradient(ellipse at 50% 0%, rgba(52,152,219,0.45) 0%, transparent 55%), radial-gradient(ellipse at 50% 100%, rgba(241,196,15,0.25) 0%, transparent 50%)',
+              background: isNexusAssault
+                ? 'radial-gradient(ellipse at 50% 0%, rgba(231,76,60,0.45) 0%, transparent 55%), radial-gradient(ellipse at 50% 100%, rgba(241,196,15,0.25) 0%, transparent 50%)'
+                : 'radial-gradient(ellipse at 50% 0%, rgba(52,152,219,0.45) 0%, transparent 55%), radial-gradient(ellipse at 50% 100%, rgba(241,196,15,0.25) 0%, transparent 50%)',
             }}
           />
         )}
@@ -499,22 +564,26 @@ export default function ObjectiveMinigame({
             className="text-[10px] font-bold uppercase tracking-wider"
             style={{ color: accent }}
           >
-            {isNexusDefense
-              ? 'Base bajo ataque'
-              : isGank
-                ? 'Gank disputado'
-                : phase === 'skirmish'
-                  ? 'Pelea 2 contra 2'
-                  : `Asalto · ${label}`}
+            {isNexusAssault
+              ? 'Asalto final'
+              : isNexusDefense
+                ? 'Base bajo ataque'
+                : isGank
+                  ? 'Gank disputado'
+                  : phase === 'skirmish'
+                    ? 'Pelea 2 contra 2'
+                    : `Asalto · ${label}`}
           </p>
           <h2 className="text-lg sm:text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-            {isNexusDefense
-              ? '¡Defiende tu nexo!'
-              : isGank
-                ? 'Choque de junglas'
-                : phase === 'skirmish' || phase === 'escape-popup'
-                  ? 'Pelea por el objetivo'
-                  : `Derrota al ${label}`}
+            {isNexusAssault
+              ? '¡Derriba el nexo enemigo!'
+              : isNexusDefense
+                ? '¡Defiende tu nexo!'
+                : isGank
+                  ? 'Choque de junglas'
+                  : phase === 'skirmish' || phase === 'escape-popup'
+                    ? 'Pelea por el objetivo'
+                    : `Derrota al ${label}`}
           </h2>
           <p className="text-xs text-[#8B9BB4] mt-1">{log}</p>
         </div>
@@ -547,18 +616,24 @@ export default function ObjectiveMinigame({
           <>
             <div
               className={`relative h-72 sm:h-80 ${
-                isNexusDefense
-                  ? 'bg-gradient-to-b from-[#0A1628] via-[#141B2D] to-[#1A1020]'
-                  : 'bg-[#141B2D]'
+                isNexusAssault
+                  ? 'bg-gradient-to-b from-[#280A0A] via-[#141B2D] to-[#1A1020]'
+                  : isNexusDefense
+                    ? 'bg-gradient-to-b from-[#0A1628] via-[#141B2D] to-[#1A1020]'
+                    : 'bg-[#141B2D]'
               } ${
                 flash === 'hit' ? 'ring-2 ring-[#2ECC71]' : flash === 'miss' ? 'ring-2 ring-[#E74C3C]' : ''
               }`}
             >
-              {isNexusDefense && (
+              {isNexusQte && (
                 <div className="pointer-events-none absolute inset-0 overflow-hidden">
                   <div
                     className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full blur-3xl opacity-30 animate-pulse"
-                    style={{ background: 'radial-gradient(circle, #3498DB 0%, transparent 70%)' }}
+                    style={{
+                      background: isNexusAssault
+                        ? 'radial-gradient(circle, #E74C3C 0%, transparent 70%)'
+                        : 'radial-gradient(circle, #3498DB 0%, transparent 70%)',
+                    }}
                   />
                 </div>
               )}
@@ -588,19 +663,24 @@ export default function ObjectiveMinigame({
                   </div>
                 </div>
               ) : (
-                <div className="absolute inset-x-4 top-3 space-y-2">
+                <div className="absolute inset-x-4 top-3 space-y-2 z-[1]">
                   <div>
                     <div className="flex justify-between text-[10px] mb-0.5">
-                      <span className="text-[#E67E22]">{label}</span>
-                      <span className="text-[#E67E22]">{monsterHp}%</span>
+                      <span style={{ color: monsterBarColor }}>{label}</span>
+                      <span style={{ color: monsterBarColor }}>{monsterHp}%</span>
                     </div>
                     <div className="h-2.5 rounded-full bg-black/50 overflow-hidden">
-                      <div className="h-full bg-[#E67E22] transition-all" style={{ width: `${monsterHp}%` }} />
+                      <div
+                        className="h-full transition-all"
+                        style={{ width: `${monsterHp}%`, backgroundColor: monsterBarColor }}
+                      />
                     </div>
                   </div>
                   <div>
                     <div className="flex justify-between text-[10px] mb-0.5">
-                      <span className="text-[#3498DB]">Tu equipo</span>
+                      <span className="text-[#3498DB]">
+                        {isNexusAssault ? 'Asalto' : 'Tu equipo'}
+                      </span>
                       <span className="text-[#3498DB]">{allyHp}%</span>
                     </div>
                     <div className="h-2 rounded-full bg-black/50 overflow-hidden">
@@ -618,26 +698,10 @@ export default function ObjectiveMinigame({
                 </div>
 
                 <div className="flex flex-col items-center gap-1">
-                  {isNexusDefense ? (
-                    <div className="relative flex flex-col items-center">
-                      <div
-                        className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 border-[#3498DB] flex items-center justify-center"
-                        style={{
-                          background: 'radial-gradient(circle at 40% 35%, #5DADE2 0%, #1A5276 55%, #0B1C2C 100%)',
-                          boxShadow: '0 0 28px rgba(52,152,219,0.65), inset 0 0 16px rgba(241,196,15,0.35)',
-                        }}
-                      >
-                        <span
-                          className="text-lg sm:text-xl font-bold text-[#F1C40F] drop-shadow"
-                          style={{ fontFamily: 'Cinzel, serif' }}
-                        >
-                          N
-                        </span>
-                      </div>
-                      <span className="mt-1 text-[9px] font-bold uppercase tracking-wider text-[#F1C40F]">
-                        Nexo
-                      </span>
-                    </div>
+                  {isNexusAssault ? (
+                    <NexusTarget side="red" anim={monsterAnim} />
+                  ) : isNexusDefense ? (
+                    <NexusTarget side="blue" anim="idle" />
                   ) : phase === 'skirmish' || !pending.objective ? (
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">contra</span>
                   ) : (
@@ -664,7 +728,7 @@ export default function ObjectiveMinigame({
                     top: `${zone.y}%`,
                     width: profile.zoneSizePx,
                     height: profile.zoneSizePx,
-                    boxShadow: isNexusDefense ? '0 0 18px rgba(241,196,15,0.8)' : undefined,
+                    boxShadow: isNexusQte ? '0 0 18px rgba(241,196,15,0.8)' : undefined,
                   }}
                   aria-label="Zona de acierto"
                 />
@@ -684,11 +748,13 @@ export default function ObjectiveMinigame({
               )}
 
               <p className="absolute bottom-3 inset-x-0 text-center text-[10px] text-[#8B9BB4] z-[1]">
-                {isNexusDefense
-                  ? 'Toca las bolitas amarillas antes de que el asaltante tumbe el nexo'
-                  : `Equipo atacante: ${attackingTeam === 'blue' ? 'Azul (tú)' : 'Rojo'}${
-                      loserFate === 'escaped' && skirmishWinner === 'blue' ? ' · el rival escapó' : ''
-                    }`}
+                {isNexusAssault
+                  ? 'Toca las bolitas amarillas para tumbar el nexo enemigo'
+                  : isNexusDefense
+                    ? 'Toca las bolitas amarillas antes de que el asaltante tumbe el nexo'
+                    : `Equipo atacante: ${attackingTeam === 'blue' ? 'Azul (tú)' : 'Rojo'}${
+                        loserFate === 'escaped' && skirmishWinner === 'blue' ? ' · el rival escapó' : ''
+                      }`}
               </p>
             </div>
 
