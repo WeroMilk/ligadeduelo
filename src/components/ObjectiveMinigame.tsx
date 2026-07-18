@@ -23,6 +23,8 @@ type Props = {
   /** Cambia para reiniciar el intento (tras anuncio de repetición). */
   attemptKey?: number;
   allowSimulate?: boolean;
+  /** Equipo del jugador humano (para sesgar la simulación a su favor ~70%). */
+  playerSide?: TeamColor;
 };
 
 type QteProfile = {
@@ -34,7 +36,10 @@ type QteProfile = {
 };
 
 const ENEMY_ESCAPE_CHANCE = 0.42;
-const SIM_HIT_CHANCE = 0.5;
+/** Probabilidad de victoria del jugador al pulsar «Simular». */
+const SIM_WIN_RATE = 0.7;
+const SIM_HIT_CHANCE_ON_WIN = 0.86;
+const SIM_HIT_CHANCE_ON_LOSS = 0.34;
 
 function profileFor(obj: ObjectiveType, mode: 'default' | 'gank' | 'nexus' = 'default'): QteProfile {
   if (mode === 'nexus') {
@@ -191,6 +196,7 @@ export default function ObjectiveMinigame({
   paused = false,
   attemptKey: _attemptKey = 0,
   allowSimulate = true,
+  playerSide = 'blue',
 }: Props) {
   void _attemptKey;
   const isGank = pending.kind === 'gank';
@@ -237,6 +243,8 @@ export default function ObjectiveMinigame({
   const finishedRef = useRef(false);
   const loserFateRef = useRef<'killed' | 'escaped'>('killed');
   const simulatingRef = useRef(false);
+  const simForceWinRef = useRef(true);
+  const playerIsBlue = playerSide !== 'red';
   const phaseRef = useRef(phase);
   const blueBarRef = useRef(blueBar);
   const redBarRef = useRef(redBar);
@@ -474,7 +482,7 @@ export default function ObjectiveMinigame({
     return () => window.clearTimeout(t);
   }, [zone, phase, profile.zoneMs, profile.missPenalty, isNexusAssault, paused]);
 
-  // Auto-simulación: 50% acierto por bolita; si falla, el timeout de la zona cuenta miss
+  // Auto-simulación: ~70% victoria del jugador; acierto sesgado según resultado sorteado
   useEffect(() => {
     if (!zone || !simulating || paused) return;
     if (completedRef.current || finishedRef.current) return;
@@ -483,12 +491,16 @@ export default function ObjectiveMinigame({
     const delay = 180 + Math.random() * 220;
     const t = window.setTimeout(() => {
       if (pausedRef.current || !simulatingRef.current || completedRef.current || finishedRef.current) return;
-      if (Math.random() < SIM_HIT_CHANCE) {
+      const wantPlayerWin = simForceWinRef.current;
+      const hitChance = wantPlayerWin === playerIsBlue
+        ? SIM_HIT_CHANCE_ON_WIN
+        : SIM_HIT_CHANCE_ON_LOSS;
+      if (Math.random() < hitChance) {
         applyHit();
       }
     }, delay);
     return () => window.clearTimeout(t);
-  }, [zone, simulating, phase, applyHit, paused]);
+  }, [zone, simulating, phase, applyHit, paused, playerIsBlue]);
 
   useEffect(() => {
     if (phase !== 'escape-popup' || !simulating || paused) return;
@@ -557,6 +569,7 @@ export default function ObjectiveMinigame({
   const startAutoSimulate = () => {
     if (paused || completedRef.current || finishedRef.current || simulatingRef.current) return;
     if (phase !== 'countdown') return;
+    simForceWinRef.current = Math.random() < SIM_WIN_RATE;
     simulatingRef.current = true;
     setSimulating(true);
     setLog('Simulación elegida · empezará al terminar la cuenta');

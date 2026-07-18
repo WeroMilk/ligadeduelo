@@ -4,7 +4,7 @@ import { actionLabelEs, champDef } from '@/lib/turn-engine';
 import { objectiveIsBaronSide, objectiveName } from '@/lib/game-data';
 import { combatFloatStyle } from '@/lib/combat-float-style';
 import { synergyAccentColor } from '@/lib/player-synergy';
-import { Swords, Shield, Sparkles, Droplet } from 'lucide-react';
+import { Swords, Shield, Sparkles, Droplet, Plus } from 'lucide-react';
 
 export type ObjectiveAnimPhase = 'none' | 'pulse' | 'clash' | 'claim';
 
@@ -191,16 +191,25 @@ function BloodDropSvg({
   );
 }
 
-function HealSparkSvg({ cx, cy }: { cx: number; cy: number }) {
+function HealPlusSvg({
+  cx,
+  cy,
+  scale = 1,
+  anim = 'minimap-blood-pop 0.55s ease-out forwards',
+}: {
+  cx: number;
+  cy: number;
+  scale?: number;
+  anim?: string;
+}) {
   return (
-    <circle
-      cx={cx}
-      cy={cy}
-      r="2.4"
-      fill="#7DFFAE"
-      opacity="0.95"
-      style={{ animation: 'minimap-impact-dot 0.55s ease-out infinite' }}
-    />
+    <g
+      transform={`translate(${cx} ${cy}) scale(${scale})`}
+      style={{ animation: anim, transformOrigin: 'center' }}
+    >
+      <rect x="-0.85" y="-3.1" width="1.7" height="6.2" rx="0.45" fill="#2ECC71" stroke="#1D8F50" strokeWidth="0.35" />
+      <rect x="-3.1" y="-0.85" width="6.2" height="1.7" rx="0.45" fill="#2ECC71" stroke="#1D8F50" strokeWidth="0.35" />
+    </g>
   );
 }
 
@@ -414,7 +423,7 @@ export default function Minimap({
                   }}
                 />
                 {isHealBeam ? (
-                  <HealSparkSvg cx={b.x * 100} cy={b.y * 100} />
+                  <HealPlusSvg cx={b.x * 100} cy={b.y * 100} scale={beam.toKind === 'structure' ? 1.35 : 1.05} />
                 ) : (
                   <BloodDropSvg
                     cx={b.x * 100}
@@ -422,7 +431,9 @@ export default function Minimap({
                     scale={beam.toKind === 'structure' ? 1.35 : 1.05}
                   />
                 )}
-                {!isHealBeam && (
+                {isHealBeam ? (
+                  <HealPlusSvg cx={midX} cy={midY} scale={0.65} anim="minimap-blood-trail 0.45s ease-out infinite" />
+                ) : (
                   <BloodDropSvg cx={midX} cy={midY} scale={0.65} anim="minimap-blood-trail 0.45s ease-out infinite" />
                 )}
               </g>
@@ -442,13 +453,7 @@ export default function Minimap({
                     strokeWidth="1.8"
                     style={{ animation: 'minimap-impact-ring 0.7s ease-out infinite' }}
                   />
-                  <circle
-                    cx={impactPos.x * 100}
-                    cy={impactPos.y * 100}
-                    r="3.5"
-                    fill="rgba(46,204,113,0.45)"
-                    style={{ animation: 'minimap-impact-flash 0.55s ease-out infinite' }}
-                  />
+                  <HealPlusSvg cx={impactPos.x * 100} cy={impactPos.y * 100} scale={1.2} />
                 </>
               ) : (
                 <>
@@ -683,21 +688,33 @@ export default function Minimap({
                   </div>
                 )}
               </div>
-              {isImpacted && !isHealing && (
+              {isImpacted && (
                 <div
                   className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                   style={{ animation: 'minimap-blood-pop 0.55s ease-out forwards', zIndex: 16 }}
                 >
-                  <Droplet
-                    className="drop-shadow-[0_0_6px_rgba(0,0,0,0.5)]"
-                    style={{
-                      width: icon * 0.62,
-                      height: icon * 0.62,
-                      color: damageDark,
-                      fill: damageAccent,
-                    }}
-                    strokeWidth={2}
-                  />
+                  {isHealing ? (
+                    <Plus
+                      className="drop-shadow-[0_0_6px_rgba(0,0,0,0.5)]"
+                      style={{
+                        width: icon * 0.62,
+                        height: icon * 0.62,
+                        color: '#2ECC71',
+                      }}
+                      strokeWidth={3}
+                    />
+                  ) : (
+                    <Droplet
+                      className="drop-shadow-[0_0_6px_rgba(0,0,0,0.5)]"
+                      style={{
+                        width: icon * 0.62,
+                        height: icon * 0.62,
+                        color: damageDark,
+                        fill: damageAccent,
+                      }}
+                      strokeWidth={2}
+                    />
+                  )}
                 </div>
               )}
               {/* Badge definitiva / BASE */}
@@ -791,8 +808,15 @@ export default function Minimap({
                 zIndex: 22,
               }}
             >
-              <span style={{ textShadow: `0 2px 4px #000, 0 0 10px ${palette.glow}99` }}>
-                <span style={{ color: palette.signColor }}>{isHeal ? '+' : '−'}</span>
+              <span style={{ textShadow: `0 2px 4px #000, 0 0 10px ${palette.glow}99` }} className="inline-flex items-center gap-0.5">
+                {isHeal ? (
+                  <Plus
+                    style={{ width: '0.9em', height: '0.9em', color: palette.signColor }}
+                    strokeWidth={3}
+                  />
+                ) : (
+                  <span style={{ color: palette.signColor }}>−</span>
+                )}
                 <span style={{ color: palette.numberColor }}>{f.amount}</span>
               </span>
             </div>

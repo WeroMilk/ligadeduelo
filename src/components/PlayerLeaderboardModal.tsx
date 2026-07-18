@@ -24,7 +24,7 @@ function Shell({
 }) {
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 px-3"
+      className="fixed inset-0 z-[200] flex min-h-0 items-start justify-center overflow-y-auto overscroll-contain bg-black/75 px-3 py-3 sm:items-center sm:py-4"
       style={{
         paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
         paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
@@ -34,7 +34,7 @@ function Shell({
       onClick={onClose}
     >
       <div
-        className="modal-panel flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] shadow-[0_0_40px_rgba(201,168,76,0.2)]"
+        className="modal-panel my-auto flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] shadow-[0_0_40px_rgba(201,168,76,0.2)]"
         style={{ maxHeight: 'min(36rem, calc(100dvh - 1.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)))' }}
         onClick={e => e.stopPropagation()}
       >
@@ -54,7 +54,7 @@ function Shell({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2 text-sm scrollbar-hide">
+        <div className="modal-scroll px-3 py-2 text-sm">
           {children}
         </div>
         {footer && (

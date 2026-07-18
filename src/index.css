@@ -534,6 +534,23 @@
 /* ========== MODAL PANELS ========== */
 .modal-panel {
   overflow: hidden;
+  min-height: 0;
+}
+.modal-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.modal-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 .modal-footer {
   padding: 0.5rem 0.75rem 0.75rem;

@@ -42,8 +42,8 @@ export default function DecisionOverlay({
   };
 
   return (
-    <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/55 p-2">
-      <div className="w-full max-w-sm overflow-hidden rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-1.5">
+    <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/55 p-1 sm:p-2">
+      <div className="w-full max-w-sm max-h-[min(100%,28rem)] overflow-hidden rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-2.5 sm:p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-1.5">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[9px] font-bold uppercase tracking-wider text-[#C9A84C]">
             {playerLabel ? `Turno · ${playerLabel}` : 'Decisión de equipo'}
@@ -67,18 +67,19 @@ export default function DecisionOverlay({
             </h2>
             <div className="grid grid-cols-2 gap-1.5">
               {([
-                { id: 0 as LaneId, label: 'Gank Sup.' },
-                { id: 1 as LaneId, label: 'Gank Cen.' },
-                { id: 2 as LaneId, label: 'Gank Inf.' },
+                { id: 0 as LaneId, label: 'Gank Sup.', labelMd: 'Gank Superior' },
+                { id: 1 as LaneId, label: 'Gank Cen.', labelMd: 'Gank Central' },
+                { id: 2 as LaneId, label: 'Gank Inf.', labelMd: 'Gank Inferior' },
               ]).map(l => (
                 <button
                   key={l.id}
                   type="button"
                   onClick={() => pick({ kind: 'jungle', target: l.id })}
-                  className="min-h-9 rounded-lg border border-[#2A3550] bg-[#0A0E1A] px-2 font-bold text-[#F0E6D2] flex items-center justify-center gap-1 text-[10px]"
+                  className="min-h-9 rounded-lg border border-[#2A3550] bg-[#0A0E1A] px-2 font-bold text-[#F0E6D2] flex items-center justify-center gap-1 text-[10px] md:text-xs"
                 >
                   <TreePine className="w-3 h-3 text-[#27AE60] shrink-0" />
-                  {l.label}
+                  <span className="md:hidden">{l.label}</span>
+                  <span className="hidden md:inline">{l.labelMd}</span>
                 </button>
               ))}
               {allowObjective && (

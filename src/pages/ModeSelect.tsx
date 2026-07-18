@@ -34,7 +34,7 @@ const MODES: { id: GameMode; title: string; desc: string; icon: React.ReactNode;
 function RulesModal({ onClose }: { onClose: () => void }) {
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 px-4"
+      className="fixed inset-0 z-[200] flex min-h-0 items-start justify-center overflow-y-auto overscroll-contain bg-black/75 px-4 py-3 sm:items-center sm:py-4"
       style={{
         paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))',
         paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
@@ -45,7 +45,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="modal-panel flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] shadow-[0_0_40px_rgba(201,168,76,0.2)]"
+        className="modal-panel my-auto flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] shadow-[0_0_40px_rgba(201,168,76,0.2)]"
         style={{ maxHeight: 'min(36rem, calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)))' }}
         onClick={e => e.stopPropagation()}
       >
@@ -70,7 +70,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-hidden px-3 py-3 space-y-2.5 text-xs leading-snug text-[#C5D0E0]">
+        <div className="modal-scroll space-y-2.5 px-3 py-3 text-xs leading-snug text-[#C5D0E0]">
           <p className="rounded-xl border border-[#C9A84C]/35 bg-[#C9A84C]/10 px-3 py-2.5 text-center text-xs font-bold uppercase tracking-[0.12em] text-[#C9A84C] md:text-sm md:tracking-[0.16em]">
             Cada mes integraremos 10 campeones más
           </p>

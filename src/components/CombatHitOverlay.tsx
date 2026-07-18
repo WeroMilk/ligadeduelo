@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react';
 import type { CombatFloat } from '@/types/game';
 import { formatCombatHitNarrative } from '@/lib/combat-flavor';
 import { combatFloatStyle } from '@/lib/combat-float-style';
@@ -45,16 +46,31 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Pro
         >
           {narrative}
         </p>
-        <p
-          className="mt-2 text-4xl sm:text-5xl font-black tabular-nums"
-          style={{
-            textShadow: `0 2px 12px ${palette.glow}88`,
-            animation: 'combat-hit-amount 0.55s ease-out both',
-          }}
+        <div
+          className="mt-2 flex items-center justify-center gap-2"
+          style={{ animation: 'combat-hit-amount 0.55s ease-out both' }}
         >
-          <span style={{ color: palette.signColor }}>{isHeal ? '+' : '−'}</span>
-          <span style={{ color: palette.numberColor }}>{amount}</span>
-        </p>
+          {isHeal ? (
+            <Plus
+              className="shrink-0 drop-shadow-[0_2px_8px_rgba(46,204,113,0.55)]"
+              style={{ width: '2.25rem', height: '2.25rem', color: palette.signColor }}
+              strokeWidth={3}
+            />
+          ) : (
+            <span
+              className="text-4xl sm:text-5xl font-black tabular-nums"
+              style={{ textShadow: `0 2px 12px ${palette.glow}88`, color: palette.signColor }}
+            >
+              −
+            </span>
+          )}
+          <span
+            className="text-4xl sm:text-5xl font-black tabular-nums"
+            style={{ textShadow: `0 2px 12px ${palette.glow}88`, color: palette.numberColor }}
+          >
+            {amount}
+          </span>
+        </div>
         <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-black/50">
           <div
             key={hit.id}

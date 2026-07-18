@@ -26,25 +26,35 @@ import type { CombatFloat, LaneId, RoundResolution, Structure, TeamPlan } from '
 
 const MAP_SIZE_MOBILE_MAX = 280;
 const MAP_SIZE_MOBILE_MIN = 168;
+const MAP_SLOT_SCALE = 1.12;
+const DESKTOP_SIDEBAR_W = 288;
+const DESKTOP_MAP_MAX = 460;
+const DESKTOP_MAP_MIN = 200;
 
 function useMapSize(containerRef: React.RefObject<HTMLElement | null>) {
   const [size, setSize] = useState(240);
   useEffect(() => {
     const el = containerRef.current;
     const update = () => {
+      if (!el) return;
       const desktop = window.matchMedia('(min-width: 768px)').matches;
+      const h = el.clientHeight;
+      const w = el.clientWidth;
+
       if (desktop) {
-        const byH = Math.floor(window.innerHeight * 0.62);
-        const byW = Math.floor(window.innerWidth * 0.48);
-        setSize(Math.max(420, Math.min(580, byH, byW)));
+        // Escritorio: mapa a la izquierda; estructuras y marcador en panel lateral
+        const reserved = 56;
+        const availW = w - DESKTOP_SIDEBAR_W - 24;
+        const byH = Math.floor((h - reserved) / MAP_SLOT_SCALE);
+        const byW = Math.floor(Math.max(160, availW) / MAP_SLOT_SCALE);
+        setSize(Math.max(DESKTOP_MAP_MIN, Math.min(DESKTOP_MAP_MAX, byH, byW)));
         return;
       }
-      // Móvil: encajar mapa + estructuras + kills en el alto disponible del body
-      const h = el?.clientHeight ?? Math.floor(window.innerHeight * 0.45);
-      // capsule + estructuras + botón stats + kills + padding
+
+      // Móvil: mapa + estructuras + marcador + stats en columna
       const reserved = 210;
-      const byH = Math.floor((h - reserved) / 1.12);
-      const byW = Math.floor((el?.clientWidth ?? window.innerWidth) - 32);
+      const byH = Math.floor((h - reserved) / MAP_SLOT_SCALE);
+      const byW = Math.floor(w - 16);
       setSize(Math.max(MAP_SIZE_MOBILE_MIN, Math.min(MAP_SIZE_MOBILE_MAX, byH, byW)));
     };
     update();
@@ -864,7 +874,7 @@ export default function LiveMatch() {
     }];
   })();
 
-  const slot = Math.round(mapSize * 1.12);
+  const slot = Math.round(mapSize * MAP_SLOT_SCALE);
   const displayRound = cinemaRes ? cinemaRes.round : tm.round;
   const capsule =
     !phase || phase.t === 'idle' ? `Ronda ${displayRound}` :
@@ -917,14 +927,14 @@ export default function LiveMatch() {
 
       <div
         ref={bodyRef}
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide px-3 py-2 max-w-lg mx-auto w-full flex flex-col gap-2.5 md:overflow-hidden md:max-w-6xl md:px-4 md:py-3 md:flex-row md:items-start md:justify-center md:gap-10"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide px-3 py-2 w-full max-w-lg mx-auto flex flex-col gap-2.5 md:max-w-6xl md:px-4 md:py-2 md:flex-row md:items-stretch md:justify-center md:gap-6 lg:gap-8"
       >
-        <div className="flex w-full min-h-0 flex-col items-center gap-1.5 md:w-auto md:shrink-0 md:gap-3">
+        <div className="flex w-full min-h-0 flex-col items-center gap-1.5 md:flex-1 md:min-w-0 md:justify-center md:gap-2">
           <div className="rounded-full border border-[#C9A84C]/40 bg-[#141B2D] px-3 py-0.5 shrink-0">
             <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-[#C9A84C]">{capsule}</p>
           </div>
 
-          <div className="relative flex items-center justify-center overflow-hidden shrink-0" style={{ width: slot, height: slot }}>
+          <div className="relative flex shrink-0 items-center justify-center overflow-hidden" style={{ width: slot, height: slot, maxWidth: '100%' }}>
             <div
               className="transition-transform duration-500 ease-out"
               style={{
@@ -1018,56 +1028,75 @@ export default function LiveMatch() {
 
           <CombatAnnounceOverlay batch={announceBatch} placement="inline" />
 
-          <div className="w-full space-y-1.5 rounded-xl border border-[#1E2740] bg-[#0D1220] p-2 shrink-0" style={{ maxWidth: mapSize }}>
-            <p className="text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4] text-center">
+          <div className="w-full space-y-1.5 md:hidden" style={{ maxWidth: mapSize }}>
+            <div className="rounded-xl border border-[#1E2740] bg-[#0D1220] p-2 shrink-0">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4] text-center">
+                Estructuras
+              </p>
+              <StructureHpRow structures={tm.structures} team="blue" />
+              <StructureHpRow structures={tm.structures} team="red" />
+            </div>
+
+            <button
+              type="button"
+              onClick={openStats}
+              className="w-full shrink-0 flex items-center justify-center gap-2 rounded-xl border-2 border-[#C9A84C]/45 bg-[#C9A84C]/12 px-3 py-2.5 text-xs font-bold uppercase tracking-wider text-[#C9A84C] active:scale-[0.99]"
+            >
+              <BarChart3 className="h-4 w-4" />
+              Estadísticas
+            </button>
+
+            <div className="grid w-full shrink-0 grid-cols-2 gap-2 text-[11px]">
+              <div className="min-w-0 rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1.5">
+                <p className="text-[#8B9BB4]">Azul</p>
+                <p className="font-bold text-[#F0E6D2] truncate">{tm.blue.name}</p>
+                <p className="text-base font-bold text-[#3498DB] mt-0.5">{tm.blue.kills}</p>
+                <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
+              </div>
+              <div className="min-w-0 rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1.5 text-right">
+                <p className="text-[#8B9BB4]">Rojo</p>
+                <p className="font-bold text-[#F0E6D2] truncate">{tm.red.name}</p>
+                <p className="text-base font-bold text-[#E74C3C] mt-0.5">{tm.red.kills}</p>
+                <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="hidden md:flex md:w-72 lg:w-80 md:shrink-0 md:flex-col md:justify-center md:gap-3 md:min-h-0 md:py-1">
+          <div className="grid grid-cols-1 gap-2 text-[11px]">
+            <div className="min-w-0 rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-3 py-2">
+              <p className="text-[#8B9BB4]">Azul</p>
+              <p className="font-bold text-[#F0E6D2] truncate text-sm">{tm.blue.name}</p>
+              <p className="text-xl font-bold text-[#3498DB] mt-0.5">{tm.blue.kills}</p>
+              <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
+            </div>
+            <div className="min-w-0 rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-3 py-2">
+              <p className="text-[#8B9BB4]">Rojo</p>
+              <p className="font-bold text-[#F0E6D2] truncate text-sm">{tm.red.name}</p>
+              <p className="text-xl font-bold text-[#E74C3C] mt-0.5">{tm.red.kills}</p>
+              <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[#1E2740] bg-[#0D1220] p-2.5 shrink-0">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4] text-center mb-1">
               Estructuras
             </p>
-            <StructureHpRow structures={tm.structures} team="blue" />
-            <StructureHpRow structures={tm.structures} team="red" />
+            <div className="space-y-1.5">
+              <StructureHpRow structures={tm.structures} team="blue" />
+              <StructureHpRow structures={tm.structures} team="red" />
+            </div>
           </div>
 
           <button
             type="button"
             onClick={openStats}
             className="w-full shrink-0 flex items-center justify-center gap-2 rounded-xl border-2 border-[#C9A84C]/45 bg-[#C9A84C]/12 px-3 py-2.5 text-xs font-bold uppercase tracking-wider text-[#C9A84C] active:scale-[0.99]"
-            style={{ maxWidth: mapSize }}
           >
             <BarChart3 className="h-4 w-4" />
             Estadísticas
           </button>
-
-          <div
-            className="grid w-full shrink-0 grid-cols-2 gap-2 text-[11px] md:hidden"
-            style={{ maxWidth: mapSize }}
-          >
-            <div className="min-w-0 rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1.5">
-              <p className="text-[#8B9BB4]">Azul</p>
-              <p className="font-bold text-[#F0E6D2] truncate">{tm.blue.name}</p>
-              <p className="text-base font-bold text-[#3498DB] mt-0.5">{tm.blue.kills}</p>
-              <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
-            </div>
-            <div className="min-w-0 rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1.5 text-right">
-              <p className="text-[#8B9BB4]">Rojo</p>
-              <p className="font-bold text-[#F0E6D2] truncate">{tm.red.name}</p>
-              <p className="text-base font-bold text-[#E74C3C] mt-0.5">{tm.red.kills}</p>
-              <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="hidden w-full shrink-0 grid-cols-1 gap-3 text-[11px] md:grid md:w-64">
-          <div className="min-w-0 rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1 md:py-4 md:px-3">
-            <p className="text-[#8B9BB4]">Azul</p>
-            <p className="font-bold text-[#F0E6D2] truncate md:text-sm">{tm.blue.name}</p>
-            <p className="text-base md:text-2xl font-bold text-[#3498DB] mt-0.5 md:mt-1">{tm.blue.kills}</p>
-            <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
-          </div>
-          <div className="min-w-0 rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1 md:py-4 md:px-3">
-            <p className="text-[#8B9BB4]">Rojo</p>
-            <p className="font-bold text-[#F0E6D2] truncate md:text-sm">{tm.red.name}</p>
-            <p className="text-base md:text-2xl font-bold text-[#E74C3C] mt-0.5 md:mt-1">{tm.red.kills}</p>
-            <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
-          </div>
         </div>
       </div>
 
@@ -1104,6 +1133,7 @@ export default function LiveMatch() {
           paused={isPaused}
           attemptKey={qteAttempt}
           allowSimulate={state.gameMode === 'ai' || isCoopLocal(state.gameMode)}
+          playerSide={humanSide}
         />
       )}
 
