@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode, useEffect, useSyncExternalStore, useState } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { GameProvider, useGame } from '@/hooks/useGameState';
 import ExitGameButton from '@/components/ExitGameButton';
 import CoffeeTipButton from '@/components/CoffeeTipButton';
@@ -109,6 +110,7 @@ function AppShell() {
       <AdBanner />
       <PostMatchAd />
       <AdUnlockModal open={showUnlockPrompt} onClose={() => setPromptDismissed(true)} />
+      <Analytics />
     </div>
   );
 }
