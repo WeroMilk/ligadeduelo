@@ -108,7 +108,7 @@ function aggregateKillAnnounces(raw: RawKill[]): KillAnnounce[] {
 /** Un solo golpe ofensivo consolidado por campeón y ronda. */
 const DUEL_MAX_EXCHANGES = 1;
 /** Compensa el paso de 3 intercambios a 1 sin inflar kills. */
-const COMBAT_DAMAGE_MULT = 1.35;
+const COMBAT_DAMAGE_MULT = 1.4;
 const DEFEND_DAMAGE_MULT = 0.48;
 const DAMAGE_VARIANCE_MIN = 0.95;
 const DAMAGE_VARIANCE_MAX = 1.05;
@@ -117,8 +117,8 @@ const BURN_ARMOR_DMG = 12;
 const TOWER_MAX_HP = 1400;
 const NEXUS_MAX_HP = 2000;
 /** ~2–3 golpes por torre, ~3 por nexo. */
-const SIEGE_TOWER_DMG = 520;
-const SIEGE_NEXUS_DMG = 700;
+const SIEGE_TOWER_DMG = 450;
+const SIEGE_NEXUS_DMG = 600;
 
 /** Contexto de asedio durante resolveRound (amenazas letales a nexos). */
 type SiegeCtx = {
@@ -933,14 +933,13 @@ function siegeTower(
       const raw = calcSiegeDamage(sieger, SIEGE_NEXUS_DMG, 'nexus');
       let dmg = Math.min(raw, nexus.hp);
 
-      // Golpe letal al nexo del jugador → diferir destrucción a QTE de defensa
+      // Todo golpe letal al nexo se decide con bolitas: defensa azul o asalto al rojo.
       if (
-        towerTeam === 'blue'
-        && sieger.team === 'red'
-        && siegeCtx
+        siegeCtx
+        && sieger.team !== towerTeam
         && nexus.hp - dmg <= 0
       ) {
-        // Deja el nexo a 1 HP y marca amenaza → QTE de defensa
+        // Deja el nexo a 1 HP y marca amenaza; el QTE decide el resultado final.
         const applied = Math.max(0, nexus.hp - 1);
         nexus.hp = 1;
         siegerSnap.damageDealt = applied;
@@ -958,7 +957,9 @@ function siegeTower(
         });
         pushLog(
           log,
-          `¡${champDef(sieger).name} asalta el Nexo! Defiende o cae la base`,
+          towerTeam === 'blue'
+            ? `¡${champDef(sieger).name} asalta el Nexo! Defiende o cae la base`
+            : `¡${champDef(sieger).name} deja vulnerable el Nexo enemigo! Derríbalo con bolitas`,
           'tower',
         );
         duels.push({
@@ -967,11 +968,18 @@ function siegeTower(
           kind: 'siege',
           blue: undefined,
           red: siegerSnap,
-          summary: `${champDef(sieger).name} asalta el Nexo — ¡defiende!`,
+          summary: towerTeam === 'blue'
+            ? `${champDef(sieger).name} asalta el Nexo — ¡defiende!`
+            : `${champDef(sieger).name} abre el asalto final al Nexo`,
           siegeTargetId: nexus.id,
         });
-        state.blue.nexusHp = 1;
-        siegeCtx.blueNexusThreat = { siegerId: sieger.instanceId, lane };
+        if (towerTeam === 'blue') {
+          state.blue.nexusHp = 1;
+          siegeCtx.blueNexusThreat = { siegerId: sieger.instanceId, lane };
+        } else {
+          state.red.nexusHp = 1;
+          siegeCtx.redNexusThreat = { siegerId: sieger.instanceId, lane };
+        }
         return;
       }
 
@@ -1103,9 +1111,9 @@ function grantObjectiveRewards(
       c.stats.ap = Math.max(1, Math.floor(c.stats.ap * 1.1));
     }
   } else {
-    bonusText = '+15% de robo de vida a todos los campeones aliados vivos (15% del daño a enemigos se cura)';
+    bonusText = '+20% de robo de vida a todos los campeones aliados vivos (20% del daño a enemigos se cura)';
     for (const c of recipients) {
-      c.lifeSteal = Math.min(0.6, (c.lifeSteal || 0) + 0.15);
+      c.lifeSteal = Math.min(0.6, (c.lifeSteal || 0) + 0.2);
     }
   }
 
@@ -1666,9 +1674,14 @@ function applySkirmishLoserFate(
     || livingIncludingSkipped(wTeam).find(c => champDef(c).role === 'jungle')
     || livingIncludingSkipped(wTeam)[0];
 
-  for (const id of loserIds) {
-    const victim = lTeam.champions.find(c => c.instanceId === id);
-    if (!victim || !victim.isAlive || victim.stats.hp <= 0) continue;
+  const eligibleVictims = loserIds
+    .map(id => lTeam.champions.find(c => c.instanceId === id))
+    .filter((c): c is Champion => !!c && c.isAlive && c.stats.hp > 0);
+  const affectedVictims = fate === 'killed'
+    ? eligibleVictims.slice().sort((a, b) => a.stats.hp - b.stats.hp).slice(0, 1)
+    : eligibleVictims;
+
+  for (const victim of affectedVictims) {
 
     if (fate === 'escaped') {
       victim.skipTurns = Math.max(victim.skipTurns || 0, 1);
@@ -1813,6 +1826,45 @@ export function finishPendingObjective(
       next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
       towerStats, duels, floats,
       { winner: null, contested: true, freeItem: false, ancestral: false, bonus: null },
+      false,
+      killEvents,
+      false,
+    );
+  }
+
+  if (pending.kind === 'nexus_assault') {
+    const lane = (pending.lane ?? 1) as LaneId;
+    const nexus = next.structures.find(s => s.id === 'nexus_red');
+
+    if (qte.monsterTaken) {
+      if (nexus) {
+        nexus.hp = 0;
+        nexus.isDestroyed = true;
+      }
+      next.red.nexusHp = 0;
+      pushLog(log, `¡NEXO ENEMIGO DESTRUIDO! Ganaste el asalto en ${laneLabel(lane)}`, 'tower');
+    } else {
+      const restored = Math.floor(NEXUS_MAX_HP * 0.25);
+      if (nexus) {
+        nexus.hp = restored;
+        nexus.isDestroyed = false;
+      }
+      next.red.nexusHp = restored;
+      pushLog(
+        log,
+        `El Nexo enemigo resistió en ${laneLabel(lane)} y recuperó el 25% de su vida`,
+        'tower',
+      );
+    }
+
+    next.pendingObjective = null;
+    next.deferredBluePlan = null;
+    next.deferredRedPlan = null;
+
+    return finalizeRoundBookkeeping(
+      next, log, scoreBeforeB, scoreBeforeR, killsBeforeB, killsBeforeR,
+      towerStats, duels, floats,
+      { winner: null, contested: false, freeItem: false, ancestral: false, bonus: null },
       false,
       killEvents,
       false,

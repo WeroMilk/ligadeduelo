@@ -1,15 +1,19 @@
 import { useState } from 'react';
 import { useGame } from '@/hooks/useGameState';
+import { isCoopLocal } from '@/lib/coop';
 import { UserPlus, Trash2, Copy, Play } from 'lucide-react';
 
 export default function LobbyScreen() {
   const { state, dispatch } = useGame();
   const [name, setName] = useState('');
   const isCode = state.gameMode === 'coop_code';
+  const isCoop = isCoopLocal(state.gameMode);
+  const maxPlayers = isCoop ? 2 : 16;
   const minPlayers = 2;
   const canStart = state.lobbyPlayers.length >= minPlayers;
 
   const add = () => {
+    if (state.lobbyPlayers.length >= maxPlayers) return;
     dispatch({ type: 'ADD_LOBBY_PLAYER', name });
     setName('');
   };
@@ -23,7 +27,7 @@ export default function LobbyScreen() {
         <p className="text-xs text-[#8B9BB4] mt-1">
           {isCode
             ? 'Mismo dispositivo: el código es decorativo. Añade amigos aquí (máx. 16).'
-            : 'Añade 2–4 jugadores en esta pantalla.'}
+            : 'Exactamente 2 jugadores en esta pantalla. Cada uno armará su propio equipo.'}
         </p>
         {isCode && (
           <div className="mt-3 flex items-center gap-2 rounded-xl border border-[#C9A84C]/40 bg-[#C9A84C]/10 px-3 py-2">
@@ -54,7 +58,9 @@ export default function LobbyScreen() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-[#F0E6D2] truncate">{p.name}</p>
-                <p className="text-[10px] text-[#8B9BB4]">{p.isHost ? 'Anfitrión' : 'Invitado'}</p>
+                <p className="text-[10px] text-[#8B9BB4]">
+                  {p.isHost ? 'Jugador 1' : isCoop ? 'Jugador 2' : 'Invitado'}
+                </p>
               </div>
               {!p.isHost && (
                 <button
@@ -69,13 +75,13 @@ export default function LobbyScreen() {
           ))}
         </div>
 
-        {state.lobbyPlayers.length < 16 && (
+        {state.lobbyPlayers.length < maxPlayers && (
           <div className="flex gap-2 pt-2 shrink-0 max-w-md">
             <input
               value={name}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && add()}
-              placeholder={isCode ? 'Nombre del amigo' : 'Jugador 2…'}
+              placeholder={isCoop ? 'Nombre del jugador 2…' : 'Jugador 2…'}
               maxLength={18}
               className="flex-1 rounded-xl border-2 border-[#2A3550] bg-[#141B2D] px-3 py-2.5 text-[#F0E6D2] focus:border-[#C9A84C] outline-none"
             />
@@ -99,7 +105,7 @@ export default function LobbyScreen() {
           style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
         >
           <Play className="w-5 h-5" />
-          CONTINUAR · NOMBRE DE EQUIPO
+          {isCoop ? 'CONTINUAR · ARMAR EQUIPOS' : 'CONTINUAR · NOMBRE DE EQUIPO'}
         </button>
         <button
           type="button"

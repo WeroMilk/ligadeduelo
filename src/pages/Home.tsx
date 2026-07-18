@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGame } from '@/hooks/useGameState';
+import CoopSetupBanner from '@/components/CoopSetupBanner';
 import { Sparkles } from 'lucide-react';
 import { playClickSound } from '@/lib/sounds';
 
@@ -92,6 +93,7 @@ export default function Home() {
             : 'justify-center safe-top safe-bottom pb-6'
         }`}
       >
+        <CoopSetupBanner />
         <div
           className={`w-full max-w-md text-center ${
             keyboardUp ? 'space-y-3' : 'space-y-4 md:space-y-6 -translate-y-8 md:-translate-y-6'

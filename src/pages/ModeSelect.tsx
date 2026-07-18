@@ -18,9 +18,9 @@ const MODES: { id: GameMode; title: string; desc: string; icon: React.ReactNode;
   {
     id: 'coop_local',
     title: 'Cooperativo · misma pantalla',
-    desc: '2 a 4 jugadores en este dispositivo. Decisiones compartidas en partida.',
+    desc: '2 jugadores, 2 equipos distintos. Torneo de 16; si se enfrentan, compiten por turnos.',
     icon: <Users className="w-7 h-7" />,
-    enabled: false,
+    enabled: true,
   },
   {
     id: 'coop_code',

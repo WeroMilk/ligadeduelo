@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { KillAnnounce, ObjectiveBonusAnnounce, TeamColor } from '@/types/game';
 
 export type AnnounceItem =
@@ -66,7 +65,7 @@ export default function CombatAnnounceOverlay({ batch, onBusyChange }: Props) {
   if (!current) return null;
 
   const wrapClass =
-    'pointer-events-none fixed inset-x-0 top-0 z-[120] flex justify-center px-3 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)]';
+    'pointer-events-none absolute inset-0 z-[120] flex items-center justify-center px-3';
 
   const body =
     current.kind === 'kill' ? (
@@ -101,5 +100,5 @@ export default function CombatAnnounceOverlay({ batch, onBusyChange }: Props) {
       </div>
     );
 
-  return createPortal(body, document.body);
+  return body;
 }

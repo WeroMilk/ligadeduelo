@@ -1,4 +1,3 @@
-import { createPortal } from 'react-dom';
 import { Ghost, TreePine } from 'lucide-react';
 import type { Champion, LaneId } from '@/types/game';
 import { CHAMPIONS, ROLE_NAMES } from '@/lib/game-data';
@@ -17,6 +16,9 @@ type Props = {
   /** Campeones vivos (no jungla) para ayudar en el objetivo. */
   assistOptions?: Champion[];
   secondsLeft: number;
+  showTimer?: boolean;
+  teamColor?: 'blue' | 'red';
+  playerLabel?: string;
   onPick: (payload: DecisionPayload) => void;
 };
 
@@ -26,6 +28,9 @@ export default function DecisionOverlay({
   allowObjective = false,
   assistOptions = [],
   secondsLeft,
+  showTimer = true,
+  teamColor,
+  playerLabel,
   onPick,
 }: Props) {
   const pick = (payload: DecisionPayload) => {
@@ -33,13 +38,24 @@ export default function DecisionOverlay({
     onPick(payload);
   };
 
-  const body = (
-    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center px-3 pb-6 sm:pb-0 bg-black/55">
-      <div className="w-full max-w-md rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-4 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-3">
+  return (
+    <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/55 p-2">
+      <div className="max-h-full w-full overflow-y-auto rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">Decisión de equipo</p>
-          <span className="text-xs font-mono text-[#8B9BB4]">{secondsLeft}s</span>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
+            {playerLabel ? `Turno · ${playerLabel}` : 'Decisión de equipo'}
+          </p>
+          {showTimer ? (
+            <span className="text-xs font-mono text-[#8B9BB4]">{secondsLeft}s</span>
+          ) : (
+            <span className="text-[10px] text-[#8B9BB4]">Sin límite</span>
+          )}
         </div>
+        {teamColor && (
+          <p className={`text-xs font-bold ${teamColor === 'blue' ? 'text-[#3498DB]' : 'text-[#E74C3C]'}`}>
+            Equipo {teamColor === 'blue' ? 'azul' : 'rojo'}
+          </p>
+        )}
 
         {kind === 'jungle' && (
           <>
@@ -128,6 +144,4 @@ export default function DecisionOverlay({
       </div>
     </div>
   );
-
-  return createPortal(body, document.body);
 }

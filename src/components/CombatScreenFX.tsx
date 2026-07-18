@@ -47,7 +47,7 @@ export default function CombatScreenFX({ signal }: Props) {
   if (events.length === 0) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden" aria-hidden>
+    <div className="pointer-events-none absolute inset-0 z-[60] overflow-hidden" aria-hidden>
       {events.map(ev => {
         if (ev.kind === 'kill') {
           return (
@@ -67,7 +67,7 @@ export default function CombatScreenFX({ signal }: Props) {
                 }}
               />
               {ev.label && (
-                <div className="absolute inset-x-0 top-[28%] flex justify-center px-4">
+                <div className="absolute inset-0 flex items-center justify-center px-4">
                   <p
                     className="animate-kill-banner text-center text-3xl sm:text-4xl font-black tracking-wider text-[#FF3B3B] drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]"
                     style={{ fontFamily: 'Cinzel, serif' }}
@@ -111,7 +111,7 @@ export default function CombatScreenFX({ signal }: Props) {
               }`}
             >
               {ev.label && (
-                <div className="absolute inset-x-0 top-[30%] flex justify-center px-4">
+                <div className="absolute inset-0 flex items-center justify-center px-4">
                   <p
                     className={`animate-kill-banner font-black text-center drop-shadow-[0_2px_14px_rgba(0,0,0,0.9)] ${
                       isNexus
@@ -133,7 +133,7 @@ export default function CombatScreenFX({ signal }: Props) {
         return (
           <div key={ev.id} className="absolute inset-0 animate-obj-flash">
             {ev.label && (
-              <div className="absolute inset-x-0 top-[30%] flex justify-center px-4">
+              <div className="absolute inset-0 flex items-center justify-center px-4">
                 <p className="animate-kill-banner text-[#F5B041] text-2xl font-bold text-center drop-shadow-lg">
                   {ev.label}
                 </p>

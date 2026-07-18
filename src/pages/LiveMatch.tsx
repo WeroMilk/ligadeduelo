@@ -7,9 +7,17 @@ import CombatScreenFX, { type ScreenFxKind } from '@/components/CombatScreenFX';
 import CombatAnnounceOverlay, { type AnnounceItem } from '@/components/CombatAnnounceOverlay';
 import CombatHitOverlay, { HIT_PAUSE_MS } from '@/components/CombatHitOverlay';
 import ObjectiveMinigame, { type ObjectiveQtePayload } from '@/components/ObjectiveMinigame';
+import CoopPvpDecisionFlow from '@/components/CoopPvpDecisionFlow';
+import CoopClickBattle from '@/components/CoopClickBattle';
 import MatchStatsModal from '@/components/MatchStatsModal';
 import AdInterstitial, { QTE_REPLAY_AD_MS } from '@/components/AdInterstitial';
 import { generateAIPlan, champDef, livingJungler } from '@/lib/turn-engine';
+import { isCoopLocal } from '@/lib/coop';
+import {
+  MAX_QTE_REPLAYS_PER_MATCH,
+  canReplayQte,
+  qteReplaysRemaining,
+} from '@/lib/qte-rules';
 import { pushAdHidden, popAdHidden } from '@/lib/ad-visibility';
 import { createPausableScheduler } from '@/lib/pausable-scheduler';
 import { objectiveName } from '@/lib/game-data';
@@ -66,6 +74,7 @@ function laneCameraPan(lane: LaneId): { x: number; y: number } {
 
 type Phase =
   | { t: 'prompt'; kind: DecisionKind }
+  | { t: 'confirm' }
   | { t: 'lane'; lane: LaneId; fight: boolean }
   | { t: 'objective'; anim: ObjectiveAnimPhase }
   | { t: 'qte' }
@@ -145,6 +154,10 @@ function StructureHpRow({ structures, team }: { structures: Structure[]; team: '
 export default function LiveMatch() {
   const { state, dispatch } = useGame();
   const tm = state.turnMatch;
+  const isCoop = isCoopLocal(state.gameMode);
+  const isCoopPvp = isCoop && !!state.currentMatch?.isPvpMatch;
+  const isCoopSolo = isCoop && !!state.currentMatch?.isPlayerMatch && !isCoopPvp;
+  const humanSide = state.playerSide ?? 'blue';
   const bodyRef = useRef<HTMLDivElement>(null);
   const mapSize = useMapSize(bodyRef);
   const [phase, setPhase] = useState<Phase | null>(null);
@@ -162,6 +175,7 @@ export default function LiveMatch() {
   const [pauseBeforeStats, setPauseBeforeStats] = useState(false);
   const [pendingQteResult, setPendingQteResult] = useState<ObjectiveQtePayload | null>(null);
   const [qteAttempt, setQteAttempt] = useState(0);
+  const [qteReplayCount, setQteReplayCount] = useState(0);
   const [showReplayAd, setShowReplayAd] = useState(false);
   const pickQueue = useRef<DecisionKind[]>([]);
   const picksRef = useRef<DecisionPayload[]>([]);
@@ -254,12 +268,13 @@ export default function LiveMatch() {
 
   const assistCandidates = useMemo(() => {
     if (!tm) return [];
-    return tm.blue.champions.filter(c => {
+    const champs = humanSide === 'red' ? tm.red.champions : tm.blue.champions;
+    return champs.filter(c => {
       if (!c.isAlive || c.stats.hp <= 0) return false;
       const def = champDef(c);
       return def.role !== 'jungle';
     });
-  }, [tm]);
+  }, [tm, humanSide]);
 
   const clearCinema = () => {
     cinemaScheduler.current.clearAll();
@@ -460,9 +475,12 @@ export default function LiveMatch() {
     }, t + 400);
   };
 
-  /** Victoria del jugador en bolitas: no perdió la escaramuza y tomó el objetivo (o defendió/ganó el choque). */
-  const playerWonQte = (qte: ObjectiveQtePayload) =>
-    qte.skirmishWinner !== 'red' && qte.monsterTaken;
+  /** Victoria del jugador humano en bolitas / clicks. */
+  const playerWonQte = (qte: ObjectiveQtePayload) => {
+    if (qte.skirmishWinner && qte.skirmishWinner !== humanSide) return false;
+    if (qte.skirmishWinner === humanSide) return qte.monsterTaken;
+    return qte.monsterTaken && qte.attackingTeam === humanSide;
+  };
 
   const confirmQteResult = (qte: ObjectiveQtePayload) => {
     awaitingQte.current = false;
@@ -474,8 +492,7 @@ export default function LiveMatch() {
   };
 
   const onQteComplete = (qte: ObjectiveQtePayload) => {
-    // Solo ofrecer Repetir al perder; al ganar se confirma al instante
-    if (playerWonQte(qte)) {
+    if (isCoopPvp || playerWonQte(qte)) {
       confirmQteResult(qte);
       return;
     }
@@ -486,13 +503,18 @@ export default function LiveMatch() {
   };
 
   const requestQteReplay = () => {
-    if (!pendingQteResult || playerWonQte(pendingQteResult)) return;
+    if (
+      !pendingQteResult
+      || playerWonQte(pendingQteResult)
+      || !canReplayQte(qteReplayCount)
+    ) return;
     setShowReplayAd(true);
   };
 
   const onReplayAdComplete = useCallback(() => {
     setShowReplayAd(false);
     setPendingQteResult(null);
+    setQteReplayCount(n => Math.min(MAX_QTE_REPLAYS_PER_MATCH, n + 1));
     setQteAttempt(n => n + 1);
     awaitingQte.current = true;
     phaseStartedAt.current = Date.now();
@@ -548,18 +570,27 @@ export default function LiveMatch() {
 
   const resolveWithPicks = (finalPicks: DecisionPayload[]) => {
     if (!tm) return;
-    const junglerReady = !!livingJungler(tm.blue);
-    const base = generateAIPlan(tm, 'blue');
-    const plan = mergeDecisions(base, finalPicks, junglerReady);
+    const side = humanSide;
+    const team = side === 'blue' ? tm.blue : tm.red;
+    const junglerReady = !!livingJungler(team);
+    const humanPlan = mergeDecisions(generateAIPlan(tm, side), finalPicks, junglerReady);
     awaitingCinema.current = true;
     markPhaseStart();
     setPhase({ t: 'idle' });
-    dispatch({ type: 'RESOLVE_LIVE_ROUND', plan });
+    if (side === 'blue') {
+      dispatch({ type: 'RESOLVE_LIVE_ROUND', bluePlan: humanPlan });
+    } else {
+      dispatch({ type: 'RESOLVE_LIVE_ROUND', redPlan: humanPlan });
+    }
   };
 
   const beginPrompts = (round: number) => {
     const current = tmRef.current;
     if (!current || current.isComplete) return;
+    if (isCoopPvp) {
+      promptsForRound.current = round;
+      return;
+    }
     resetCinemaGuards();
     promptsForRound.current = round;
     picksRef.current = [];
@@ -570,8 +601,8 @@ export default function LiveMatch() {
     setCamPan({ x: 0, y: 0 });
     markPhaseStart();
 
-    // Jungla muerto o en skip: no hay decisión de gank este turno
-    if (!livingJungler(current.blue)) {
+    const humanTeam = humanSide === 'red' ? current.red : current.blue;
+    if (!livingJungler(humanTeam)) {
       pickQueue.current = [];
       resolveWithPicks([]);
       return;
@@ -745,12 +776,15 @@ export default function LiveMatch() {
     const next = [...picksRef.current.filter(p => p.kind !== payload.kind), payload];
     picksRef.current = next;
 
-    // Tras ir al objetivo: elegir qué campeón ayuda (solo si la jungla puede actuar)
+    const current = tmRef.current;
+    const sideTeam = humanSide === 'red' ? current?.red : current?.blue;
+
     if (
       payload.kind === 'jungle'
       && payload.target === 'objective'
-      && tmRef.current?.objective
-      && livingJungler(tmRef.current.blue)
+      && current?.objective
+      && sideTeam
+      && livingJungler(sideTeam)
       && assistCandidates.length > 0
     ) {
       pickQueue.current = ['assist', ...pickQueue.current.filter(k => k !== 'assist')];
@@ -759,10 +793,19 @@ export default function LiveMatch() {
     const nextKind = pickQueue.current.shift();
     if (nextKind) {
       setPhase({ t: 'prompt', kind: nextKind });
+    } else if (isCoopSolo) {
+      setPhase({ t: 'confirm' });
     } else {
       resolveWithPicks(next);
     }
   }
+
+  const handlePvpResolve = (bluePlan: TeamPlan, redPlan: TeamPlan) => {
+    awaitingCinema.current = true;
+    markPhaseStart();
+    setPhase({ t: 'idle' });
+    dispatch({ type: 'RESOLVE_LIVE_ROUND', bluePlan, redPlan });
+  };
 
   if (!tm) return null;
 
@@ -783,9 +826,9 @@ export default function LiveMatch() {
   })();
 
   const capsule =
-    isPaused ? 'Partida en pausa' :
     !phase || phase.t === 'idle' ? `Ronda ${tm.round}` :
     phase.t === 'prompt' ? 'Tu decisión…' :
+    phase.t === 'confirm' ? 'Confirma tu elección' :
     phase.t === 'lane' ? `Línea ${['Superior', 'Central', 'Inferior'][phase.lane]}${phase.fight ? ' · Combate' : ''}` :
     phase.t === 'qte' ? '¡Pelea el objetivo!' :
     phase.t === 'qte_result' ? 'Resultado del combate' :
@@ -795,13 +838,10 @@ export default function LiveMatch() {
   const slot = Math.round(mapSize * 1.12);
   const displayRound = cinemaRes ? cinemaRes.round : tm.round;
   const pauseBlocked = !!pendingQteResult || showReplayAd;
+  const qteReplaysLeft = qteReplaysRemaining(qteReplayCount);
 
   return (
     <div className={`flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden relative ${shake ? 'animate-screen-shake' : ''}`}>
-      <CombatScreenFX signal={fx} />
-      <CombatAnnounceOverlay batch={announceBatch} />
-      {!isPaused && <CombatHitOverlay hit={activeHit} durationMs={HIT_PAUSE_MS} />}
-
       <div className="shrink-0 px-3 pb-2 pt-0 safe-top safe-chrome-x border-b border-[#1E2740] max-w-lg md:max-w-6xl mx-auto w-full md:px-4 md:py-3">
         <p className="text-[#C9A84C] text-[10px] md:text-xs uppercase tracking-wider">Partida en vivo</p>
         <div className="flex justify-between items-end gap-2">
@@ -871,6 +911,89 @@ export default function LiveMatch() {
                 activeEffectKind={activeHit?.kind ?? null}
               />
             </div>
+            <CombatScreenFX signal={fx} />
+            <CombatAnnounceOverlay batch={announceBatch} />
+            {!isPaused && <CombatHitOverlay hit={activeHit} durationMs={HIT_PAUSE_MS} />}
+
+            {phase?.t === 'prompt' && !statsOpen && !isCoopPvp && (
+              <DecisionOverlay
+                kind={phase.kind}
+                objectiveLabel={objLabel}
+                allowObjective={!!tm.objective}
+                assistOptions={assistCandidates}
+                secondsLeft={isCoopSolo ? 0 : promptLeft}
+                showTimer={!isCoopSolo}
+                teamColor={humanSide}
+                onPick={isPaused ? () => undefined : acceptPick}
+              />
+            )}
+
+            {phase?.t === 'confirm' && isCoopSolo && !statsOpen && (
+              <div className="absolute inset-0 z-[75] flex items-center justify-center bg-black/55 p-2">
+                <div className="max-h-full w-full overflow-y-auto rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
+                    Sin límite de tiempo
+                  </p>
+                  <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+                    ¿Confirmar elección?
+                  </h2>
+                  <p className="text-xs text-[#8B9BB4]">
+                    La ronda se resolverá con tu plan y la IA responderá.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={isPaused}
+                    onClick={() => resolveWithPicks(picksRef.current)}
+                    className="w-full min-h-10 rounded-xl font-bold"
+                    style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
+                  >
+                    Confirmar elección
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {phase?.t === 'qte_result' && pendingQteResult && !showReplayAd && !playerWonQte(pendingQteResult) && (
+              <div className="absolute inset-0 z-[130] flex items-center justify-center bg-black/70 p-2">
+                <div className="max-h-full w-full overflow-y-auto rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)]">
+                  <p className="text-center text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
+                    Combate de bolitas
+                  </p>
+                  <h3
+                    className="mt-1 text-center text-lg font-bold text-[#F0E6D2]"
+                    style={{ fontFamily: 'Cinzel, serif' }}
+                  >
+                    ¡Casi!
+                  </h3>
+                  <p className="mt-1 text-center text-xs text-[#8B9BB4]">
+                    {qteReplaysLeft > 0
+                      ? `Perdiste este intento. Puedes repetir (${qteReplaysLeft} disponibles) viendo un anuncio de 10 segundos.`
+                      : 'Perdiste este intento. Ya usaste tus 3 repeticiones de esta partida.'}
+                  </p>
+                  <div className={`mt-3 grid grid-cols-1 gap-2 ${
+                    qteReplaysLeft > 0 ? 'sm:grid-cols-2' : ''
+                  }`}>
+                    {qteReplaysLeft > 0 && (
+                      <button
+                        type="button"
+                        onClick={requestQteReplay}
+                        className="min-h-10 rounded-xl border border-[#C9A84C]/45 bg-[#C9A84C]/12 font-bold text-[#C9A84C]"
+                      >
+                        Repetir
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => confirmQteResult(pendingQteResult)}
+                      className="min-h-10 rounded-xl font-bold"
+                      style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
+                    >
+                      Continuar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="w-full space-y-1.5 rounded-xl border border-[#1E2740] bg-[#0D1220] p-2 shrink-0" style={{ maxWidth: mapSize }}>
@@ -908,18 +1031,30 @@ export default function LiveMatch() {
         </div>
       </div>
 
-      {phase?.t === 'prompt' && !statsOpen && (
-        <DecisionOverlay
-          kind={phase.kind}
-          objectiveLabel={objLabel}
-          allowObjective={!!tm.objective}
-          assistOptions={assistCandidates}
-          secondsLeft={promptLeft}
-          onPick={isPaused ? () => undefined : acceptPick}
+      {isCoopPvp && tm && !tm.isComplete && !awaitingCinema.current && !awaitingQte.current && (
+        <CoopPvpDecisionFlow
+          tm={tm}
+          blueLabel={tm.blue.name}
+          redLabel={tm.red.name}
+          round={tm.round}
+          paused={matchFrozen}
+          onResolve={handlePvpResolve}
         />
       )}
 
-      {phase?.t === 'qte' && tm.pendingObjective && !showReplayAd && (
+      {phase?.t === 'qte' && tm.pendingObjective && !showReplayAd && isCoopPvp && (
+        <CoopClickBattle
+          leftLabel={tm.blue.name}
+          rightLabel={tm.red.name}
+          leftTeam="blue"
+          rightTeam="red"
+          pending={tm.pendingObjective}
+          onComplete={onQteComplete}
+          paused={isPaused}
+        />
+      )}
+
+      {phase?.t === 'qte' && tm.pendingObjective && !showReplayAd && !isCoopPvp && (
         <ObjectiveMinigame
           key={qteAttempt}
           pending={tm.pendingObjective}
@@ -928,43 +1063,8 @@ export default function LiveMatch() {
           onComplete={onQteComplete}
           paused={isPaused}
           attemptKey={qteAttempt}
+          allowSimulate={state.gameMode === 'ai'}
         />
-      )}
-
-      {phase?.t === 'qte_result' && pendingQteResult && !showReplayAd && !playerWonQte(pendingQteResult) && (
-        <div className="fixed inset-0 z-[96] flex items-end sm:items-center justify-center bg-black/55 px-3 pb-6 sm:pb-0">
-          <div className="w-full max-w-md rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] p-4 shadow-[0_0_40px_rgba(201,168,76,0.25)]">
-            <p className="text-center text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
-              Combate de bolitas
-            </p>
-            <h3
-              className="mt-1 text-center text-lg font-bold text-[#F0E6D2]"
-              style={{ fontFamily: 'Cinzel, serif' }}
-            >
-              ¡Casi!
-            </h3>
-            <p className="mt-1 text-center text-xs text-[#8B9BB4]">
-              Perdiste este intento. Continúa o repite viendo un anuncio de 10 segundos.
-            </p>
-            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={requestQteReplay}
-                className="min-h-11 rounded-xl border border-[#C9A84C]/45 bg-[#C9A84C]/12 font-bold text-[#C9A84C]"
-              >
-                Repetir
-              </button>
-              <button
-                type="button"
-                onClick={() => confirmQteResult(pendingQteResult)}
-                className="min-h-11 rounded-xl font-bold"
-                style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
-              >
-                Continuar
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       <AdInterstitial

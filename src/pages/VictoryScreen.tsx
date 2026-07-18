@@ -1,4 +1,5 @@
 import { useGame } from '@/hooks/useGameState';
+import { isCoopLocal } from '@/lib/coop';
 import { Trophy, ChevronRight, User, Landmark } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { playVictorySound, playClickSound } from '@/lib/sounds';
@@ -41,14 +42,18 @@ export default function VictoryScreen() {
   }, [isTournamentFinal]);
 
   const tm = state.turnMatch;
+  const isCoopPvp = isCoopLocal(state.gameMode) && !!state.currentMatch?.isPvpMatch;
+  const winnerName = state.lastMatchWinnerName;
 
   if (isTournamentFinal) {
     return <div className="screen-center bg-[#0A0E1A]" aria-hidden />;
   }
 
   const nexusWin = endedByNexus(tm);
-  const myKills = tm?.blue.kills ?? 0;
-  const theirKills = tm?.red.kills ?? 0;
+  const myTeam = tm?.blue;
+  const theirTeam = tm?.red;
+  const myKills = myTeam?.kills ?? 0;
+  const theirKills = theirTeam?.kills ?? 0;
   const behindOnKills = myKills < theirKills;
 
   const teamLines = ROLE_ORDER.map(role => {
@@ -97,11 +102,22 @@ export default function VictoryScreen() {
             {nexusWin ? '¡NEXO DESTRUIDO!' : '¡VICTORIA!'}
           </h1>
           <p className="text-[#8B9BB4] mt-1 md:mt-2 text-sm">
-            {nexusWin
-              ? 'Tumbaron la base enemiga · victoria por nexo'
-              : `${state.playerTeamName || 'Tu equipo'} · Victoria en la grieta`}
+            {isCoopPvp && winnerName
+              ? `Ganó ${winnerName}`
+              : nexusWin
+                ? 'Tumbaron la base enemiga · victoria por nexo'
+                : `${state.playerTeamName || 'Tu equipo'} · Victoria en la grieta`}
           </p>
         </div>
+
+        {isCoopPvp && winnerName && (
+          <div className="w-full rounded-xl border-2 border-[#C9A84C]/45 bg-[#C9A84C]/10 px-3 py-3 text-center">
+            <p className="text-sm font-bold text-[#C9A84C]">Resultado PvP</p>
+            <p className="text-[11px] text-[#8B9BB4] mt-1">
+              {tm?.blue.name} {myKills} – {theirKills} {tm?.red.name}
+            </p>
+          </div>
+        )}
 
         {nexusWin && (
           <div className="w-full rounded-xl border-2 border-[#3498DB]/45 bg-[#3498DB]/10 px-3 py-3 text-center space-y-1">

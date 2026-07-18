@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGame } from '@/hooks/useGameState';
+import CoopSetupBanner from '@/components/CoopSetupBanner';
 import { ROLE_COLORS, ROLE_NAMES, CHAMPIONS, MANA_COSTS_UI } from '@/lib/game-data';
 import { getUltimate } from '@/lib/ultimates';
 import { preloadChampionImages } from '@/lib/preload-images';
@@ -91,6 +92,7 @@ export default function ChampionSelect() {
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
+      <CoopSetupBanner />
       <div className="relative shrink-0 z-30 border-b border-[#1E2740] bg-[#0A0E1A] px-4 pb-1.5 pt-0 select-screen-top safe-chrome-x md:py-2.5">
         <div className="mx-auto flex max-w-6xl items-start justify-between gap-2">
           <div className="min-w-0 flex-1">

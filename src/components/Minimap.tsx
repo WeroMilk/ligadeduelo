@@ -2,6 +2,7 @@ import { useId } from 'react';
 import type { Champion, Structure, TeamPlan, LaneId, ObjectiveType, CombatAction, TeamColor, CombatFloat } from '@/types/game';
 import { actionLabelEs, champDef } from '@/lib/turn-engine';
 import { objectiveIsBaronSide, objectiveName } from '@/lib/game-data';
+import { combatFloatStyle } from '@/lib/combat-float-style';
 import { Swords, Shield, Sparkles } from 'lucide-react';
 
 export type ObjectiveAnimPhase = 'none' | 'pulse' | 'clash' | 'claim';
@@ -692,21 +693,31 @@ export default function Minimap({
           }
           if (!p) return null;
           const isHeal = f.kind === 'heal';
+          const palette = combatFloatStyle(f.kind, f.sourceTeam);
           return (
             <div
               key={`${f.id}-${i}`}
-              className="absolute -translate-x-1/2 pointer-events-none font-black leading-none"
+              className="absolute -translate-x-1/2 pointer-events-none rounded-md border-2 border-transparent p-0.5 font-black leading-none"
               style={{
                 left: `${p.x * 100}%`,
                 top: `${p.y * 100}%`,
                 fontSize: Math.max(14, size * 0.055),
-                color: isHeal ? '#2ECC71' : '#FF4D4D',
-                textShadow: '0 2px 4px #000, 0 0 10px rgba(0,0,0,0.95)',
+                background: `linear-gradient(rgba(10,14,26,0.88), rgba(10,14,26,0.88)) padding-box, ${palette.fill} border-box`,
                 animation: 'minimap-float-big 1.4s cubic-bezier(0.22, 1.4, 0.36, 1) forwards',
                 zIndex: 22,
               }}
             >
-              {isHeal ? '+' : '−'}{f.amount}
+              <span
+                style={{
+                  color: isHeal ? 'transparent' : palette.primary,
+                  backgroundImage: isHeal ? palette.textFill : undefined,
+                  backgroundClip: isHeal ? 'text' : undefined,
+                  WebkitBackgroundClip: isHeal ? 'text' : undefined,
+                  textShadow: `0 2px 4px #000, 0 0 10px ${palette.glow}99`,
+                }}
+              >
+                {isHeal ? '+' : '−'}{f.amount}
+              </span>
             </div>
           );
         })}

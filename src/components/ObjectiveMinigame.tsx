@@ -22,6 +22,7 @@ type Props = {
   paused?: boolean;
   /** Cambia para reiniciar el intento (tras anuncio de repetición). */
   attemptKey?: number;
+  allowSimulate?: boolean;
 };
 
 type QteProfile = {
@@ -189,6 +190,7 @@ export default function ObjectiveMinigame({
   onComplete,
   paused = false,
   attemptKey: _attemptKey = 0,
+  allowSimulate = true,
 }: Props) {
   void _attemptKey;
   const isGank = pending.kind === 'gank';
@@ -554,10 +556,10 @@ export default function ObjectiveMinigame({
 
   const startAutoSimulate = () => {
     if (paused || completedRef.current || finishedRef.current || simulatingRef.current) return;
-    if (phase === 'escape-popup' || phase === 'countdown') return;
+    if (phase !== 'countdown') return;
     simulatingRef.current = true;
     setSimulating(true);
-    setLog('Simulando… 50% de acierto');
+    setLog('Simulación elegida · empezará al terminar la cuenta');
   };
 
   const label = isNexusAssault
@@ -638,6 +640,21 @@ export default function ObjectiveMinigame({
             <p className="text-sm text-[#8B9BB4]">
               {paused ? 'Pausa · la cuenta se reanuda al continuar' : 'Las bolitas amarillas empiezan al terminar la cuenta'}
             </p>
+            {allowSimulate && (
+              <>
+                <button
+                  type="button"
+                  onClick={startAutoSimulate}
+                  disabled={simulating || paused}
+                  className="mx-auto flex w-full max-w-xs min-h-11 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/45 bg-[#C9A84C]/12 font-bold text-[#C9A84C] active:scale-[0.99] disabled:opacity-60"
+                >
+                  {simulating ? 'Simulación seleccionada' : 'Simular'}
+                </button>
+                <p className="text-[10px] text-[#8B9BB4]">
+                  Si no lo eliges durante la cuenta, jugarás este intento manualmente.
+                </p>
+              </>
+            )}
           </div>
         ) : phase === 'escape-popup' ? (
           <div className="relative px-5 py-8 text-center space-y-4">
@@ -809,16 +826,6 @@ export default function ObjectiveMinigame({
               </p>
             </div>
 
-            <div className="relative border-t border-[#2A3550] px-4 py-3">
-              <button
-                type="button"
-                onClick={startAutoSimulate}
-                disabled={simulating}
-                className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/45 bg-[#C9A84C]/12 font-bold text-[#C9A84C] active:scale-[0.99] disabled:opacity-60"
-              >
-                {simulating ? 'Simulando…' : 'Simular'}
-              </button>
-            </div>
           </>
         )}
       </div>

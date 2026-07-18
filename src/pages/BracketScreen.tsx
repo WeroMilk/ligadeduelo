@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import { CHAMPIONS } from '@/lib/game-data';
+import { getHumanTeamSetup, isCoopLocal, isHumanTeamId } from '@/lib/coop';
 import { Trophy, Swords, ChevronRight, Crown, User } from 'lucide-react';
 import { playClickSound } from '@/lib/sounds';
 import BracketMatchModal from '@/components/BracketMatchModal';
@@ -15,6 +16,7 @@ export default function BracketScreen() {
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
   const tournament = state.tournament;
+  const isCoop = isCoopLocal(state.gameMode);
   const currentRoundIdx = tournament?.currentRound ?? 0;
   const currentRound = tournament?.rounds[currentRoundIdx];
   const winnersKey = currentRound?.matches.map(m => `${m.id}:${m.winner ?? '-'}`).join('|') ?? '';
@@ -23,7 +25,9 @@ export default function BracketScreen() {
   useEffect(() => {
     if (!currentRound) return;
 
-    const next = currentRound.matches.find(m => !m.isPlayerMatch && m.winner === null);
+    const next = currentRound.matches.find(
+      m => m.winner === null && (!m.humanTeamIds || m.humanTeamIds.length === 0),
+    );
     if (!next) {
       setSimulating(false);
       setActiveMatchId(null);
@@ -43,7 +47,9 @@ export default function BracketScreen() {
   if (!tournament || !currentRound) return null;
 
   const playerMatch = currentRound.matches.find(m => m.isPlayerMatch && m.winner === null);
-  const pendingCount = currentRound.matches.filter(m => !m.isPlayerMatch && m.winner === null).length;
+  const pendingCount = currentRound.matches.filter(
+    m => m.winner === null && (!m.humanTeamIds || m.humanTeamIds.length === 0),
+  ).length;
   const activeMatch = currentRound.matches.find(m => m.id === activeMatchId);
 
   const handleStartMatch = (matchId: string) => {
@@ -67,17 +73,40 @@ export default function BracketScreen() {
     return match.winner === 'blue' ? match.teamA.name : match.teamB.name;
   };
 
+  const humanLabel = (teamId: string) => getHumanTeamSetup(state.humanTeams, teamId)?.teamName ?? teamId;
+
+  const matchButtonLabel = (match: Match) => {
+    if (match.isPvpMatch) return 'ENTRAR A PARTIDA · PvP';
+    const hid = match.humanTeamIds?.[0];
+    if (hid) return `ENTRAR · Turno de ${humanLabel(hid)}`;
+    return 'ENTRAR A PARTIDA';
+  };
+
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
       <div className="shrink-0 bg-[#0A0E1A] border-b border-[#1E2740] px-4 pb-2 pt-0 safe-top safe-chrome-x md:py-3">
         <div className="max-w-6xl mx-auto">
           <div className="flex justify-center">
-            <div className="inline-flex items-center gap-2 bg-[#141B2D] rounded-lg px-3 py-1.5 md:py-2 max-w-[90%] min-w-0">
-              <Crown className="w-4 h-4 text-[#C9A84C] shrink-0" />
-              <span className="text-[#C9A84C] font-bold text-sm truncate text-center">
-                {state.playerTeamName || 'Mi Equipo'}
-              </span>
-            </div>
+            {isCoop && state.humanTeams[0] && state.humanTeams[1] ? (
+              <div className="inline-flex flex-wrap items-center justify-center gap-2 max-w-full">
+                <div className="inline-flex items-center gap-2 bg-[#3498DB]/15 border border-[#3498DB]/40 rounded-lg px-3 py-1.5 min-w-0">
+                  <User className="w-4 h-4 text-[#3498DB] shrink-0" />
+                  <span className="text-[#3498DB] font-bold text-sm truncate">{state.humanTeams[0].teamName}</span>
+                </div>
+                <span className="text-[#8B9BB4] text-xs font-bold">+</span>
+                <div className="inline-flex items-center gap-2 bg-[#E74C3C]/15 border border-[#E74C3C]/40 rounded-lg px-3 py-1.5 min-w-0">
+                  <User className="w-4 h-4 text-[#E74C3C] shrink-0" />
+                  <span className="text-[#E74C3C] font-bold text-sm truncate">{state.humanTeams[1].teamName}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 bg-[#141B2D] rounded-lg px-3 py-1.5 md:py-2 max-w-[90%] min-w-0">
+                <Crown className="w-4 h-4 text-[#C9A84C] shrink-0" />
+                <span className="text-[#C9A84C] font-bold text-sm truncate text-center">
+                  {state.playerTeamName || 'Mi Equipo'}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="mt-1.5 md:mt-2 text-center">
@@ -153,7 +182,7 @@ export default function BracketScreen() {
                 <div className="flex items-start gap-2 md:gap-3">
                   <div className={`flex-1 min-w-0 space-y-1 md:space-y-1.5 ${winner === 'red' ? 'opacity-40' : ''}`}>
                     <span className={`block text-xs md:text-sm font-bold leading-snug line-clamp-2 ${
-                      match.teamA.id === 'player' ? 'text-[#C9A84C]' : 'text-[#F0E6D2]'
+                      isHumanTeamId(match.teamA.id) ? 'text-[#C9A84C]' : 'text-[#F0E6D2]'
                     }`}>
                       {match.teamA.name}
                     </span>
@@ -192,7 +221,7 @@ export default function BracketScreen() {
 
                   <div className={`flex-1 min-w-0 space-y-1.5 text-right ${winner === 'blue' ? 'opacity-40' : ''}`}>
                     <span className={`block text-xs md:text-sm font-bold leading-snug line-clamp-2 ${
-                      match.teamB.id === 'player' ? 'text-[#C9A84C]' : 'text-[#F0E6D2]'
+                      isHumanTeamId(match.teamB.id) ? 'text-[#C9A84C]' : 'text-[#F0E6D2]'
                     }`}>
                       {match.teamB.name}
                     </span>
@@ -248,7 +277,7 @@ export default function BracketScreen() {
                     className="w-full mt-3 md:mt-4 min-h-11 md:min-h-12 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold py-3 rounded-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-40"
                   >
                     <Swords className="w-4 h-4" />
-                    ENTRAR A PARTIDA
+                    {matchButtonLabel(match)}
                   </button>
                 ) : (
                   <p className="text-center text-[#4A5570] text-xs md:text-sm mt-3 md:mt-4">

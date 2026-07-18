@@ -1,6 +1,6 @@
-import { createPortal } from 'react-dom';
-import type { CombatFloat, TeamColor } from '@/types/game';
+import type { CombatFloat } from '@/types/game';
 import { formatCombatHitNarrative } from '@/lib/combat-flavor';
+import { combatFloatStyle } from '@/lib/combat-float-style';
 
 export const HIT_PAUSE_MS = 5000;
 
@@ -10,37 +10,31 @@ type Props = {
   durationMs?: number;
 };
 
-function teamAccent(team: TeamColor | undefined): string {
-  if (team === 'blue') return '#3498DB';
-  if (team === 'red') return '#E74C3C';
-  return '#C9A84C';
-}
-
 export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Props) {
-  if (!hit || typeof document === 'undefined') return null;
+  if (!hit) return null;
 
   const narrative = formatCombatHitNarrative(hit);
   const isHeal = hit.kind === 'heal';
-  const accent = isHeal ? '#2ECC71' : teamAccent(hit.sourceTeam);
+  const palette = combatFloatStyle(hit.kind, hit.sourceTeam);
   const amount = Math.floor(hit.amount);
 
-  return createPortal(
+  return (
     <div
-      className="pointer-events-none fixed inset-0 z-[110] flex items-center justify-center px-4"
+      className="pointer-events-none absolute inset-0 z-[110] flex items-center justify-center px-3"
       aria-live="polite"
     >
       <div
         key={hit.id}
-        className="w-full max-w-lg rounded-2xl border-2 bg-[#0D1220]/96 px-5 py-4 text-center shadow-[0_10px_40px_rgba(0,0,0,0.65)] backdrop-blur-md"
+        className="w-full max-w-lg rounded-2xl border-2 border-transparent px-5 py-4 text-center shadow-[0_10px_40px_rgba(0,0,0,0.65)] backdrop-blur-md"
         style={{
-          borderColor: accent,
+          background: `linear-gradient(rgba(13,18,32,0.96), rgba(13,18,32,0.96)) padding-box, ${palette.fill} border-box`,
           animation: 'combat-hit-pop 0.45s cubic-bezier(0.22, 1.4, 0.36, 1) both',
         }}
       >
         {hit.sourceName && (
           <p
             className="text-xs font-black uppercase tracking-[0.22em] mb-1.5"
-            style={{ color: accent }}
+            style={{ color: palette.primary }}
           >
             {hit.sourceName}
           </p>
@@ -54,10 +48,11 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Pro
         <p
           className="mt-2 text-4xl sm:text-5xl font-black tabular-nums"
           style={{
-            color: isHeal ? '#2ECC71' : '#E74C3C',
-            textShadow: isHeal
-              ? '0 2px 12px rgba(46,204,113,0.55)'
-              : '0 2px 12px rgba(231,76,60,0.55)',
+            color: isHeal ? 'transparent' : palette.primary,
+            backgroundImage: isHeal ? palette.textFill : undefined,
+            backgroundClip: isHeal ? 'text' : undefined,
+            WebkitBackgroundClip: isHeal ? 'text' : undefined,
+            textShadow: `0 2px 12px ${palette.glow}88`,
             animation: 'combat-hit-amount 0.55s ease-out both',
           }}
         >
@@ -68,7 +63,7 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Pro
             key={hit.id}
             className="h-full rounded-full"
             style={{
-              backgroundColor: accent,
+              background: palette.fill,
               animation: `combat-hit-bar ${durationMs}ms linear forwards`,
             }}
           />
@@ -89,7 +84,6 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Pro
           to { width: 0%; }
         }
       `}</style>
-    </div>,
-    document.body,
+    </div>
   );
 }

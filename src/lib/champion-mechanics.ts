@@ -240,7 +240,7 @@ export function applyRoundStartPassives(
         const ally = mostWounded(team, c.instanceId);
         if (ally) {
           const before = ally.stats.hp;
-          ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + 20);
+          ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + 25);
           const healed = ally.stats.hp - before;
           pushHeal(floats, healed, c, ally);
           if (healed > 0) pushLog(log, `Barrera de ki de ${defOf(c).name} cura a ${defOf(ally).name}`, 'ulti');
@@ -250,7 +250,7 @@ export function applyRoundStartPassives(
       if (pid === 'pix_friend') {
         const ally = mostWounded(team, c.instanceId);
         if (ally) {
-          const amount = Math.floor(20 + c.stats.ap * 0.15);
+          const amount = Math.floor(25 + c.stats.ap * 0.19);
           const before = ally.stats.hp;
           ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + amount);
           const healed = ally.stats.hp - before;
@@ -261,7 +261,7 @@ export function applyRoundStartPassives(
       if (pid === 'salvation') {
         const ally = mostWounded(team, c.instanceId);
         if (ally) {
-          const amount = Math.floor(35 + c.stats.ap * 0.2);
+          const amount = Math.floor(45 + c.stats.ap * 0.25);
           const before = ally.stats.hp;
           ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + amount);
           const healed = ally.stats.hp - before;
@@ -293,13 +293,13 @@ export function applyLaneSupportUltimates(
     if (id === 'soraka') {
       for (const a of team.champions.filter(x => x.isAlive && x.stats.hp > 0)) {
         const before = a.stats.hp;
-        a.stats.hp = Math.min(a.stats.maxHp, a.stats.hp + 80);
+        a.stats.hp = Math.min(a.stats.maxHp, a.stats.hp + 100);
         pushHeal(floats, a.stats.hp - before, f.champ, a, lane);
       }
       const wounded = mostWounded(team);
       if (wounded) {
         const before = wounded.stats.hp;
-        wounded.stats.hp = Math.min(wounded.stats.maxHp, wounded.stats.hp + 40);
+        wounded.stats.hp = Math.min(wounded.stats.maxHp, wounded.stats.hp + 50);
         pushHeal(floats, wounded.stats.hp - before, f.champ, wounded, lane);
       }
       pushLog(log, `${defOf(f.champ).name} lanza Deseo`, 'ulti');
@@ -308,7 +308,7 @@ export function applyLaneSupportUltimates(
     if (id === 'lulu' || id === 'shen') {
       const ally = mostWounded(team, f.champ.instanceId);
       if (ally) {
-        const heal = id === 'lulu' ? 100 : 40;
+        const heal = id === 'lulu' ? 125 : 50;
         const before = ally.stats.hp;
         ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + heal);
         pushHeal(floats, ally.stats.hp - before, f.champ, ally, lane);
@@ -321,7 +321,7 @@ export function applyLaneSupportUltimates(
       const adc = allyAdc(team);
       if (adc) {
         const before = adc.stats.hp;
-        adc.stats.hp = Math.min(adc.stats.maxHp, adc.stats.hp + 80);
+        adc.stats.hp = Math.min(adc.stats.maxHp, adc.stats.hp + 100);
         pushHeal(floats, adc.stats.hp - before, f.champ, adc, lane);
         adc.stats.ad += 25;
         pushLog(log, `${defOf(f.champ).name} potencia a ${defOf(adc).name}`, 'ulti');
@@ -605,7 +605,7 @@ export function onAfterHit(
   }
 
   if (atk.ult && id === 'aatrox' && dealt > 0) {
-    const heal = Math.floor(dealt * 0.3);
+    const heal = Math.floor(dealt * 0.4);
     const before = atk.champ.stats.hp;
     atk.champ.stats.hp = Math.min(atk.champ.stats.maxHp, atk.champ.stats.hp + heal);
     pushHeal(floats, atk.champ.stats.hp - before, atk.champ, atk.champ);
@@ -613,7 +613,7 @@ export function onAfterHit(
 
   if (atk.ult && id === 'ahri' && dealt > 0) {
     const before = atk.champ.stats.hp;
-    atk.champ.stats.hp = Math.min(atk.champ.stats.maxHp, atk.champ.stats.hp + 40);
+    atk.champ.stats.hp = Math.min(atk.champ.stats.maxHp, atk.champ.stats.hp + 55);
     pushHeal(floats, atk.champ.stats.hp - before, atk.champ, atk.champ);
   }
 
@@ -651,7 +651,7 @@ export function onKillEffects(
 ) {
   const pid = passiveId(killer);
   if (pid === 'blood_well') {
-    const heal = Math.floor(killer.stats.maxHp * 0.06);
+    const heal = Math.floor(killer.stats.maxHp * 0.08);
     const before = killer.stats.hp;
     killer.stats.hp = Math.min(killer.stats.maxHp, killer.stats.hp + heal);
     pushHeal(floats, killer.stats.hp - before, killer, killer);
@@ -676,7 +676,7 @@ export function onKillEffects(
   }
   if (usedUlt && killer.defId === 'darius') {
     const before = killer.stats.hp;
-    killer.stats.hp = Math.min(killer.stats.maxHp, killer.stats.hp + 80);
+    killer.stats.hp = Math.min(killer.stats.maxHp, killer.stats.hp + 100);
     pushHeal(floats, killer.stats.hp - before, killer, killer);
     killer.stats.ad += 15;
     pushLog(log, `${defOf(killer).name} Guillotina noxiana`, 'ulti');
@@ -699,7 +699,7 @@ export function postDuelUltDamage(
 
 export function postDuelDefendHeal(f: FighterLike): number {
   if (passiveId(f.champ) === 'perseverance' && f.action === 'defend') {
-    return Math.floor(f.champ.stats.maxHp * 0.04);
+    return Math.floor(f.champ.stats.maxHp * 0.06);
   }
   return 0;
 }
@@ -723,7 +723,7 @@ export function applyYuumiDefendBuff(team: TeamData, yuumi: Champion, floats: Co
   const adc = allyAdc(team);
   if (!adc) return;
   const before = adc.stats.hp;
-  adc.stats.hp = Math.min(adc.stats.maxHp, adc.stats.hp + 15);
+  adc.stats.hp = Math.min(adc.stats.maxHp, adc.stats.hp + 20);
   pushHeal(floats, adc.stats.hp - before, yuumi, adc);
   adc.stats.ad += 5;
   pushLog(log, `${defOf(yuumi).name} acompaña a ${defOf(adc).name}`, 'ulti');

@@ -352,6 +352,15 @@ export interface MatchResultSummary {
   endedByNexus?: boolean;
 }
 
+export interface HumanTeamSetup {
+  lobbyPlayerId: string;
+  teamName: string;
+  fanOrgId: string | null;
+  roster: RosterMember[];
+  champions: Champion[];
+  champToRoster: Record<string, string>;
+}
+
 export interface Match {
   id: string;
   round: number;
@@ -362,6 +371,8 @@ export interface Match {
   isPlayerMatch: boolean;
   isSimulated: boolean;
   resultSummary?: MatchResultSummary | null;
+  humanTeamIds?: string[];
+  isPvpMatch?: boolean;
 }
 
 export interface Round {
