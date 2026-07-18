@@ -1,5 +1,6 @@
 import { useGame } from '@/hooks/useGameState';
 import { isCoopLocal } from '@/lib/coop';
+import { getBracketTimings } from '@/lib/express-mode';
 import { Trophy, ChevronRight, User, Landmark } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { playVictorySound, playClickSound } from '@/lib/sounds';
@@ -40,6 +41,15 @@ export default function VictoryScreen() {
       color: colors[Math.floor(Math.random() * colors.length)],
     })));
   }, [isTournamentFinal]);
+
+  const autoAdvanceMs = getBracketTimings(state.gameMode).victoryAutoAdvanceMs;
+  useEffect(() => {
+    if (isTournamentFinal || autoAdvanceMs <= 0) return;
+    const t = window.setTimeout(() => {
+      dispatch({ type: 'ADVANCE_BRACKET' });
+    }, autoAdvanceMs);
+    return () => window.clearTimeout(t);
+  }, [isTournamentFinal, autoAdvanceMs, dispatch]);
 
   const tm = state.turnMatch;
   const isCoopPvp = isCoopLocal(state.gameMode) && !!state.currentMatch?.isPvpMatch;

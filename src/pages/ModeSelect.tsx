@@ -11,14 +11,14 @@ const MODES: { id: GameMode; title: string; desc: string; icon: React.ReactNode;
   {
     id: 'ai',
     title: 'Contra la IA',
-    desc: 'Torneo de 16 equipos. Tú decides en tu partida; el resto se simula.',
+    desc: 'Torneo de 16 equipos · partida rápida ~15 min. Tú decides en tu partida; el resto se simula.',
     icon: <Bot className="w-7 h-7" />,
     enabled: true,
   },
   {
     id: 'coop_local',
     title: 'Cooperativo · misma pantalla',
-    desc: '2 jugadores, 2 equipos distintos. Torneo de 16; si se enfrentan, compiten por turnos.',
+    desc: '2–5 jugadores en un dispositivo. Nombra cada equipo en el lobby; torneo de 16 con turnos en PvP.',
     icon: <Users className="w-7 h-7" />,
     enabled: true,
   },

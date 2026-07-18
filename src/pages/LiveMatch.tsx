@@ -5,7 +5,7 @@ import Minimap, { type AttackBeam, type ObjectiveAnimPhase } from '@/components/
 import DecisionOverlay, { type DecisionKind, type DecisionPayload } from '@/components/DecisionOverlay';
 import CombatScreenFX, { type ScreenFxKind } from '@/components/CombatScreenFX';
 import CombatAnnounceOverlay, { type AnnounceItem } from '@/components/CombatAnnounceOverlay';
-import CombatHitOverlay, { HIT_PAUSE_MS } from '@/components/CombatHitOverlay';
+import CombatHitOverlay from '@/components/CombatHitOverlay';
 import ObjectiveMinigame, { type ObjectiveQtePayload } from '@/components/ObjectiveMinigame';
 import CoopPvpDecisionFlow from '@/components/CoopPvpDecisionFlow';
 import CoopClickBattle from '@/components/CoopClickBattle';
@@ -21,12 +21,11 @@ import {
 import { pushAdHidden, popAdHidden } from '@/lib/ad-visibility';
 import { createPausableScheduler } from '@/lib/pausable-scheduler';
 import { objectiveName } from '@/lib/game-data';
+import { getMatchTimings, isExpressMode, matchSecondsLeft } from '@/lib/express-mode';
 import type { CombatFloat, LaneId, RoundResolution, Structure, TeamPlan } from '@/types/game';
 
 const MAP_SIZE_MOBILE_MAX = 280;
 const MAP_SIZE_MOBILE_MIN = 168;
-const LANE_INTRO_MS = 550;
-const CINEMA_BUFFER_MS = 4000;
 
 function useMapSize(containerRef: React.RefObject<HTMLElement | null>) {
   const [size, setSize] = useState(240);
@@ -62,8 +61,8 @@ function useMapSize(containerRef: React.RefObject<HTMLElement | null>) {
   }, [containerRef]);
   return size;
 }
-const PROMPT_SEC = 8;
 const CINEMA_STUCK_MS_MIN = 12000;
+const CINEMA_STUCK_MS_MIN_EXPRESS = 6000;
 const QTE_STUCK_MS = 55000;
 
 function laneCameraPan(lane: LaneId): { x: number; y: number } {
@@ -74,7 +73,6 @@ function laneCameraPan(lane: LaneId): { x: number; y: number } {
 
 type Phase =
   | { t: 'prompt'; kind: DecisionKind }
-  | { t: 'confirm' }
   | { t: 'lane'; lane: LaneId; fight: boolean }
   | { t: 'objective'; anim: ObjectiveAnimPhase }
   | { t: 'qte' }
@@ -154,6 +152,8 @@ function StructureHpRow({ structures, team }: { structures: Structure[]; team: '
 export default function LiveMatch() {
   const { state, dispatch } = useGame();
   const tm = state.turnMatch;
+  const timings = useMemo(() => getMatchTimings(state.gameMode), [state.gameMode]);
+  const isExpress = isExpressMode(state.gameMode);
   const isCoop = isCoopLocal(state.gameMode);
   const isCoopPvp = isCoop && !!state.currentMatch?.isPvpMatch;
   const isCoopSolo = isCoop && !!state.currentMatch?.isPlayerMatch && !isCoopPvp;
@@ -161,7 +161,8 @@ export default function LiveMatch() {
   const bodyRef = useRef<HTMLDivElement>(null);
   const mapSize = useMapSize(bodyRef);
   const [phase, setPhase] = useState<Phase | null>(null);
-  const [promptLeft, setPromptLeft] = useState(PROMPT_SEC);
+  const [promptLeft, setPromptLeft] = useState(timings.promptSec);
+  const [matchSecLeft, setMatchSecLeft] = useState<number | null>(null);
   const [scale, setScale] = useState(0.92);
   const [fx, setFx] = useState<FxSignal | null>(null);
   const [shake, setShake] = useState(false);
@@ -198,6 +199,8 @@ export default function LiveMatch() {
   const isPausedRef = useRef(false);
   const showReplayAdRef = useRef(false);
   const pendingQteRef = useRef<ObjectiveQtePayload | null>(null);
+  const matchDeadlineRef = useRef<number | null>(null);
+  const matchForceEndedRef = useRef(false);
 
   phaseRef.current = phase;
   tmRef.current = tm;
@@ -341,7 +344,7 @@ export default function LiveMatch() {
       }, 1400);
     }
     // Mínimo el claim corto; popups no bloquean el avance
-    endCinemaAfterDelay(res, 2200);
+    endCinemaAfterDelay(res, timings.nexusClaimMs);
   };
 
   const playCinema = (res: RoundResolution) => {
@@ -376,15 +379,23 @@ export default function LiveMatch() {
 
     // Daños y curaciones se narran uno a uno. El sort moderno es estable,
     // así que conserva el orden de emisión dentro de cada línea.
-    const orderedHits = [...(res.floats || [])]
+    const allHits = [...(res.floats || [])]
       .sort((a, b) => (a.lane ?? 1) - (b.lane ?? 1));
+    const maxHits = Number.isFinite(timings.maxCinemaHits)
+      ? timings.maxCinemaHits
+      : allHits.length;
+    const orderedHits = allHits.slice(0, maxHits);
+    const batchedHits = allHits.slice(maxHits);
 
     const laneCount = new Set(orderedHits.map(h => h.lane ?? 1)).size || 1;
     const estimatedMs =
-      orderedHits.length * HIT_PAUSE_MS
-      + laneCount * LANE_INTRO_MS
-      + CINEMA_BUFFER_MS;
-    cinemaStuckMs.current = Math.max(CINEMA_STUCK_MS_MIN, estimatedMs);
+      orderedHits.length * timings.hitPauseMs
+      + laneCount * timings.laneIntroMs
+      + timings.cinemaBufferMs;
+    cinemaStuckMs.current = Math.max(
+      isExpress ? CINEMA_STUCK_MS_MIN_EXPRESS : CINEMA_STUCK_MS_MIN,
+      estimatedMs,
+    );
 
     const schedule = (fn: () => void, ms: number) => {
       cinemaScheduler.current.schedule(fn, ms);
@@ -395,24 +406,25 @@ export default function LiveMatch() {
 
     if (orderedHits.length === 0) {
       setPhase({ t: 'lane', lane: 0, fight: false });
-      t = LANE_INTRO_MS;
+      if (batchedHits.length > 0) setActiveFloats(batchedHits);
+      t = timings.laneIntroMs;
     } else {
       for (const hit of orderedHits) {
         const lane = (hit.lane ?? 1) as LaneId;
         if (lastLane !== lane) {
           schedule(() => {
             setPhase({ t: 'lane', lane, fight: false });
-            setActiveFloats([]);
+            setActiveFloats(batchedHits.length > 0 ? batchedHits : []);
             setActiveHit(null);
             setScale(1.14);
             setCamPan(laneCameraPan(lane));
           }, t);
-          t += LANE_INTRO_MS;
+          t += timings.laneIntroMs;
           lastLane = lane;
         }
         schedule(() => {
           setPhase({ t: 'lane', lane, fight: true });
-          setActiveFloats([hit]);
+          setActiveFloats([hit, ...batchedHits]);
           setActiveHit(hit);
           setScale(1.22);
           setCamPan(laneCameraPan(lane));
@@ -424,7 +436,7 @@ export default function LiveMatch() {
             );
           }
         }, t);
-        t += HIT_PAUSE_MS;
+        t += timings.hitPauseMs;
       }
     }
 
@@ -464,13 +476,13 @@ export default function LiveMatch() {
         return;
       }
       if (res.pendingObjectiveQte && !live?.pendingObjective) {
-        endCinemaAfterDelay(res, res.autoNexus ? 2200 : 0);
+        endCinemaAfterDelay(res, res.autoNexus ? timings.nexusClaimMs : 0);
         return;
       }
       if (res.objective || res.objectiveWinner || res.objectiveBonus) {
         playObjectiveClaim(res);
       } else {
-        endCinemaAfterDelay(res, res.autoNexus ? 2200 : 0);
+        endCinemaAfterDelay(res, res.autoNexus ? timings.nexusClaimMs : 0);
       }
     }, t + 400);
   };
@@ -492,7 +504,7 @@ export default function LiveMatch() {
   };
 
   const onQteComplete = (qte: ObjectiveQtePayload) => {
-    if (isCoopPvp || playerWonQte(qte)) {
+    if (isExpress || isCoopPvp || playerWonQte(qte)) {
       confirmQteResult(qte);
       return;
     }
@@ -676,7 +688,8 @@ export default function LiveMatch() {
       const res = current.lastResolution;
 
       if (awaitingQte.current || p?.t === 'qte') {
-        if (elapsed < QTE_STUCK_MS) return;
+        const qteLimitMs = isExpress ? timings.qteMaxSec * 1000 : QTE_STUCK_MS;
+        if (elapsed < qteLimitMs) return;
         awaitingQte.current = false;
         if (!current.pendingObjective) {
           setPhase({ t: 'idle' });
@@ -737,9 +750,36 @@ export default function LiveMatch() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Express: tope duro de 3 min por partida
+  useEffect(() => {
+    if (!isExpress || !tm) return;
+    matchForceEndedRef.current = false;
+    matchDeadlineRef.current = Date.now() + timings.matchBudgetSec * 1000;
+    setMatchSecLeft(timings.matchBudgetSec);
+
+    const iv = window.setInterval(() => {
+      const left = matchSecondsLeft(matchDeadlineRef.current, state.gameMode);
+      setMatchSecLeft(left);
+      if (left !== 0) return;
+      const current = tmRef.current;
+      if (!current || current.isComplete || matchForceEndedRef.current) return;
+      matchForceEndedRef.current = true;
+      clearCinema();
+      awaitingCinema.current = false;
+      awaitingQte.current = false;
+      needsPostQteClaim.current = false;
+      setPendingQteResult(null);
+      setShowReplayAd(false);
+      setPhase({ t: 'idle' });
+      dispatch({ type: 'FINISH_LIVE_MATCH' });
+    }, 400);
+
+    return () => window.clearInterval(iv);
+  }, [isExpress, state.currentMatch?.id, dispatch, state.gameMode, timings.matchBudgetSec]);
+
   useEffect(() => {
     if (!phase || phase.t !== 'prompt') return;
-    setPromptLeft(PROMPT_SEC);
+    setPromptLeft(timings.promptSec);
     let autoPicked = false;
     const iv = window.setInterval(() => {
       if (isPausedRef.current || showReplayAdRef.current || autoPicked) return;
@@ -793,8 +833,6 @@ export default function LiveMatch() {
     const nextKind = pickQueue.current.shift();
     if (nextKind) {
       setPhase({ t: 'prompt', kind: nextKind });
-    } else if (isCoopSolo) {
-      setPhase({ t: 'confirm' });
     } else {
       resolveWithPicks(next);
     }
@@ -828,7 +866,6 @@ export default function LiveMatch() {
   const capsule =
     !phase || phase.t === 'idle' ? `Ronda ${tm.round}` :
     phase.t === 'prompt' ? 'Tu decisión…' :
-    phase.t === 'confirm' ? 'Confirma tu elección' :
     phase.t === 'lane' ? `Línea ${['Superior', 'Central', 'Inferior'][phase.lane]}${phase.fight ? ' · Combate' : ''}` :
     phase.t === 'qte' ? '¡Pelea el objetivo!' :
     phase.t === 'qte_result' ? 'Resultado del combate' :
@@ -848,6 +885,15 @@ export default function LiveMatch() {
           <h1 className="text-base md:text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
             Ronda {displayRound}/{tm.maxRounds}
           </h1>
+          {isExpress && matchSecLeft != null && (
+            <p
+              className={`text-[10px] md:text-xs font-bold tabular-nums ${
+                matchSecLeft <= 30 ? 'text-[#E74C3C]' : 'text-[#8B9BB4]'
+              }`}
+            >
+              {Math.floor(matchSecLeft / 60)}:{String(matchSecLeft % 60).padStart(2, '0')}
+            </p>
+          )}
           <button
             type="button"
             onClick={togglePause}
@@ -913,7 +959,7 @@ export default function LiveMatch() {
             </div>
             <CombatScreenFX signal={fx} />
             <CombatAnnounceOverlay batch={announceBatch} />
-            {!isPaused && <CombatHitOverlay hit={activeHit} durationMs={HIT_PAUSE_MS} />}
+            {!isPaused && <CombatHitOverlay hit={activeHit} durationMs={timings.hitPauseMs} />}
 
             {phase?.t === 'prompt' && !statsOpen && !isCoopPvp && (
               <DecisionOverlay
@@ -928,32 +974,7 @@ export default function LiveMatch() {
               />
             )}
 
-            {phase?.t === 'confirm' && isCoopSolo && !statsOpen && (
-              <div className="absolute inset-0 z-[75] flex items-center justify-center bg-black/55 p-2">
-                <div className="max-h-full w-full overflow-y-auto rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
-                    Sin límite de tiempo
-                  </p>
-                  <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-                    ¿Confirmar elección?
-                  </h2>
-                  <p className="text-xs text-[#8B9BB4]">
-                    La ronda se resolverá con tu plan y la IA responderá.
-                  </p>
-                  <button
-                    type="button"
-                    disabled={isPaused}
-                    onClick={() => resolveWithPicks(picksRef.current)}
-                    className="w-full min-h-10 rounded-xl font-bold"
-                    style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
-                  >
-                    Confirmar elección
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {phase?.t === 'qte_result' && pendingQteResult && !showReplayAd && !playerWonQte(pendingQteResult) && (
+            {phase?.t === 'qte_result' && pendingQteResult && !showReplayAd && !isExpress && !playerWonQte(pendingQteResult) && (
               <div className="absolute inset-0 z-[130] flex items-center justify-center bg-black/70 p-2">
                 <div className="max-h-full w-full overflow-y-auto rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)]">
                   <p className="text-center text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
@@ -1064,6 +1085,8 @@ export default function LiveMatch() {
           paused={isPaused}
           attemptKey={qteAttempt}
           allowSimulate={state.gameMode === 'ai'}
+          express={isExpress}
+          expressTimings={timings}
         />
       )}
 

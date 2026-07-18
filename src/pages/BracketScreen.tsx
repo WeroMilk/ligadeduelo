@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import { CHAMPIONS } from '@/lib/game-data';
-import { getHumanTeamSetup, isCoopLocal, isHumanTeamId } from '@/lib/coop';
+import { getHumanTeamSetup, humanTeamId, isCoopLocal, isHumanTeamId } from '@/lib/coop';
+import { getBracketTimings } from '@/lib/express-mode';
 import { Trophy, Swords, ChevronRight, Crown, User } from 'lucide-react';
 import { playClickSound } from '@/lib/sounds';
 import BracketMatchModal from '@/components/BracketMatchModal';
 import type { Match } from '@/types/game';
 
-const AI_MATCH_DELAY_MS = 1100;
+const DEFAULT_AI_MATCH_DELAY_MS = 1100;
 
 export default function BracketScreen() {
   const { state, dispatch } = useGame();
+  const aiMatchDelayMs = getBracketTimings(state.gameMode).aiMatchDelayMs || DEFAULT_AI_MATCH_DELAY_MS;
   const [simulating, setSimulating] = useState(false);
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
@@ -39,10 +41,10 @@ export default function BracketScreen() {
 
     const timer = setTimeout(() => {
       dispatch({ type: 'SIMULATE_ONE_AI_MATCH' });
-    }, AI_MATCH_DELAY_MS);
+    }, aiMatchDelayMs);
 
     return () => clearTimeout(timer);
-  }, [currentRoundIdx, winnersKey, dispatch, currentRound]);
+  }, [currentRoundIdx, winnersKey, dispatch, currentRound, aiMatchDelayMs]);
 
   if (!tournament || !currentRound) return null;
 
@@ -87,17 +89,41 @@ export default function BracketScreen() {
       <div className="shrink-0 bg-[#0A0E1A] border-b border-[#1E2740] px-4 pb-2 pt-0 safe-top safe-chrome-x md:py-3">
         <div className="max-w-6xl mx-auto">
           <div className="flex justify-center">
-            {isCoop && state.humanTeams[0] && state.humanTeams[1] ? (
+            {isCoop && state.humanTeams.some(Boolean) ? (
               <div className="inline-flex flex-wrap items-center justify-center gap-2 max-w-full">
-                <div className="inline-flex items-center gap-2 bg-[#3498DB]/15 border border-[#3498DB]/40 rounded-lg px-3 py-1.5 min-w-0">
-                  <User className="w-4 h-4 text-[#3498DB] shrink-0" />
-                  <span className="text-[#3498DB] font-bold text-sm truncate">{state.humanTeams[0].teamName}</span>
-                </div>
-                <span className="text-[#8B9BB4] text-xs font-bold">+</span>
-                <div className="inline-flex items-center gap-2 bg-[#E74C3C]/15 border border-[#E74C3C]/40 rounded-lg px-3 py-1.5 min-w-0">
-                  <User className="w-4 h-4 text-[#E74C3C] shrink-0" />
-                  <span className="text-[#E74C3C] font-bold text-sm truncate">{state.humanTeams[1].teamName}</span>
-                </div>
+                {state.humanTeams.map((team, i) => team && (
+                  <div
+                    key={humanTeamId(i)}
+                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 min-w-0 border ${
+                      i % 2 === 0
+                        ? 'bg-[#3498DB]/15 border-[#3498DB]/40'
+                        : 'bg-[#E74C3C]/15 border-[#E74C3C]/40'
+                    }`}
+                  >
+                    <User className={`w-4 h-4 shrink-0 ${i % 2 === 0 ? 'text-[#3498DB]' : 'text-[#E74C3C]'}`} />
+                    <span className={`font-bold text-sm truncate ${i % 2 === 0 ? 'text-[#3498DB]' : 'text-[#E74C3C]'}`}>
+                      {team.teamName}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : isCoop && state.lobbyPlayers.length >= 2 ? (
+              <div className="inline-flex flex-wrap items-center justify-center gap-2 max-w-full">
+                {state.lobbyPlayers.map((p, i) => (
+                  <div
+                    key={p.id}
+                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 min-w-0 border ${
+                      i % 2 === 0
+                        ? 'bg-[#3498DB]/15 border-[#3498DB]/40'
+                        : 'bg-[#E74C3C]/15 border-[#E74C3C]/40'
+                    }`}
+                  >
+                    <User className={`w-4 h-4 shrink-0 ${i % 2 === 0 ? 'text-[#3498DB]' : 'text-[#E74C3C]'}`} />
+                    <span className={`font-bold text-sm truncate ${i % 2 === 0 ? 'text-[#3498DB]' : 'text-[#E74C3C]'}`}>
+                      {p.teamName.trim() || p.name}
+                    </span>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="inline-flex items-center gap-2 bg-[#141B2D] rounded-lg px-3 py-1.5 md:py-2 max-w-[90%] min-w-0">

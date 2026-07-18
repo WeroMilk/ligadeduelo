@@ -6,6 +6,7 @@
 import { useEffect, useState, useSyncExternalStore, useCallback } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import { getAdsDisabledForever, subscribeAdsDisabledForever } from '@/lib/ad-premium';
+import { getBracketTimings, isExpressMode } from '@/lib/express-mode';
 import AdInterstitial, { POST_MATCH_AD_MS } from '@/components/AdInterstitial';
 
 export { POST_MATCH_AD_MS };
@@ -36,12 +37,18 @@ export default function PostMatchAd() {
   const matchKey = `${screen}:${state.currentMatch?.id ?? 'm'}:${result}:${round}`;
 
   useEffect(() => {
-    if (adsOff || !shouldShowPostMatchAd(screen, round, roundsLen, result)) {
+    const bracket = getBracketTimings(state.gameMode);
+    if (
+      adsOff
+      || isExpressMode(state.gameMode)
+      || bracket.skipPostMatchAds
+      || !shouldShowPostMatchAd(screen, round, roundsLen, result)
+    ) {
       setVisible(false);
       return;
     }
     setVisible(true);
-  }, [matchKey, screen, round, roundsLen, result, adsOff]);
+  }, [matchKey, screen, round, roundsLen, result, adsOff, state.gameMode]);
 
   const onComplete = useCallback(() => {
     setVisible(false);

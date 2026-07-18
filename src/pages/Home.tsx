@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import CoopSetupBanner from '@/components/CoopSetupBanner';
+import ExpressSetupTimer from '@/components/ExpressSetupTimer';
 import { Sparkles } from 'lucide-react';
 import { playClickSound } from '@/lib/sounds';
 
@@ -115,6 +116,9 @@ export default function Home() {
             >
               Escríbelo tú. Luego eliges 5 integrantes y 5 campeones.
             </p>
+            <div className="mt-2 flex justify-center">
+              <ExpressSetupTimer />
+            </div>
           </div>
 
           <label className="block text-left space-y-1.5">

@@ -21,10 +21,12 @@ function emptyPlan(): TeamPlan {
 }
 
 function testCombatFloatPalette() {
-  assert.equal(combatFloatStyle('damage', 'blue').primary, '#3498DB');
-  assert.equal(combatFloatStyle('damage', 'red').primary, '#E74C3C');
-  assert.match(combatFloatStyle('heal', 'blue').fill, /#3498DB.*#2ECC71/);
-  assert.match(combatFloatStyle('heal', 'red').fill, /#2ECC71.*#E74C3C/);
+  assert.equal(combatFloatStyle('damage', 'blue').numberColor, '#E74C3C');
+  assert.equal(combatFloatStyle('damage', 'red').numberColor, '#E74C3C');
+  assert.equal(combatFloatStyle('heal', 'blue').signColor, '#2ECC71');
+  assert.equal(combatFloatStyle('heal', 'blue').numberColor, '#3498DB');
+  assert.equal(combatFloatStyle('heal', 'red').signColor, '#2ECC71');
+  assert.equal(combatFloatStyle('heal', 'red').numberColor, '#E74C3C');
   console.log('✓ Paleta de daño y curación por equipo');
 }
 

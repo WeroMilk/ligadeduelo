@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { KillAnnounce, ObjectiveBonusAnnounce, TeamColor } from '@/types/game';
 
 export type AnnounceItem =
@@ -64,12 +65,12 @@ export default function CombatAnnounceOverlay({ batch, onBusyChange }: Props) {
 
   if (!current) return null;
 
-  const wrapClass =
-    'pointer-events-none absolute inset-0 z-[120] flex items-center justify-center px-3';
+  const topWrapClass =
+    'pointer-events-none fixed inset-x-0 top-0 z-[120] flex justify-center px-3 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)]';
 
   const body =
     current.kind === 'kill' ? (
-      <div className={wrapClass} aria-live="polite">
+      <div className={topWrapClass} aria-live="polite">
         <div
           className="w-full max-w-md rounded-xl border-2 bg-[#0D1220]/95 px-4 py-2 text-center shadow-[0_6px_28px_rgba(0,0,0,0.55)] backdrop-blur-sm animate-kill-banner"
           style={{ borderColor: teamColor(current.data.team) }}
@@ -85,7 +86,7 @@ export default function CombatAnnounceOverlay({ batch, onBusyChange }: Props) {
         </div>
       </div>
     ) : (
-      <div className={wrapClass} aria-live="polite">
+      <div className={topWrapClass} aria-live="polite">
         <div className="w-full max-w-md rounded-xl border-2 border-[#F1C40F] bg-[#0D1220]/95 px-4 py-2 text-center shadow-[0_6px_28px_rgba(241,196,15,0.3)] backdrop-blur-sm animate-kill-banner">
           <p className="text-[9px] font-bold uppercase tracking-wider text-[#F1C40F]">Bonus de objetivo</p>
           <p className="text-sm sm:text-base font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
@@ -100,5 +101,5 @@ export default function CombatAnnounceOverlay({ batch, onBusyChange }: Props) {
       </div>
     );
 
-  return body;
+  return typeof document !== 'undefined' ? createPortal(body, document.body) : body;
 }

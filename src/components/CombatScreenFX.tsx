@@ -82,18 +82,18 @@ export default function CombatScreenFX({ signal }: Props) {
 
         if (ev.kind === 'hit') {
           return (
-            <div
-              key={ev.id}
-              className="absolute inset-0 animate-hit-flash"
-              style={{
-                background:
-                  ev.team === 'blue'
-                    ? 'radial-gradient(circle at 40% 50%, rgba(52,152,219,0.35), transparent 55%)'
-                    : ev.team === 'red'
-                      ? 'radial-gradient(circle at 60% 50%, rgba(231,76,60,0.4), transparent 55%)'
-                      : 'radial-gradient(circle at 50% 50%, rgba(241,196,15,0.3), transparent 55%)',
-              }}
-            />
+            <div key={ev.id} className="absolute inset-0 animate-hit-flash">
+              <div
+                className="absolute inset-0 opacity-80"
+                style={{
+                  backgroundImage: `
+                    radial-gradient(circle at 48% 52%, rgba(192,57,43,0.55) 0 18px, transparent 22px),
+                    radial-gradient(circle at 62% 38%, rgba(231,76,60,0.45) 0 12px, transparent 16px),
+                    radial-gradient(circle at 35% 62%, rgba(146,43,33,0.5) 0 14px, transparent 18px)
+                  `,
+                }}
+              />
+            </div>
           );
         }
 

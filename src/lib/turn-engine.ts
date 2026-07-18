@@ -275,7 +275,12 @@ function initStructures(): Structure[] {
   ];
 }
 
-export function createTurnMatch(blue: TeamData, red: TeamData, buffId?: BuffId | null): TurnMatchState {
+export function createTurnMatch(
+  blue: TeamData,
+  red: TeamData,
+  buffId?: BuffId | null,
+  options?: { maxRounds?: number },
+): TurnMatchState {
   const b = deepCloneTeam(blue);
   const r = deepCloneTeam({ ...red, color: 'red' });
   for (const c of r.champions) c.team = 'red';
@@ -287,7 +292,7 @@ export function createTurnMatch(blue: TeamData, red: TeamData, buffId?: BuffId |
     blue: b,
     red: r,
     round: 1,
-    maxRounds: MAX_MATCH_ROUNDS,
+    maxRounds: options?.maxRounds ?? MAX_MATCH_ROUNDS,
     objective: objectiveForRound(1),
     structures: initStructures(),
     lastResolution: null,

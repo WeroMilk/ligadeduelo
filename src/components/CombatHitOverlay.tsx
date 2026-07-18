@@ -2,7 +2,7 @@ import type { CombatFloat } from '@/types/game';
 import { formatCombatHitNarrative } from '@/lib/combat-flavor';
 import { combatFloatStyle } from '@/lib/combat-float-style';
 
-export const HIT_PAUSE_MS = 5000;
+export const HIT_PAUSE_MS = 3000;
 
 type Props = {
   hit: CombatFloat | null;
@@ -48,15 +48,12 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Pro
         <p
           className="mt-2 text-4xl sm:text-5xl font-black tabular-nums"
           style={{
-            color: isHeal ? 'transparent' : palette.primary,
-            backgroundImage: isHeal ? palette.textFill : undefined,
-            backgroundClip: isHeal ? 'text' : undefined,
-            WebkitBackgroundClip: isHeal ? 'text' : undefined,
             textShadow: `0 2px 12px ${palette.glow}88`,
             animation: 'combat-hit-amount 0.55s ease-out both',
           }}
         >
-          {isHeal ? '+' : '−'}{amount}
+          <span style={{ color: palette.signColor }}>{isHeal ? '+' : '−'}</span>
+          <span style={{ color: palette.numberColor }}>{amount}</span>
         </p>
         <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-black/50">
           <div

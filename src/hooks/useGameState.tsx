@@ -13,7 +13,16 @@ import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats } from '@/lib/game-data'
 import { rosterForTeamName } from '@/lib/rosters';
 import {
   getHumanTeamSetup, isCoopLocal, isHumanTeamId, matchHumanMeta,
+  humanTeamId, initHumanEliminatedRound, preferHumanOnTeamA,
+  hasDuplicateTeamNames,
+  COOP_MAX_PLAYERS, COOP_MIN_PLAYERS,
 } from '@/lib/coop';
+import {
+  getMatchTimings,
+  getSetupTimings,
+  isExpressMode,
+} from '@/lib/express-mode';
+import { autofillTeamSetup } from '@/lib/setup-autofill';
 import {
   beginPlayerRun,
   finalizePlayerRun,
@@ -63,14 +72,16 @@ interface GameState {
   matchResult: 'win' | 'lose' | null;
   /** Ronda en la que el jugador fue eliminado (0–3). null si sigue vivo / campeón. */
   playerEliminatedRound: number | null;
-  /** Coop: índice 0|1 del jugador armando equipo. */
-  coopSetupPlayerIndex: 0 | 1;
-  humanTeams: [HumanTeamSetup | null, HumanTeamSetup | null];
+  /** Coop: índice del jugador armando equipo. */
+  coopSetupPlayerIndex: number;
+  humanTeams: (HumanTeamSetup | null)[];
   humanEliminatedRound: Record<string, number | null>;
   /** Lado humano en partida vs IA (coop). */
   playerSide: TeamColor | null;
   /** Nombre del ganador de la última partida (coop PvP). */
   lastMatchWinnerName: string | null;
+  /** Express: timestamp límite para armado 5+5. */
+  setupDeadlineMs: number | null;
 }
 
 const initialState: GameState = {
@@ -91,16 +102,18 @@ const initialState: GameState = {
   matchResult: null,
   playerEliminatedRound: null,
   coopSetupPlayerIndex: 0,
-  humanTeams: [null, null],
-  humanEliminatedRound: { human_0: null, human_1: null },
+  humanTeams: [],
+  humanEliminatedRound: {},
   playerSide: null,
   lastMatchWinnerName: null,
+  setupDeadlineMs: null,
 };
 
 type GameAction =
   | { type: 'SET_SCREEN'; screen: GameScreen }
   | { type: 'SET_GAME_MODE'; mode: GameMode }
-  | { type: 'ADD_LOBBY_PLAYER'; name: string }
+  | { type: 'ADD_LOBBY_PLAYER'; name: string; teamName?: string }
+  | { type: 'UPDATE_LOBBY_PLAYER'; id: string; name?: string; teamName?: string }
   | { type: 'REMOVE_LOBBY_PLAYER'; id: string }
   | { type: 'CONFIRM_LOBBY' }
   | { type: 'SET_TEAM_NAME'; name: string; orgId?: string }
@@ -126,7 +139,8 @@ type GameAction =
   | { type: 'ADVANCE_BRACKET' }
   | { type: 'SIMULATE_ONE_AI_MATCH' }
   | { type: 'EXIT_TO_MODE' }
-  | { type: 'RESET_TOURNAMENT' };
+  | { type: 'RESET_TOURNAMENT' }
+  | { type: 'AUTO_FILL_SETUP' };
 
 function shuffleInPlace<T>(arr: T[]): T[] {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -181,14 +195,17 @@ function buildTeamFromSetup(setup: HumanTeamSetup, teamId: string, color: TeamCo
   };
 }
 
-function generateCoopTournament(humanA: HumanTeamSetup, humanB: HumanTeamSetup): Tournament {
-  const team0 = buildTeamFromSetup(humanA, 'human_0', 'blue');
-  const team1 = buildTeamFromSetup(humanB, 'human_1', 'red');
-  const usedNames = new Set<string>([nameKey(team0.name), nameKey(team1.name)]);
+function generateCoopTournament(setups: HumanTeamSetup[]): Tournament {
+  const humanTeamsData = setups.map((setup, i) =>
+    buildTeamFromSetup(setup, humanTeamId(i), i % 2 === 0 ? 'blue' : 'red'),
+  );
+  const usedNames = new Set<string>(humanTeamsData.map(t => nameKey(t.name)));
   const namePool = shuffleInPlace(AI_TEAM_NAMES.filter(n => !usedNames.has(nameKey(n))));
-  const excludeIds = new Set([...team0.champions, ...team1.champions].map(c => c.defId));
+  const excludeIds = new Set(
+    humanTeamsData.flatMap(t => t.champions.map(c => c.defId)),
+  );
   const champPools = createChampPools(excludeIds);
-  const teams: TeamData[] = [team0, team1];
+  const teams: TeamData[] = [...humanTeamsData];
 
   let aiIdx = 0;
   while (teams.length < 16) {
@@ -210,8 +227,7 @@ function generateCoopTournament(humanA: HumanTeamSetup, humanB: HumanTeamSetup):
   for (let i = 0; i < 8; i++) {
     let teamA = shuffled[i * 2];
     let teamB = shuffled[i * 2 + 1];
-    if (isHumanTeamId(teamB.id) && !isHumanTeamId(teamA.id)) [teamA, teamB] = [teamB, teamA];
-    if (teamB.id === 'human_0') [teamA, teamB] = [teamB, teamA];
+    if (!preferHumanOnTeamA(teamA.id, teamB.id)) [teamA, teamB] = [teamB, teamA];
     const meta = matchHumanMeta(teamA.id, teamB.id);
     round1Matches.push({
       id: `r1_m${i}`,
@@ -231,7 +247,7 @@ function generateCoopTournament(humanA: HumanTeamSetup, humanB: HumanTeamSetup):
       { round: 2, roundName: 'Semifinal', matches: [] },
       { round: 3, roundName: 'Final', matches: [] },
     ],
-    playerTeam: team0,
+    playerTeam: humanTeamsData[0],
     currentRound: 0,
     isComplete: false,
     champion: null,
@@ -385,12 +401,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'SET_GAME_MODE': {
       if (action.mode === 'ai') {
+        const setupMs = getSetupTimings('ai').setupBudgetSec * 1000;
         return {
           ...state,
           gameMode: 'ai',
           roomCode: '',
-          lobbyPlayers: [{ id: 'host', name: 'Tú', isHost: true }],
+          lobbyPlayers: [{ id: 'host', name: 'Tú', teamName: '', isHost: true }],
           currentScreen: 'home',
+          setupDeadlineMs: Date.now() + setupMs,
         };
       }
       if (action.mode === 'coop_local') {
@@ -398,32 +416,51 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ...state,
           gameMode: 'coop_local',
           roomCode: '',
-          lobbyPlayers: [{ id: 'host', name: 'Jugador 1', isHost: true }],
-          humanTeams: [null, null],
+          lobbyPlayers: [{ id: 'host', name: 'Jugador 1', teamName: '', isHost: true }],
+          humanTeams: [],
           coopSetupPlayerIndex: 0,
-          humanEliminatedRound: { human_0: null, human_1: null },
+          humanEliminatedRound: {},
           currentScreen: 'lobby',
+          setupDeadlineMs: null,
         };
       }
       return {
         ...state,
         gameMode: 'coop_code',
         roomCode: makeRoomCode(),
-        lobbyPlayers: [{ id: 'host', name: 'Host', isHost: true }],
+        lobbyPlayers: [{ id: 'host', name: 'Host', teamName: '', isHost: true }],
         currentScreen: 'lobby',
+        setupDeadlineMs: null,
       };
     }
 
     case 'ADD_LOBBY_PLAYER': {
-      const max = isCoopLocal(state.gameMode) ? 2 : 16;
+      const max = isCoopLocal(state.gameMode) ? COOP_MAX_PLAYERS : 16;
       if (state.lobbyPlayers.length >= max) return state;
-      const name = action.name.trim() || (isCoopLocal(state.gameMode) ? 'Jugador 2' : `Amigo ${state.lobbyPlayers.length}`);
+      const slot = state.lobbyPlayers.length;
+      const playerName = action.name.trim() || (isCoopLocal(state.gameMode) ? `Jugador ${slot + 1}` : `Amigo ${slot}`);
+      const teamName = action.teamName?.trim() ?? '';
       return {
         ...state,
         lobbyPlayers: [
           ...state.lobbyPlayers,
-          { id: `p_${Date.now()}_${state.lobbyPlayers.length}`, name, isHost: false },
+          { id: `p_${Date.now()}_${slot}`, name: playerName, teamName, isHost: false },
         ],
+      };
+    }
+
+    case 'UPDATE_LOBBY_PLAYER': {
+      const idx = state.lobbyPlayers.findIndex(p => p.id === action.id);
+      if (idx < 0) return state;
+      const current = state.lobbyPlayers[idx];
+      const updated: LobbyPlayer = {
+        ...current,
+        ...(action.name !== undefined ? { name: action.name.slice(0, 18) } : {}),
+        ...(action.teamName !== undefined ? { teamName: action.teamName.slice(0, 24) } : {}),
+      };
+      return {
+        ...state,
+        lobbyPlayers: state.lobbyPlayers.map((p, i) => (i === idx ? updated : p)),
       };
     }
 
@@ -434,7 +471,25 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
 
     case 'CONFIRM_LOBBY': {
-      if (state.gameMode === 'coop_local' && state.lobbyPlayers.length !== 2) return state;
+      if (state.gameMode === 'coop_local') {
+        const count = state.lobbyPlayers.length;
+        if (count < COOP_MIN_PLAYERS || count > COOP_MAX_PLAYERS) return state;
+        const allTeamsNamed = state.lobbyPlayers.every(p => p.teamName.trim().length >= 2);
+        if (!allTeamsNamed || hasDuplicateTeamNames(state.lobbyPlayers)) return state;
+        const first = state.lobbyPlayers[0];
+        return {
+          ...state,
+          currentScreen: 'rosterSelect',
+          coopSetupPlayerIndex: 0,
+          playerTeamName: first.teamName.trim(),
+          selectedFanOrgId: null,
+          selectedRoster: [],
+          selectedChampions: [],
+          champToRoster: {},
+          humanTeams: Array(count).fill(null),
+          humanEliminatedRound: initHumanEliminatedRound(count),
+        };
+      }
       if (state.gameMode === 'coop_code' && state.lobbyPlayers.length < 2) return state;
       return {
         ...state,
@@ -529,31 +584,35 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.selectedChampions.length !== 5 || state.selectedRoster.length !== 5) return state;
 
       if (isCoopLocal(state.gameMode)) {
+        const n = state.lobbyPlayers.length;
         const idx = state.coopSetupPlayerIndex;
         const lobbyPlayer = state.lobbyPlayers[idx];
         const setup: HumanTeamSetup = {
-          lobbyPlayerId: lobbyPlayer?.id ?? `human_${idx}`,
-          teamName: state.playerTeamName || `Equipo ${idx + 1}`,
+          lobbyPlayerId: lobbyPlayer?.id ?? humanTeamId(idx),
+          teamName: lobbyPlayer?.teamName.trim() || lobbyPlayer?.name || `Equipo ${idx + 1}`,
           fanOrgId: state.selectedFanOrgId,
           roster: [...state.selectedRoster],
           champions: [...state.selectedChampions],
           champToRoster: { ...state.champToRoster },
         };
-        const humanTeams = [...state.humanTeams] as [HumanTeamSetup | null, HumanTeamSetup | null];
+        const humanTeams = [...state.humanTeams];
         humanTeams[idx] = setup;
 
-        if (idx === 0) {
-          beginPlayerRun(setup.teamName, setup.roster, setup.champions.map(c => c.defId));
+        if (idx < n - 1) {
+          if (idx === 0) {
+            beginPlayerRun(setup.teamName, setup.roster, setup.champions.map(c => c.defId));
+          }
+          const nextLobby = state.lobbyPlayers[idx + 1];
           return {
             ...state,
             humanTeams,
-            coopSetupPlayerIndex: 1,
-            playerTeamName: '',
+            coopSetupPlayerIndex: idx + 1,
+            playerTeamName: nextLobby?.teamName.trim() || nextLobby?.name || '',
             selectedFanOrgId: null,
             selectedRoster: [],
             selectedChampions: [],
             champToRoster: {},
-            currentScreen: 'home',
+            currentScreen: 'rosterSelect',
           };
         }
 
@@ -562,10 +621,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ...state,
           humanTeams,
           playerTeamName: team0.teamName,
-          tournament: generateCoopTournament(team0, setup),
+          tournament: generateCoopTournament(humanTeams.filter(Boolean) as HumanTeamSetup[]),
           currentScreen: 'bracket',
           playerEliminatedRound: null,
-          humanEliminatedRound: { human_0: null, human_1: null },
+          humanEliminatedRound: initHumanEliminatedRound(n),
         };
       }
 
@@ -588,7 +647,42 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         tournament: generateTournament(playerTeam, state.lobbyPlayers, state.gameMode),
         currentScreen: 'bracket',
         playerEliminatedRound: null,
+        setupDeadlineMs: null,
       };
+    }
+
+    case 'AUTO_FILL_SETUP': {
+      if (!isExpressMode(state.gameMode)) return state;
+      const screen = state.currentScreen;
+      if (screen !== 'home' && screen !== 'rosterSelect' && screen !== 'championSelect') return state;
+
+      const filled = autofillTeamSetup(
+        state.selectedRoster,
+        state.selectedChampions,
+        state.champToRoster,
+      );
+      let next: GameState = {
+        ...state,
+        selectedRoster: filled.selectedRoster,
+        selectedChampions: filled.selectedChampions,
+        champToRoster: filled.champToRoster,
+        playerTeamName: state.playerTeamName.trim() || 'Mi Equipo',
+      };
+
+      const rosterReady = next.selectedRoster.length === 5;
+      const champsReady = next.selectedChampions.length === 5;
+
+      if (!rosterReady) return next;
+      if (screen === 'home' || screen === 'rosterSelect') {
+        if (!champsReady) {
+          return { ...next, currentScreen: 'championSelect' };
+        }
+      }
+
+      if (champsReady) {
+        return gameReducer(next, { type: 'CONFIRM_TEAM' });
+      }
+      return next;
     }
 
     case 'PREPARE_MATCH': {
@@ -630,7 +724,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         redRoster,
         champMapFor(match.teamB.id),
       );
-      const turnMatch = createTurnMatch(blue, red, null);
+      const turnMatch = createTurnMatch(blue, red, null, {
+        maxRounds: getMatchTimings(state.gameMode).maxRounds,
+      });
       if (match.isPlayerMatch) resetCurrentMatchObjectives();
 
       let playerSide: TeamColor | null = null;
@@ -780,8 +876,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         for (let i = 0; i < winners.length / 2; i++) {
           let teamA = winners[i * 2];
           let teamB = winners[i * 2 + 1];
-          if (isHumanTeamId(teamB.id) && !isHumanTeamId(teamA.id)) [teamA, teamB] = [teamB, teamA];
-          if (teamB.id === 'human_0') [teamA, teamB] = [teamB, teamA];
+          if (!preferHumanOnTeamA(teamA.id, teamB.id)) [teamA, teamB] = [teamB, teamA];
           const meta = matchHumanMeta(teamA.id, teamB.id);
           nextRound.matches.push({
             id: `r${currentRoundIdx + 1}_m${i}`,

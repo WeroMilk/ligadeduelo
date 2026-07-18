@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import CoopSetupBanner from '@/components/CoopSetupBanner';
+import ExpressSetupTimer from '@/components/ExpressSetupTimer';
 import { ROLE_COLORS, ROLE_NAMES, CHAMPIONS, MANA_COSTS_UI } from '@/lib/game-data';
 import { getUltimate } from '@/lib/ultimates';
 import { preloadChampionImages } from '@/lib/preload-images';
@@ -105,6 +106,9 @@ export default function ChampionSelect() {
             <p className="mt-0.5 text-[10px] leading-snug text-[#8B9BB4] md:text-[11px]">
               % = qué tanto el integrante del equipo sabe usar a cada campeón
             </p>
+            <div className="mt-1.5">
+              <ExpressSetupTimer />
+            </div>
           </div>
           <div className="flex shrink-0 items-start gap-2">
             <NameSearch

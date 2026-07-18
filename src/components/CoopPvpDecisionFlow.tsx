@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import DecisionOverlay, { type DecisionKind, type DecisionPayload } from '@/components/DecisionOverlay';
 import { generateAIPlan, livingJungler, champDef } from '@/lib/turn-engine';
 import { objectiveName } from '@/lib/game-data';
@@ -58,11 +58,14 @@ export default function CoopPvpDecisionFlow({
 }: Props) {
   const [turn, setTurn] = useState<Turn>('blue');
   const [promptKind, setPromptKind] = useState<DecisionKind | null>(null);
-  const [awaitConfirm, setAwaitConfirm] = useState(false);
   const picksRef = useRef<DecisionPayload[]>([]);
   const pickQueueRef = useRef<DecisionKind[]>([]);
   const bluePlanRef = useRef<TeamPlan | null>(null);
   const startedRound = useRef<number | null>(null);
+  const tmRef = useRef(tm);
+  const onResolveRef = useRef(onResolve);
+  tmRef.current = tm;
+  onResolveRef.current = onResolve;
 
   const objLabel = tm.objective ? objectiveName(tm.objective) : null;
   const currentTeam: TeamColor = turn === 'red' ? 'red' : 'blue';
@@ -76,38 +79,61 @@ export default function CoopPvpDecisionFlow({
     });
   }, [teamData.champions]);
 
-  const startTeamTurn = useCallback((team: 'blue' | 'red') => {
+  const beginInteractiveTurn = (team: 'blue' | 'red') => {
     picksRef.current = [];
-    pickQueueRef.current = [];
-    setAwaitConfirm(false);
+    pickQueueRef.current = ['jungle'];
     setTurn(team);
+    setPromptKind('jungle');
+  };
 
-    const side = team === 'blue' ? tm.blue : tm.red;
-    if (!livingJungler(side)) {
-      const plan = planForTeam(tm, team, []);
-      if (team === 'blue') {
-        bluePlanRef.current = plan;
-        startTeamTurn('red');
-      } else {
-        onResolve(bluePlanRef.current ?? planForTeam(tm, 'blue', []), plan);
+  const applyTeamPlan = (team: TeamColor, picks: DecisionPayload[]) => {
+    const live = tmRef.current;
+    const plan = planForTeam(live, team, picks);
+    picksRef.current = [];
+    setPromptKind(null);
+
+    if (team === 'blue') {
+      bluePlanRef.current = plan;
+      const redSide = live.red;
+      if (!livingJungler(redSide)) {
+        const redPlan = planForTeam(live, 'red', []);
+        onResolveRef.current(plan, redPlan);
         setTurn('done');
+        return;
       }
+      beginInteractiveTurn('red');
       return;
     }
 
-    pickQueueRef.current = ['jungle'];
-    setPromptKind('jungle');
-  }, [tm, onResolve]);
+    onResolveRef.current(bluePlanRef.current ?? planForTeam(live, 'blue', []), plan);
+    setTurn('done');
+  };
+
+  const startRound = () => {
+    bluePlanRef.current = null;
+    const live = tmRef.current;
+    if (!livingJungler(live.blue)) {
+      const bluePlan = planForTeam(live, 'blue', []);
+      bluePlanRef.current = bluePlan;
+      if (!livingJungler(live.red)) {
+        onResolveRef.current(bluePlan, planForTeam(live, 'red', []));
+        setTurn('done');
+        return;
+      }
+      beginInteractiveTurn('red');
+      return;
+    }
+    beginInteractiveTurn('blue');
+  };
 
   useEffect(() => {
     if (startedRound.current === round) return;
     startedRound.current = round;
-    bluePlanRef.current = null;
-    startTeamTurn('blue');
-  }, [round, startTeamTurn]);
+    startRound();
+  }, [round]);
 
   const acceptPick = (payload: DecisionPayload) => {
-    if (paused || awaitConfirm) return;
+    if (paused) return;
     const next = [...picksRef.current.filter(p => p.kind !== payload.kind), payload];
     picksRef.current = next;
 
@@ -125,66 +151,23 @@ export default function CoopPvpDecisionFlow({
     if (nextKind) {
       setPromptKind(nextKind);
     } else {
-      setPromptKind(null);
-      setAwaitConfirm(true);
-    }
-  };
-
-  const confirmTurn = () => {
-    const plan = planForTeam(tm, currentTeam, picksRef.current);
-    setAwaitConfirm(false);
-    picksRef.current = [];
-
-    if (currentTeam === 'blue') {
-      bluePlanRef.current = plan;
-      startTeamTurn('red');
-    } else {
-      onResolve(bluePlanRef.current ?? planForTeam(tm, 'blue', []), plan);
-      setTurn('done');
+      applyTeamPlan(currentTeam, next);
     }
   };
 
   if (turn === 'done') return null;
 
-  return (
-    <>
-      {promptKind && !awaitConfirm && (
-        <DecisionOverlay
-          kind={promptKind}
-          objectiveLabel={objLabel}
-          allowObjective={!!tm.objective}
-          assistOptions={assistCandidates}
-          secondsLeft={0}
-          showTimer={false}
-          teamColor={currentTeam}
-          playerLabel={currentLabel}
-          onPick={acceptPick}
-        />
-      )}
-      {awaitConfirm && (
-        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/55 px-3 pb-6 sm:pb-0">
-          <div className="w-full max-w-md rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-4 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
-              Turno {currentTeam === 'blue' ? 'azul' : 'rojo'}
-            </p>
-            <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-              {currentLabel}
-            </h2>
-            <p className="text-xs text-[#8B9BB4]">
-              Revisa tu elección y confirma para pasar al rival.
-            </p>
-            <button
-              type="button"
-              disabled={paused}
-              onClick={confirmTurn}
-              className="w-full min-h-11 rounded-xl font-bold"
-              style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
-            >
-              Confirmar elección
-            </button>
-          </div>
-        </div>
-      )}
-    </>
-  );
+  return promptKind ? (
+    <DecisionOverlay
+      kind={promptKind}
+      objectiveLabel={objLabel}
+      allowObjective={!!tm.objective}
+      assistOptions={assistCandidates}
+      secondsLeft={0}
+      showTimer={false}
+      teamColor={currentTeam}
+      playerLabel={currentLabel}
+      onPick={acceptPick}
+    />
+  ) : null;
 }

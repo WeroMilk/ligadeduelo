@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import CoopSetupBanner from '@/components/CoopSetupBanner';
+import ExpressSetupTimer from '@/components/ExpressSetupTimer';
 import { FAN_ORGS, fanOrgDisplayName, ROLE_COLORS, ROLE_NAMES } from '@/lib/game-data';
 import { buildAllRosters } from '@/lib/rosters';
 import type { Role, RosterMember } from '@/types/game';
@@ -251,6 +252,9 @@ export default function RosterSelect() {
             <p className="text-[11px] text-[#8B9BB4] md:text-xs">
               Elige 1 por rol de cualquier equipo ({state.selectedRoster.length}/5)
             </p>
+            <div className="mt-1.5">
+              <ExpressSetupTimer />
+            </div>
           </div>
           <NameSearch
             pinned

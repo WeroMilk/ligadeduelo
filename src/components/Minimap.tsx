@@ -3,7 +3,7 @@ import type { Champion, Structure, TeamPlan, LaneId, ObjectiveType, CombatAction
 import { actionLabelEs, champDef } from '@/lib/turn-engine';
 import { objectiveIsBaronSide, objectiveName } from '@/lib/game-data';
 import { combatFloatStyle } from '@/lib/combat-float-style';
-import { Swords, Shield, Sparkles } from 'lucide-react';
+import { Swords, Shield, Sparkles, Droplet } from 'lucide-react';
 
 export type ObjectiveAnimPhase = 'none' | 'pulse' | 'clash' | 'claim';
 
@@ -158,6 +158,46 @@ function structurePos(s: { type: string; team: string; lane: number; position: {
   }
   const path = s.lane === 0 ? TOP_PATH : s.lane === 2 ? BOT_PATH : MID_PATH;
   return pointOnPath(path, s.position.x);
+}
+
+function BloodDropSvg({
+  cx,
+  cy,
+  scale = 1,
+  anim = 'minimap-blood-pop 0.55s ease-out forwards',
+}: {
+  cx: number;
+  cy: number;
+  scale?: number;
+  anim?: string;
+}) {
+  return (
+    <g
+      transform={`translate(${cx} ${cy}) scale(${scale})`}
+      style={{ animation: anim, transformOrigin: 'center' }}
+    >
+      <path
+        d="M0 -3.2 C0 -3.2 -2.4 0.4 -2.4 2.6 A2.6 2.6 0 0 0 2.4 2.6 C2.4 0.4 0 -3.2 0 -3.2 Z"
+        fill="#C0392B"
+        stroke="#922B21"
+        strokeWidth="0.4"
+      />
+      <ellipse cx="0" cy="1.8" rx="1.1" ry="0.7" fill="#E74C3C" opacity="0.55" />
+    </g>
+  );
+}
+
+function HealSparkSvg({ cx, cy }: { cx: number; cy: number }) {
+  return (
+    <circle
+      cx={cx}
+      cy={cy}
+      r="2.4"
+      fill="#7DFFAE"
+      opacity="0.95"
+      style={{ animation: 'minimap-impact-dot 0.55s ease-out infinite' }}
+    />
+  );
 }
 
 function ActionBadge({ action, size }: { action: CombatAction; size: number }) {
@@ -337,8 +377,7 @@ export default function Minimap({
             const midY = (a.y + b.y) * 50;
             const thick = beam.toKind === 'structure' ? 3.4 : 2.6;
             const isHealBeam = beam.effectKind === 'heal';
-            const beamColor = isHealBeam ? '#2ECC71' : '#F1C40F';
-            const glowColor = isHealBeam ? '#7DFFAE' : '#FFF3A0';
+            const beamColor = isHealBeam ? '#2ECC71' : '#E74C3C';
             return (
               <g key={`beam-${beam.fromId}-${beam.toId}-${i}`}>
                 <line
@@ -346,7 +385,7 @@ export default function Minimap({
                   y1={a.y * 100}
                   x2={b.x * 100}
                   y2={b.y * 100}
-                  stroke={isHealBeam ? '#1D8F50' : '#FF6B35'}
+                  stroke={isHealBeam ? '#1D8F50' : '#922B21'}
                   strokeWidth={thick + 2.2}
                   strokeOpacity="0.35"
                   strokeLinecap="round"
@@ -365,44 +404,60 @@ export default function Minimap({
                     animation: 'minimap-beam 0.4s ease-in-out infinite alternate',
                   }}
                 />
-                <circle
-                  cx={b.x * 100}
-                  cy={b.y * 100}
-                  r={beam.toKind === 'structure' ? 3.2 : 2.4}
-                  fill={glowColor}
-                  opacity="0.95"
-                  style={{ animation: 'minimap-impact-dot 0.55s ease-out infinite' }}
-                />
-                <circle
-                  cx={midX}
-                  cy={midY}
-                  r="1.6"
-                  fill={glowColor}
-                  opacity="0.95"
-                  style={{ animation: 'minimap-beam-spark 0.45s linear infinite' }}
-                />
+                {isHealBeam ? (
+                  <HealSparkSvg cx={b.x * 100} cy={b.y * 100} />
+                ) : (
+                  <BloodDropSvg
+                    cx={b.x * 100}
+                    cy={b.y * 100}
+                    scale={beam.toKind === 'structure' ? 1.35 : 1.05}
+                  />
+                )}
+                {!isHealBeam && (
+                  <BloodDropSvg cx={midX} cy={midY} scale={0.65} anim="minimap-blood-trail 0.45s ease-out infinite" />
+                )}
               </g>
             );
           })}
 
           {impactPos && (
             <g key={`impact-${impactTargetId}`}>
-              <circle
-                cx={impactPos.x * 100}
-                cy={impactPos.y * 100}
-                r="6"
-                fill="none"
-                stroke={activeEffectKind === 'heal' ? '#2ECC71' : '#E74C3C'}
-                strokeWidth="1.8"
-                style={{ animation: 'minimap-impact-ring 0.7s ease-out infinite' }}
-              />
-              <circle
-                cx={impactPos.x * 100}
-                cy={impactPos.y * 100}
-                r="3.5"
-                fill={activeEffectKind === 'heal' ? 'rgba(46,204,113,0.45)' : 'rgba(231,76,60,0.45)'}
-                style={{ animation: 'minimap-impact-flash 0.55s ease-out infinite' }}
-              />
+              {activeEffectKind === 'heal' ? (
+                <>
+                  <circle
+                    cx={impactPos.x * 100}
+                    cy={impactPos.y * 100}
+                    r="6"
+                    fill="none"
+                    stroke="#2ECC71"
+                    strokeWidth="1.8"
+                    style={{ animation: 'minimap-impact-ring 0.7s ease-out infinite' }}
+                  />
+                  <circle
+                    cx={impactPos.x * 100}
+                    cy={impactPos.y * 100}
+                    r="3.5"
+                    fill="rgba(46,204,113,0.45)"
+                    style={{ animation: 'minimap-impact-flash 0.55s ease-out infinite' }}
+                  />
+                </>
+              ) : (
+                <>
+                  <BloodDropSvg cx={impactPos.x * 100} cy={impactPos.y * 100} scale={1.5} />
+                  <BloodDropSvg
+                    cx={impactPos.x * 100 - 4}
+                    cy={impactPos.y * 100 + 3}
+                    scale={0.85}
+                    anim="minimap-blood-pop 0.7s ease-out 0.08s forwards"
+                  />
+                  <BloodDropSvg
+                    cx={impactPos.x * 100 + 4}
+                    cy={impactPos.y * 100 + 2}
+                    scale={0.75}
+                    anim="minimap-blood-pop 0.7s ease-out 0.14s forwards"
+                  />
+                </>
+              )}
             </g>
           )}
         </svg>
@@ -616,6 +671,18 @@ export default function Minimap({
                   </div>
                 )}
               </div>
+              {isImpacted && !isHealing && (
+                <div
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                  style={{ animation: 'minimap-blood-pop 0.55s ease-out forwards', zIndex: 16 }}
+                >
+                  <Droplet
+                    className="fill-[#C0392B] text-[#922B21] drop-shadow-[0_0_6px_rgba(192,57,43,0.9)]"
+                    style={{ width: icon * 0.62, height: icon * 0.62 }}
+                    strokeWidth={2}
+                  />
+                </div>
+              )}
               {/* Badge definitiva / BASE */}
               <div
                 className="absolute -top-1 -right-1 rounded-full flex items-center justify-center font-black leading-none border border-black/50"
@@ -707,16 +774,9 @@ export default function Minimap({
                 zIndex: 22,
               }}
             >
-              <span
-                style={{
-                  color: isHeal ? 'transparent' : palette.primary,
-                  backgroundImage: isHeal ? palette.textFill : undefined,
-                  backgroundClip: isHeal ? 'text' : undefined,
-                  WebkitBackgroundClip: isHeal ? 'text' : undefined,
-                  textShadow: `0 2px 4px #000, 0 0 10px ${palette.glow}99`,
-                }}
-              >
-                {isHeal ? '+' : '−'}{f.amount}
+              <span style={{ textShadow: `0 2px 4px #000, 0 0 10px ${palette.glow}99` }}>
+                <span style={{ color: palette.signColor }}>{isHeal ? '+' : '−'}</span>
+                <span style={{ color: palette.numberColor }}>{f.amount}</span>
               </span>
             </div>
           );
@@ -732,6 +792,15 @@ export default function Minimap({
           0% { opacity: 0.3; transform: scale(0.6); }
           50% { opacity: 1; transform: scale(1.2); }
           100% { opacity: 0.3; transform: scale(0.6); }
+        }
+        @keyframes minimap-blood-pop {
+          0% { opacity: 0; transform: scale(0.35); }
+          35% { opacity: 1; transform: scale(1.15); }
+          100% { opacity: 0.85; transform: scale(1); }
+        }
+        @keyframes minimap-blood-trail {
+          0%, 100% { opacity: 0.45; transform: scale(0.75); }
+          50% { opacity: 0.95; transform: scale(1.05); }
         }
         @keyframes minimap-impact-dot {
           0%, 100% { opacity: 0.7; r: 2; }

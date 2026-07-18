@@ -18,7 +18,10 @@ export type GameScreen =
 
 export interface LobbyPlayer {
   id: string;
+  /** Nombre del jugador en el lobby (etiqueta). */
   name: string;
+  /** Nombre del equipo que usará en el torneo. */
+  teamName: string;
   isHost: boolean;
 }
 
