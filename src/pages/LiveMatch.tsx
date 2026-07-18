@@ -50,7 +50,8 @@ function useMapSize(
         if (!el) return;
         const h = el.clientHeight;
         const w = el.clientWidth;
-        const reserved = 56;
+        // Alto reservado sobre el mapa: cápsula de estado + gaps + padding vertical.
+        const reserved = 96;
         // Reserva: padding del body (32) + sidebar + gap (lg: 320+32, md: 288+24)
         const lg = window.matchMedia('(min-width: 1024px)').matches;
         const sidebarReserve = 32 + (lg ? 320 + 32 : DESKTOP_SIDEBAR_W + 24);
