@@ -52,7 +52,7 @@ function useMapSize(containerRef: React.RefObject<HTMLElement | null>) {
       }
 
       // Móvil: mapa + estructuras + marcador + stats en columna
-      const reserved = 210;
+      const reserved = 250;
       const byH = Math.floor((h - reserved) / MAP_SLOT_SCALE);
       const byW = Math.floor(w - 16);
       setSize(Math.max(MAP_SIZE_MOBILE_MIN, Math.min(MAP_SIZE_MOBILE_MAX, byH, byW)));
@@ -138,7 +138,7 @@ function StructureHpRow({ structures, team }: { structures: Structure[]; team: '
     const pct = destroyed ? 0 : Math.max(0, Math.min(100, (s!.hp / s!.maxHp) * 100));
     return (
       <div key={label} className="flex-1 min-w-0">
-        <div className="flex justify-between text-[9px] mb-0.5">
+        <div className="flex justify-between text-[9px] leading-tight">
           <span style={{ color }}>{label}</span>
           <span className="text-[#8B9BB4]">
             {destroyed ? '✕' : `${Math.floor(s!.hp)}`}
@@ -992,7 +992,7 @@ export default function LiveMatch() {
 
       <div
         ref={bodyRef}
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide px-3 py-2 w-full max-w-lg mx-auto flex flex-col gap-2.5 md:max-w-6xl md:px-4 md:py-2 md:flex-row md:items-stretch md:justify-center md:gap-6 lg:gap-8"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide px-3 py-2 w-full max-w-lg mx-auto flex flex-col gap-2 md:max-w-6xl md:px-4 md:py-2 md:flex-row md:items-stretch md:justify-center md:gap-6 lg:gap-8"
       >
         <div className="flex w-full min-h-0 flex-col items-center gap-1.5 md:flex-1 md:min-w-0 md:justify-center md:gap-2">
           <div key={capsule} className="rounded-full border border-[#C9A84C]/40 bg-[#141B2D] px-3 py-0.5 shrink-0 animate-scale-in">
@@ -1105,10 +1105,7 @@ export default function LiveMatch() {
           <CombatAnnounceOverlay batch={announceBatch} placement="inline" />
 
           <div className="w-full space-y-1.5 md:hidden" style={{ maxWidth: mapSize }}>
-            <div className="rounded-xl border border-[#1E2740] bg-[#0D1220] p-2 shrink-0">
-              <p className="text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4] text-center">
-                Estructuras
-              </p>
+            <div className="rounded-xl border border-[#1E2740] bg-[#0D1220] px-2 py-1.5 shrink-0 space-y-1">
               <StructureHpRow structures={tm.structures} team="blue" />
               <StructureHpRow structures={tm.structures} team="red" />
             </div>
@@ -1116,7 +1113,7 @@ export default function LiveMatch() {
             <button
               type="button"
               onClick={openStats}
-              className="w-full shrink-0 flex items-center justify-center gap-2 rounded-xl border-2 border-[#C9A84C]/45 bg-[#C9A84C]/12 px-3 py-2.5 text-xs font-bold uppercase tracking-wider text-[#C9A84C] active:scale-[0.99]"
+              className="w-full shrink-0 flex items-center justify-center gap-2 rounded-xl border-2 border-[#C9A84C]/45 bg-[#C9A84C]/12 px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#C9A84C] active:scale-[0.99]"
             >
               <BarChart3 className="h-4 w-4" />
               Estadísticas
