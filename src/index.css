@@ -492,6 +492,36 @@
   background: radial-gradient(ellipse at center, var(--tw-gradient-from), var(--tw-gradient-to));
 }
 
+/* ========== SYNERGY TIERS (selección de campeón) ========== */
+.synergy-badge {
+  border-width: 1px;
+  border-style: solid;
+}
+.synergy-tier-firma {
+  color: #2ECC71;
+  border-color: #2ECC71;
+  background-color: rgba(46, 204, 113, 0.25);
+}
+.synergy-tier-alta {
+  color: #27AE60;
+  border-color: rgba(39, 174, 96, 0.55);
+  background-color: rgba(39, 174, 96, 0.2);
+}
+.synergy-tier-media {
+  color: #5DADE2;
+  border-color: rgba(52, 152, 219, 0.55);
+  background-color: rgba(52, 152, 219, 0.2);
+}
+.synergy-tier-baja {
+  color: #8B9BB4;
+  border-color: #4A5570;
+  background-color: rgba(74, 85, 112, 0.4);
+}
+.synergy-text-firma { color: #2ECC71 !important; }
+.synergy-text-alta { color: #27AE60 !important; }
+.synergy-text-media { color: #5DADE2 !important; }
+.synergy-text-baja { color: #8B9BB4 !important; }
+
 /* ========== TOUCH OPTIMIZATIONS ========== */
 .coop-lobby input {
   font-size: 16px;

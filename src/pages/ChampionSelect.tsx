@@ -198,7 +198,8 @@ export default function ChampionSelect() {
               >
                 {synUi && (
                   <span
-                    className={`absolute top-1.5 left-1.5 z-10 rounded-full border px-1.5 py-0.5 text-[9px] font-bold leading-none ${synUi.badgeClassName}`}
+                    className={`absolute top-1.5 left-1.5 z-10 rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none ${synUi.badgeClassName}`}
+                    style={{ color: synUi.accentColor, borderColor: synUi.accentColor }}
                   >
                     {synUi.label}
                   </span>
@@ -236,7 +237,10 @@ export default function ChampionSelect() {
                     <p className="text-[#F0E6D2] font-bold text-sm truncate leading-tight">{champ.name}</p>
                     <p className="text-[#8B9BB4] text-[10px] mb-0.5">{ROLE_NAMES[champ.role]}</p>
                     {syn && activeMember && (
-                      <p className={`text-[9px] mb-1 truncate leading-tight ${synUi?.textClassName ?? 'text-[#8B9BB4]'}`}>
+                      <p
+                        className={`text-[9px] mb-1 truncate leading-tight ${synUi?.textClassName ?? 'synergy-text-baja'}`}
+                        style={{ color: synUi?.accentColor }}
+                      >
                         {activeMember.name} · {syn.affinity}%
                       </p>
                     )}

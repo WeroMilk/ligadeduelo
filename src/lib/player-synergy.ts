@@ -377,7 +377,7 @@ export function computeSynergy(player: PlayerCombatProfile, champ: ChampionDef):
   };
 }
 
-/** Color/estilo UI según tier de dominio (mismo criterio en badge y texto). */
+/** Color/estilo UI según tier de dominio (clases CSS fijas, no Tailwind dinámico). */
 export function synergyUiStyle(syn: SynergyResult): {
   label: string;
   badgeClassName: string;
@@ -390,29 +390,29 @@ export function synergyUiStyle(syn: SynergyResult): {
     case 'firma':
       return {
         label,
-        badgeClassName: 'bg-[#2ECC71]/25 text-[#2ECC71] border-[#2ECC71]',
-        textClassName: 'text-[#2ECC71]',
+        badgeClassName: 'synergy-badge synergy-tier-firma',
+        textClassName: 'synergy-text-firma',
         accentColor: '#2ECC71',
       };
     case 'alta':
       return {
         label,
-        badgeClassName: 'bg-[#27AE60]/20 text-[#27AE60] border-[#27AE60]/50',
-        textClassName: 'text-[#27AE60]',
+        badgeClassName: 'synergy-badge synergy-tier-alta',
+        textClassName: 'synergy-text-alta',
         accentColor: '#27AE60',
       };
     case 'media':
       return {
         label,
-        badgeClassName: 'bg-[#3498DB]/20 text-[#5DADE2] border-[#3498DB]/50',
-        textClassName: 'text-[#5DADE2]',
+        badgeClassName: 'synergy-badge synergy-tier-media',
+        textClassName: 'synergy-text-media',
         accentColor: '#5DADE2',
       };
     default:
       return {
         label,
-        badgeClassName: 'bg-[#4A5570]/40 text-[#8B9BB4] border-[#4A5570]',
-        textClassName: 'text-[#8B9BB4]',
+        badgeClassName: 'synergy-badge synergy-tier-baja',
+        textClassName: 'synergy-text-baja',
         accentColor: '#8B9BB4',
       };
   }
