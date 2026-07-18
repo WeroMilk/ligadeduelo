@@ -946,7 +946,7 @@ export default function ObjectiveMinigame({
                           : 'text-[#E74C3C]'
                     }`}
                   >
-                    {verdict.kind === 'perfect' ? '¡PERFECTO!' : verdict.kind === 'hit' ? '¡Bien!' : 'MISS'}
+                    {verdict.kind === 'perfect' ? '¡PERFECTO!' : verdict.kind === 'hit' ? '¡Bien!' : 'Falló'}
                   </span>
                 </div>
               )}
