@@ -1,16 +1,25 @@
 /** Banner publicitario: PNG completo, compacto y pegado al borde inferior. */
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { registerBannerTap } from '@/lib/ad-easter-egg';
 import { getAdsDisabledForever, subscribeAdsDisabledForever } from '@/lib/ad-premium';
 import { getAdHidden, subscribeAdHidden } from '@/lib/ad-visibility';
+import WaterDropsOverlay from '@/components/WaterDropsOverlay';
 
 const AD_IMG = '/ads/servipartz-banner.png';
 
 export default function AdBanner() {
   const hidden = useSyncExternalStore(subscribeAdHidden, getAdHidden, () => false);
   const adsOff = useSyncExternalStore(subscribeAdsDisabledForever, getAdsDisabledForever, () => false);
+  const [splashNonce, setSplashNonce] = useState(0);
+  const [splashActive, setSplashActive] = useState(false);
 
   if (hidden || adsOff) return null;
+
+  const handleTap = () => {
+    registerBannerTap();
+    setSplashNonce(n => n + 1);
+    setSplashActive(true);
+  };
 
   return (
     <aside
@@ -18,9 +27,12 @@ export default function AdBanner() {
       role="complementary"
       aria-label="Publicidad"
     >
+      {splashActive && (
+        <WaterDropsOverlay nonce={splashNonce} onDone={() => setSplashActive(false)} />
+      )}
       <button
         type="button"
-        onClick={() => registerBannerTap()}
+        onClick={handleTap}
         className="group relative block w-full overflow-hidden bg-[#0A0E1A] p-0 transition-[filter] duration-200 hover:brightness-[1.03] active:brightness-95"
         style={{
           userSelect: 'none',
