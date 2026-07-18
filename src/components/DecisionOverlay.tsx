@@ -39,8 +39,8 @@ export default function DecisionOverlay({
   };
 
   return (
-    <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/55 p-2">
-      <div className="max-h-[min(100%,calc(100dvh-1rem))] w-full max-w-sm overflow-hidden rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-1.5">
+    <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/55 p-3 md:p-4">
+      <div className="max-h-[min(100%,calc(100dvh-1rem))] w-full max-w-sm overflow-y-auto overscroll-contain rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-4 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-2 scrollbar-hide">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
             {playerLabel ? `Turno · ${playerLabel}` : 'Decisión de equipo'}
@@ -65,7 +65,7 @@ export default function DecisionOverlay({
             <p className="text-xs text-[#8B9BB4]">
               Solo una opción: gankear una línea o ir al objetivo.
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2.5 px-0.5 py-0.5">
               {([
                 { id: 0 as LaneId, label: 'Gank Superior' },
                 { id: 1 as LaneId, label: 'Gank Central' },
@@ -85,7 +85,7 @@ export default function DecisionOverlay({
                 <button
                   type="button"
                   onClick={() => pick({ kind: 'jungle', target: 'objective' })}
-                  className="min-h-11 rounded-xl border border-[#E67E22]/50 bg-[#E67E22]/15 px-3 md:px-4 font-bold text-[#F5B041] flex items-center justify-center gap-2 col-span-2 animate-obj-breathe text-xs"
+                  className="min-h-11 rounded-xl border border-[#E67E22]/50 bg-[#E67E22]/15 px-3 md:px-4 font-bold text-[#F5B041] flex items-center justify-center gap-2 col-span-2 animate-obj-glow text-xs"
                 >
                   <Ghost className="w-4 h-4" />
                   Objetivo {objectiveLabel ? `· ${objectiveLabel}` : ''}
@@ -103,7 +103,7 @@ export default function DecisionOverlay({
             <p className="text-xs text-[#8B9BB4]">
               Elige un campeón para ir con la jungla. Su línea queda más expuesta.
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2.5 px-0.5 py-0.5">
               {assistOptions.map(c => {
                 const def = CHAMPIONS.find(d => d.id === c.defId);
                 if (!def) return null;
@@ -112,7 +112,7 @@ export default function DecisionOverlay({
                     key={c.instanceId}
                     type="button"
                     onClick={() => pick({ kind: 'assist', champId: c.instanceId })}
-                    className="min-h-[4.5rem] rounded-xl border border-[#2A3550] bg-[#0A0E1A] px-3 py-2 flex items-center gap-2 text-left active:scale-[0.98]"
+                    className="min-h-[4.5rem] rounded-xl border border-[#2A3550] bg-[#0A0E1A] px-2.5 py-2 flex items-center gap-2 text-left"
                   >
                     {def.image ? (
                       <img

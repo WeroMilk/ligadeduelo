@@ -14,24 +14,23 @@ export default function AdBanner() {
 
   return (
     <aside
-      className="relative z-[40] w-full shrink-0 border-t border-white/10 bg-[#0A0E1A] shadow-[0_-8px_28px_rgba(0,0,0,0.45)] leading-none"
+      className="relative z-[40] flex w-full shrink-0 flex-col justify-end border-t border-white/10 bg-[#0A0E1A] leading-none shadow-[0_-8px_28px_rgba(0,0,0,0.45)]"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       role="complementary"
       aria-label="Publicidad"
     >
       <button
         type="button"
         onClick={() => registerBannerTap()}
-        className="group relative mx-auto flex w-full max-w-[min(100%,16.5rem)] items-end justify-center overflow-hidden bg-transparent py-0 transition-[filter] duration-200 hover:brightness-[1.03] active:brightness-95 sm:max-w-[18rem] md:max-w-[22rem]"
-        style={{
-          userSelect: 'none',
-          paddingBottom: 'max(1px, env(safe-area-inset-bottom, 0px))',
-        }}
+        className="group relative mx-auto block w-full max-w-[min(100%,16.5rem)] overflow-hidden bg-transparent p-0 transition-[filter] duration-200 hover:brightness-[1.03] active:brightness-95 sm:max-w-[18rem] md:max-w-[22rem]"
+        style={{ userSelect: 'none' }}
         aria-label="Banner publicitario Servipartz"
       >
         <img
           src={AD_IMG}
           alt="Servipartz · Dispensadores de agua · Contáctanos +52 662 404 9965"
-          className="pointer-events-none relative z-[1] block h-auto w-full rounded-md object-contain object-bottom leading-none shadow-[0_2px_12px_rgba(0,0,0,0.35)]"
+          className="pointer-events-none relative z-[1] block h-auto w-full rounded-md object-cover object-bottom leading-none shadow-[0_2px_12px_rgba(0,0,0,0.35)]"
+          style={{ maxHeight: 'calc(min(100vw, 22rem) * 338 / 1024)' }}
           width={1024}
           height={338}
           loading="lazy"

@@ -829,6 +829,7 @@ export default function LiveMatch() {
       toId: activeHit.targetId,
       toKind: activeHit.targetType === 'champ' ? 'champ' : 'structure',
       effectKind: activeHit.kind,
+      sourceTeam: activeHit.sourceTeam,
     }];
   })();
 
@@ -909,6 +910,7 @@ export default function LiveMatch() {
                 impactTargetId={activeHit?.targetId ?? null}
                 lungeFromId={activeHit?.kind === 'damage' ? activeHit.sourceId ?? null : null}
                 activeEffectKind={activeHit?.kind ?? null}
+                activeSourceTeam={activeHit?.sourceTeam ?? null}
               />
             </div>
             <CombatScreenFX signal={fx} />
@@ -970,6 +972,8 @@ export default function LiveMatch() {
             )}
           </div>
 
+          <CombatAnnounceOverlay batch={announceBatch} placement="inline" />
+
           <div className="w-full space-y-1.5 rounded-xl border border-[#1E2740] bg-[#0D1220] p-2 shrink-0" style={{ maxWidth: mapSize }}>
             <p className="text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4] text-center">
               Estructuras
@@ -987,8 +991,6 @@ export default function LiveMatch() {
             <BarChart3 className="h-4 w-4" />
             Estadísticas
           </button>
-
-          <CombatAnnounceOverlay batch={announceBatch} placement="inline" />
         </div>
 
         <div className="w-full grid grid-cols-2 gap-2 text-[11px] shrink-0 md:w-64 md:grid-cols-1 md:gap-3">

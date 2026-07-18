@@ -21,7 +21,7 @@ function emptyPlan(): TeamPlan {
 }
 
 function testCombatFloatPalette() {
-  assert.equal(combatFloatStyle('damage', 'blue').numberColor, '#E74C3C');
+  assert.equal(combatFloatStyle('damage', 'blue').numberColor, '#3498DB');
   assert.equal(combatFloatStyle('damage', 'red').numberColor, '#E74C3C');
   assert.equal(combatFloatStyle('heal', 'blue').signColor, '#2ECC71');
   assert.equal(combatFloatStyle('heal', 'blue').numberColor, '#3498DB');

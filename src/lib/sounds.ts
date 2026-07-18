@@ -64,16 +64,48 @@ function runningCtx(): AudioContext | null {
   return audioCtx;
 }
 
-export async function unlockAudio(): Promise<void> {
+function resetMusicNodes() {
+  try {
+    if (melodyTimer != null) {
+      window.clearInterval(melodyTimer);
+      melodyTimer = null;
+    }
+    for (const n of droneNodes) {
+      try { n.osc.stop(); } catch { /* */ }
+      try { n.gain.disconnect(); } catch { /* */ }
+    }
+    droneNodes = [];
+    musicGain?.disconnect();
+    musicGain = null;
+  } catch {
+    /* ignore */
+  }
+  musicPlaying = false;
+}
+
+/** Reanuda el contexto y restaura música si quedó marcada como activa. */
+export async function ensureAudioRunning(): Promise<boolean> {
   const c = createCtx();
-  if (!c) return;
+  if (!c) return false;
   try {
     if (c.state === 'suspended') await c.resume();
     unlocked = c.state === 'running';
-    if (unlocked && !getAudioPrefs().musicMuted) startBackgroundMusic();
+    if (!unlocked) return false;
+
+    if (musicPlaying && !musicGain && !getAudioPrefs().musicMuted) {
+      musicPlaying = false;
+      startBackgroundMusic();
+    }
+    return true;
   } catch {
     unlocked = false;
+    return false;
   }
+}
+
+export async function unlockAudio(): Promise<void> {
+  const ok = await ensureAudioRunning();
+  if (ok && !getAudioPrefs().musicMuted && !musicPlaying) startBackgroundMusic();
 }
 
 function beep(freq: number, duration: number, type: OscillatorType = 'square', gain = 0.04) {
@@ -102,10 +134,9 @@ function beep(freq: number, duration: number, type: OscillatorType = 'square', g
     play();
     return;
   }
-  // Primer gesto: crea/reanuda. No forzar resume si ya hay contexto suspendido sin gesto.
-  if (!audioCtx) {
-    void unlockAudio().then(play);
-  }
+  void ensureAudioRunning().then(ok => {
+    if (ok) play();
+  });
 }
 
 export function playClickSound() {
@@ -210,7 +241,13 @@ function addDrone(freq: number, vol: number) {
 }
 
 export function startBackgroundMusic() {
-  if (getAudioPrefs().musicMuted || musicPlaying) return;
+  if (getAudioPrefs().musicMuted) return;
+  if (musicPlaying && musicGain) return;
+
+  if (musicPlaying && !musicGain) {
+    resetMusicNodes();
+  }
+
   const c = runningCtx();
   if (!c) return;
   try {
@@ -235,22 +272,7 @@ export function startBackgroundMusic() {
 }
 
 export function stopBackgroundMusic() {
-  try {
-    if (melodyTimer != null) {
-      window.clearInterval(melodyTimer);
-      melodyTimer = null;
-    }
-    for (const n of droneNodes) {
-      try { n.osc.stop(); } catch { /* */ }
-      try { n.gain.disconnect(); } catch { /* */ }
-    }
-    droneNodes = [];
-    musicGain?.disconnect();
-    musicGain = null;
-  } catch {
-    /* ignore */
-  }
-  musicPlaying = false;
+  resetMusicNodes();
 }
 
 export function setMusicMuted(muted: boolean) {

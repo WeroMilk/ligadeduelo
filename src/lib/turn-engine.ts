@@ -107,6 +107,8 @@ function aggregateKillAnnounces(raw: RawKill[]): KillAnnounce[] {
 
 /** Un solo golpe ofensivo consolidado por campeón y ronda. */
 const DUEL_MAX_EXCHANGES = 1;
+/** Campeones que ya ejecutaron su único ataque ofensivo este turno. */
+type OffenseUsed = Set<string>;
 /** Compensa el paso de 3 intercambios a 1 sin inflar kills. */
 const COMBAT_DAMAGE_MULT = 1.4;
 const DEFEND_DAMAGE_MULT = 0.48;
@@ -469,6 +471,7 @@ function resolveDuel(
   floats: CombatFloat[],
   lane: LaneId,
   killEvents: RawKill[],
+  offenseUsed: OffenseUsed,
 ): { blueKill: boolean; redKill: boolean } {
   const flags = { blueKill: false, redKill: false };
   const hpA = a.champ.stats.hp;
@@ -516,6 +519,12 @@ function resolveDuel(
         notes.push(`${champDef(atk.champ).name} defiende`);
         continue;
       }
+
+      if (offenseUsed.has(atk.champ.instanceId)) {
+        pushLog(log, `${champDef(atk.champ).name} ya atacó este turno`);
+        continue;
+      }
+      offenseUsed.add(atk.champ.instanceId);
 
       if (mod.execute) dmg = def.champ.stats.hp;
 
@@ -652,6 +661,7 @@ function resolveFocusStrike(
   allyCount: number,
   enemyCount: number,
   alliesInLane: Champion[] = [],
+  offenseUsed: OffenseUsed,
 ): { blueKill: boolean; redKill: boolean } {
   let blueKill = false;
   let redKill = false;
@@ -670,6 +680,11 @@ function resolveFocusStrike(
     pushLog(log, `${champDef(atk.champ).name} enfoca en defensa y no ataca`);
     return { blueKill, redKill };
   }
+  if (offenseUsed.has(atk.champ.instanceId)) {
+    pushLog(log, `${champDef(atk.champ).name} ya atacó este turno`);
+    return { blueKill, redKill };
+  }
+  offenseUsed.add(atk.champ.instanceId);
   const action: CombatAction = atk.action;
   let { dmg, magic } = actionDamage(atk.champ, action, team.damageBuff, false);
   dmg = Math.floor(dmg * pileMult);
@@ -805,7 +820,9 @@ function resolveLaneGroup(
   killEvents: RawKill[],
   skipJungles = false,
   siegeCtx?: SiegeCtx,
+  offenseUsed?: OffenseUsed,
 ) {
+  const offense = offenseUsed ?? new Set<string>();
   const { blue, red } = fightersInLane(state, lane, bluePlan, redPlan, skipJungles);
   if (blue.length === 0 && red.length === 0) return;
 
@@ -836,7 +853,7 @@ function resolveLaneGroup(
     if (!enemy) break;
     pairedBlue.add(bf.champ.instanceId);
     pairedRed.add(enemy.champ.instanceId);
-    resolveDuel(bf, enemy, state, log, duels, floats, lane, killEvents);
+    resolveDuel(bf, enemy, state, log, duels, floats, lane, killEvents, offense);
   }
 
   // 2) Superioridad numérica: los sobrantes enfocan al rival (3v1 muy letal)
@@ -860,12 +877,12 @@ function resolveLaneGroup(
       const target = enemies.find(e => e.champ.isAlive && e.champ.stats.hp > 0);
       if (target) {
         resolveFocusStrike(
-          atk, target, state, log, duels, floats, lane, killEvents, allyTotal, enemyTotal, alliesInLane,
+          atk, target, state, log, duels, floats, lane, killEvents, allyTotal, enemyTotal, alliesInLane, offense,
         );
       } else {
         // Sin contrincante: siempre asedia torre/nexo (errores de carril)
         const towerTeam: TeamColor = atk.champ.team === 'blue' ? 'red' : 'blue';
-        siegeTower(state, towerTeam, lane, atk.champ, log, duels, floats, towerStats, siegeCtx, bluePlan, redPlan);
+        siegeTower(state, towerTeam, lane, atk.champ, log, duels, floats, towerStats, siegeCtx, bluePlan, redPlan, offense);
       }
     }
   };
@@ -880,14 +897,14 @@ function resolveLaneGroup(
     for (const bf of blue) {
       if (!bf.champ.isAlive || bf.champ.stats.hp <= 0) continue;
       if (!pairedBlue.has(bf.champ.instanceId)) continue; // extras ya asediaron si no había blanco
-      siegeTower(state, 'red', lane, bf.champ, log, duels, floats, towerStats, siegeCtx, bluePlan, redPlan);
+      siegeTower(state, 'red', lane, bf.champ, log, duels, floats, towerStats, siegeCtx, bluePlan, redPlan, offense);
     }
   }
   if (!blueLeft) {
     for (const rf of red) {
       if (!rf.champ.isAlive || rf.champ.stats.hp <= 0) continue;
       if (!pairedRed.has(rf.champ.instanceId)) continue;
-      siegeTower(state, 'blue', lane, rf.champ, log, duels, floats, towerStats, siegeCtx, bluePlan, redPlan);
+      siegeTower(state, 'blue', lane, rf.champ, log, duels, floats, towerStats, siegeCtx, bluePlan, redPlan, offense);
     }
   }
 }
@@ -908,6 +925,7 @@ function siegeTower(
   siegeCtx?: SiegeCtx,
   bluePlan?: TeamPlan | null,
   redPlan?: TeamPlan | null,
+  offenseUsed?: OffenseUsed,
 ) {
   if (bluePlan && redPlan && laneHasLivingEnemies(state, lane, sieger.team, bluePlan, redPlan)) {
     pushLog(
@@ -917,6 +935,12 @@ function siegeTower(
     );
     return;
   }
+
+  if (offenseUsed?.has(sieger.instanceId)) {
+    pushLog(log, `${champDef(sieger).name} ya atacó este turno`, 'neutral');
+    return;
+  }
+  offenseUsed?.add(sieger.instanceId);
 
   const siegerSnap: DuelFighterSummary = {
     instanceId: sieger.instanceId,
@@ -1068,7 +1092,7 @@ function siegeTower(
   });
   // Al tumbar la torre, el mismo golpe sigue al nexo (empuje de línea libre)
   if (towerFell) {
-    siegeTower(state, towerTeam, lane, sieger, log, duels, floats, towerStats, siegeCtx, bluePlan, redPlan);
+    siegeTower(state, towerTeam, lane, sieger, log, duels, floats, towerStats, siegeCtx, bluePlan, redPlan, offenseUsed);
   }
 }
 
@@ -1222,14 +1246,14 @@ export function applyObjectiveWithQte(
         resolveDuel(
           { champ: blueP[0], action: bluePlan.actions[blueP[0].instanceId] || 'attack', ult: bluePlan.ultimates.includes(blueP[0].instanceId), lane: 1 },
           { champ: redP[0], action: redPlan.actions[redP[0].instanceId] || 'attack', ult: redPlan.ultimates.includes(redP[0].instanceId), lane: 1 },
-          state, log, duels, floats, 1, kills,
+          state, log, duels, floats, 1, kills, new Set(),
         );
       }
       if (blueP[1] && redP[1] && blueP[1].isAlive && redP[1].isAlive) {
         resolveDuel(
           { champ: blueP[1], action: bluePlan.actions[blueP[1].instanceId] || 'attack', ult: bluePlan.ultimates.includes(blueP[1].instanceId), lane: 1 },
           { champ: redP[1], action: redPlan.actions[redP[1].instanceId] || 'attack', ult: redPlan.ultimates.includes(redP[1].instanceId), lane: 1 },
-          state, log, duels, floats, 1, kills,
+          state, log, duels, floats, 1, kills, new Set(),
         );
       }
       bp = power(blueP.filter(c => c.isAlive));
@@ -1423,6 +1447,7 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
     blueNexusThreat: null,
     redNexusThreat: null,
   };
+  const offenseUsedThisRound: OffenseUsed = new Set();
   const scoreBeforeB = next.blue.score;
   const scoreBeforeR = next.red.score;
   const killsBeforeB = next.blue.kills;
@@ -1487,10 +1512,11 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
       next, lane, bluePlan, redPlan, log, duels, floats, towerStats, killEvents,
       contestedGankLane === lane,
       siegeCtx,
+      offenseUsedThisRound,
     );
   }
 
-  applyFreeLaneAdvantage(next, bluePlan, redPlan, log, floats, towerStats, siegeCtx);
+  applyFreeLaneAdvantage(next, bluePlan, redPlan, log, floats, towerStats, siegeCtx, offenseUsedThisRound);
 
   const nexusBlue = next.structures.find(s => s.id === 'nexus_blue');
   const nexusRed = next.structures.find(s => s.id === 'nexus_red');
@@ -2003,6 +2029,7 @@ function applyFreeLaneAdvantage(
   floats: CombatFloat[],
   towerStats: { blue: number; red: number },
   siegeCtx?: SiegeCtx,
+  offenseUsed?: OffenseUsed,
 ) {
   const check = (plan: TeamPlan, allyTeam: TeamColor) => {
     if (plan.jungleTarget !== 'objective' || !plan.objectiveAssistId) return;
@@ -2017,7 +2044,7 @@ function applyFreeLaneAdvantage(
       const sieger = enemies[0].champ;
       pushLog(log, `${champDef(sieger).name} aprovecha la línea libre (${laneLabel(homeLane)})`, 'tower');
       for (let i = 0; i < FREE_LANE_SIEGE_BONUS; i++) {
-        siegeTower(state, allyTeam, homeLane, sieger, log, [], floats, towerStats, siegeCtx, bluePlan, redPlan);
+        siegeTower(state, allyTeam, homeLane, sieger, log, [], floats, towerStats, siegeCtx, bluePlan, redPlan, offenseUsed);
       }
     }
   };

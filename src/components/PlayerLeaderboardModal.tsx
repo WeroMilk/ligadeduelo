@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Trophy, X, ChevronRight, ChevronLeft, Users, Share2, Trash2 } from 'lucide-react';
+import { Trophy, X, ChevronRight, Users, Share2, Trash2 } from 'lucide-react';
 import {
   clearAllRuns,
   deleteRun,
@@ -10,8 +10,6 @@ import {
   type PlayerRunRecord,
 } from '@/lib/player-leaderboard';
 import { playClickSound } from '@/lib/sounds';
-
-const PAGE_SIZE = 2;
 
 function Shell({
   title,
@@ -56,7 +54,7 @@ function Shell({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-hidden px-3 py-2 text-sm">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2 text-sm scrollbar-hide">
           {children}
         </div>
         {footer && (
@@ -267,17 +265,12 @@ function DetailView({
 
 export default function PlayerLeaderboardModal({ onClose }: { onClose: () => void }) {
   const [refreshKey, setRefreshKey] = useState(0);
-  const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<PlayerRunRecord | null>(null);
 
   const entries = useMemo(() => getLeaderboard(), [refreshKey]);
-  const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages - 1);
-  const pageEntries = entries.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
 
   const refresh = () => {
     setRefreshKey(k => k + 1);
-    setPage(0);
     setSelected(null);
   };
 
@@ -346,48 +339,15 @@ export default function PlayerLeaderboardModal({ onClose }: { onClose: () => voi
           </p>
         </div>
       ) : (
-        <div className="flex h-full flex-col gap-2">
-          <div className="min-h-0 flex-1 space-y-2 overflow-hidden">
-            {pageEntries.map(entry => (
-              <RunCard
-                key={entry.id}
-                entry={entry}
-                onClick={() => setSelected(entry)}
-                onDelete={() => handleDelete(entry.id)}
-              />
-            ))}
-          </div>
-          {totalPages > 1 && (
-            <div className="flex shrink-0 items-center justify-between gap-2 border-t border-[#2A3550] pt-2">
-              <button
-                type="button"
-                disabled={safePage <= 0}
-                onClick={() => {
-                  playClickSound();
-                  setPage(p => Math.max(0, p - 1));
-                }}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#2A3550] text-[#C9A84C] disabled:opacity-30"
-                aria-label="Página anterior"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="text-[10px] font-bold text-[#8B9BB4]">
-                {safePage + 1} / {totalPages}
-              </span>
-              <button
-                type="button"
-                disabled={safePage >= totalPages - 1}
-                onClick={() => {
-                  playClickSound();
-                  setPage(p => Math.min(totalPages - 1, p + 1));
-                }}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#2A3550] text-[#C9A84C] disabled:opacity-30"
-                aria-label="Página siguiente"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
+        <div className="space-y-2 pb-1">
+          {entries.map(entry => (
+            <RunCard
+              key={entry.id}
+              entry={entry}
+              onClick={() => setSelected(entry)}
+              onDelete={() => handleDelete(entry.id)}
+            />
+          ))}
         </div>
       )}
     </Shell>

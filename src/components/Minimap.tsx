@@ -13,6 +13,7 @@ export type AttackBeam = {
   toId: string;
   toKind: 'champ' | 'structure';
   effectKind?: CombatFloat['kind'];
+  sourceTeam?: TeamColor;
 };
 
 type MinimapProps = {
@@ -41,6 +42,8 @@ type MinimapProps = {
   lungeFromId?: string | null;
   /** Colorea el impacto activo como daño o curación. */
   activeEffectKind?: CombatFloat['kind'] | null;
+  /** Equipo del atacante del golpe activo (color de daño). */
+  activeSourceTeam?: TeamColor | null;
 };
 
 type Pt = { x: number; y: number };
@@ -240,6 +243,7 @@ export default function Minimap({
   impactTargetId = null,
   lungeFromId = null,
   activeEffectKind = null,
+  activeSourceTeam = null,
 }: MinimapProps) {
   const livingBlue = blueChampions.filter(c => c.isAlive);
   const livingRed = redChampions.filter(c => c.isAlive);
@@ -269,6 +273,8 @@ export default function Minimap({
   }
 
   const impactPos = impactTargetId ? posById.get(impactTargetId) : undefined;
+  const damageAccent = activeSourceTeam === 'blue' ? '#3498DB' : '#E74C3C';
+  const damageDark = activeSourceTeam === 'blue' ? '#2471A3' : '#922B21';
 
   const laneHighlight =
     focusLane === 0 ? TOP_PATH : focusLane === 1 ? MID_PATH : focusLane === 2 ? BOT_PATH : null;
@@ -378,7 +384,9 @@ export default function Minimap({
             const midY = (a.y + b.y) * 50;
             const thick = beam.toKind === 'structure' ? 3.4 : 2.6;
             const isHealBeam = beam.effectKind === 'heal';
-            const beamColor = isHealBeam ? '#2ECC71' : '#E74C3C';
+            const beamTeam = beam.sourceTeam ?? 'red';
+            const beamColor = isHealBeam ? '#2ECC71' : (beamTeam === 'blue' ? '#3498DB' : '#E74C3C');
+            const beamShadow = isHealBeam ? '#1D8F50' : (beamTeam === 'blue' ? '#2471A3' : '#922B21');
             return (
               <g key={`beam-${beam.fromId}-${beam.toId}-${i}`}>
                 <line
@@ -386,7 +394,7 @@ export default function Minimap({
                   y1={a.y * 100}
                   x2={b.x * 100}
                   y2={b.y * 100}
-                  stroke={isHealBeam ? '#1D8F50' : '#922B21'}
+                  stroke={beamShadow}
                   strokeWidth={thick + 2.2}
                   strokeOpacity="0.35"
                   strokeLinecap="round"
@@ -444,18 +452,21 @@ export default function Minimap({
                 </>
               ) : (
                 <>
-                  <BloodDropSvg cx={impactPos.x * 100} cy={impactPos.y * 100} scale={1.5} />
-                  <BloodDropSvg
-                    cx={impactPos.x * 100 - 4}
-                    cy={impactPos.y * 100 + 3}
-                    scale={0.85}
-                    anim="minimap-blood-pop 0.7s ease-out 0.08s forwards"
+                  <circle
+                    cx={impactPos.x * 100}
+                    cy={impactPos.y * 100}
+                    r="6"
+                    fill="none"
+                    stroke={damageAccent}
+                    strokeWidth="1.8"
+                    style={{ animation: 'minimap-impact-ring 0.7s ease-out infinite' }}
                   />
-                  <BloodDropSvg
-                    cx={impactPos.x * 100 + 4}
-                    cy={impactPos.y * 100 + 2}
-                    scale={0.75}
-                    anim="minimap-blood-pop 0.7s ease-out 0.14s forwards"
+                  <circle
+                    cx={impactPos.x * 100}
+                    cy={impactPos.y * 100}
+                    r="3.5"
+                    fill={`${damageAccent}73`}
+                    style={{ animation: 'minimap-impact-flash 0.55s ease-out infinite' }}
                   />
                 </>
               )}
@@ -644,14 +655,14 @@ export default function Minimap({
                     : isLunging
                       ? '#F1C40F'
                       : isImpacted
-                        ? isHealing ? '#2ECC71' : '#E74C3C'
+                        ? isHealing ? '#2ECC71' : damageAccent
                         : team === 'blue' ? '#5DADE2' : '#F1948A',
                   boxShadow: isLunging
                     ? '0 0 12px rgba(241,196,15,0.9)'
                     : isImpacted
                       ? isHealing
                         ? '0 0 14px rgba(46,204,113,0.9)'
-                        : '0 0 14px rgba(231,76,60,0.9)'
+                        : `0 0 14px ${damageAccent}E6`
                       : `0 0 0 1px ${team === 'blue' ? '#1A5276' : '#7B241C'}, 0 1px 4px rgba(0,0,0,0.7)`,
                   backgroundColor: def.color || '#333',
                   animation: isLunging
@@ -678,8 +689,13 @@ export default function Minimap({
                   style={{ animation: 'minimap-blood-pop 0.55s ease-out forwards', zIndex: 16 }}
                 >
                   <Droplet
-                    className="fill-[#C0392B] text-[#922B21] drop-shadow-[0_0_6px_rgba(192,57,43,0.9)]"
-                    style={{ width: icon * 0.62, height: icon * 0.62 }}
+                    className="drop-shadow-[0_0_6px_rgba(0,0,0,0.5)]"
+                    style={{
+                      width: icon * 0.62,
+                      height: icon * 0.62,
+                      color: damageDark,
+                      fill: damageAccent,
+                    }}
                     strokeWidth={2}
                   />
                 </div>

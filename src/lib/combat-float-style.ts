@@ -23,14 +23,16 @@ export function combatFloatStyle(
   sourceTeam: TeamColor | undefined,
 ): CombatFloatStyle {
   if (kind === 'damage') {
+    const teamColor = sourceTeam === 'blue' ? BLUE : RED;
+    const teamDark = sourceTeam === 'blue' ? '#2471A3' : BLOOD;
     return {
-      primary: RED,
-      secondary: BLOOD,
-      fill: BLOOD,
-      textFill: RED,
-      glow: RED,
-      signColor: RED,
-      numberColor: RED,
+      primary: teamColor,
+      secondary: teamDark,
+      fill: teamDark,
+      textFill: teamColor,
+      glow: teamColor,
+      signColor: teamColor,
+      numberColor: teamColor,
     };
   }
 
