@@ -460,13 +460,9 @@ export default function LiveMatch() {
     }, t + 400);
   };
 
-  const onQteComplete = (qte: ObjectiveQtePayload) => {
-    // No despachar aún: el usuario puede repetir tras ver el anuncio
-    awaitingQte.current = true;
-    markPhaseStart();
-    setPendingQteResult(qte);
-    setPhase({ t: 'qte_result' });
-  };
+  /** Victoria del jugador en bolitas: no perdió la escaramuza y tomó el objetivo (o defendió/ganó el choque). */
+  const playerWonQte = (qte: ObjectiveQtePayload) =>
+    qte.skirmishWinner !== 'red' && qte.monsterTaken;
 
   const confirmQteResult = (qte: ObjectiveQtePayload) => {
     awaitingQte.current = false;
@@ -477,8 +473,20 @@ export default function LiveMatch() {
     dispatch({ type: 'RESOLVE_OBJECTIVE_QTE', qte });
   };
 
+  const onQteComplete = (qte: ObjectiveQtePayload) => {
+    // Solo ofrecer Repetir al perder; al ganar se confirma al instante
+    if (playerWonQte(qte)) {
+      confirmQteResult(qte);
+      return;
+    }
+    awaitingQte.current = true;
+    markPhaseStart();
+    setPendingQteResult(qte);
+    setPhase({ t: 'qte_result' });
+  };
+
   const requestQteReplay = () => {
-    if (!pendingQteResult) return;
+    if (!pendingQteResult || playerWonQte(pendingQteResult)) return;
     setShowReplayAd(true);
   };
 
@@ -923,7 +931,7 @@ export default function LiveMatch() {
         />
       )}
 
-      {phase?.t === 'qte_result' && pendingQteResult && !showReplayAd && (
+      {phase?.t === 'qte_result' && pendingQteResult && !showReplayAd && !playerWonQte(pendingQteResult) && (
         <div className="fixed inset-0 z-[96] flex items-end sm:items-center justify-center bg-black/55 px-3 pb-6 sm:pb-0">
           <div className="w-full max-w-md rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] p-4 shadow-[0_0_40px_rgba(201,168,76,0.25)]">
             <p className="text-center text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
@@ -933,12 +941,10 @@ export default function LiveMatch() {
               className="mt-1 text-center text-lg font-bold text-[#F0E6D2]"
               style={{ fontFamily: 'Cinzel, serif' }}
             >
-              {pendingQteResult.monsterTaken || pendingQteResult.skirmishWinner === 'blue'
-                ? '¡Buen intento!'
-                : 'Resultado listo'}
+              ¡Casi!
             </h3>
             <p className="mt-1 text-center text-xs text-[#8B9BB4]">
-              Continúa con este resultado o repite viendo un anuncio de 10 segundos.
+              Perdiste este intento. Continúa o repite viendo un anuncio de 10 segundos.
             </p>
             <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <button
