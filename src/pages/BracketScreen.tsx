@@ -191,20 +191,19 @@ export default function BracketScreen() {
             const winner = match.winner;
             const winnerName = getMatchWinner(match);
             const isActive = simulating && match.id === activeMatchId;
+            const isCompleted = !!winner;
+            const cardClassName = `rounded-xl border-2 p-2.5 md:p-4 transition-all md:flex md:flex-col md:justify-center w-full text-left ${
+              isActive
+                ? 'border-[#3498DB] bg-[#3498DB]/10 shadow-[0_0_20px_rgba(52,152,219,0.15)]'
+                : isPlayer && !winner
+                ? 'border-[#C9A84C] bg-[#C9A84C]/5 shadow-[0_0_20px_rgba(201,168,76,0.1)]'
+                : winner
+                ? 'border-[#1E2740] bg-[#0D111F] opacity-60 hover:opacity-90 hover:border-[#C9A84C]/40 cursor-pointer active:scale-[0.99]'
+                : 'border-[#1E2740] bg-[#141B2D]'
+            }`;
 
-            return (
-              <div
-                key={match.id}
-                className={`rounded-xl border-2 p-2.5 md:p-4 transition-all md:flex md:flex-col md:justify-center ${
-                  isActive
-                    ? 'border-[#3498DB] bg-[#3498DB]/10 shadow-[0_0_20px_rgba(52,152,219,0.15)]'
-                    : isPlayer && !winner
-                    ? 'border-[#C9A84C] bg-[#C9A84C]/5 shadow-[0_0_20px_rgba(201,168,76,0.1)]'
-                    : winner
-                    ? 'border-[#1E2740] bg-[#0D111F] opacity-60 hover:opacity-80 hover:border-[#C9A84C]/40'
-                    : 'border-[#1E2740] bg-[#141B2D]'
-                }`}
-              >
+            const cardContent = (
+              <>
                 <div className="flex items-start gap-2 md:gap-3">
                   <div className={`flex-1 min-w-0 space-y-1 md:space-y-1.5 ${winner === 'red' ? 'opacity-40' : ''}`}>
                     <span className={`block text-xs md:text-sm font-bold leading-snug line-clamp-2 ${
@@ -278,19 +277,14 @@ export default function BracketScreen() {
                 </div>
 
                 {winner ? (
-                  <button
-                    type="button"
-                    onClick={() => handleOpenSummary(match)}
-                    className="mt-3 md:mt-4 w-full text-center rounded-lg py-1.5 transition-colors hover:bg-[#C9A84C]/10"
-                    aria-label={`Ver resumen: ${match.teamA.name} vs ${match.teamB.name}`}
-                  >
+                  <div className="mt-3 md:mt-4 w-full text-center pointer-events-none">
                     <p className="text-[#C9A84C] text-xs md:text-sm font-bold">
                       Ganador: {winnerName}
                     </p>
-                    <p className="text-[10px] text-[#8B9BB4] mt-0.5 underline-offset-2 hover:underline">
+                    <p className="text-[10px] text-[#8B9BB4] mt-0.5">
                       Ver resumen
                     </p>
-                  </button>
+                  </div>
                 ) : isActive ? (
                   <p className="text-center text-[#3498DB] text-xs md:text-sm mt-3 md:mt-4 font-bold animate-pulse">
                     En disputa…
@@ -310,6 +304,26 @@ export default function BracketScreen() {
                     En espera…
                   </p>
                 )}
+              </>
+            );
+
+            if (isCompleted) {
+              return (
+                <button
+                  key={match.id}
+                  type="button"
+                  onClick={() => handleOpenSummary(match)}
+                  className={cardClassName}
+                  aria-label={`Ver resumen: ${match.teamA.name} vs ${match.teamB.name}`}
+                >
+                  {cardContent}
+                </button>
+              );
+            }
+
+            return (
+              <div key={match.id} className={cardClassName}>
+                {cardContent}
               </div>
             );
           })}
