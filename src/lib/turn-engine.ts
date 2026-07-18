@@ -483,20 +483,24 @@ function resolveDuel(
       pushKill(killEvents, atk.champ, def.champ);
 
       if (atk.ult && atk.champ.defId === 'darius') {
+        const hpBeforeHeal = atk.champ.stats.hp;
         atk.champ.stats.hp = Math.min(atk.champ.stats.maxHp, atk.champ.stats.hp + 80);
-        pushFloat(floats, {
-          kind: 'heal',
-          amount: 80,
-          targetType: 'champ',
-          targetId: atk.champ.instanceId,
-          sourceName: champDef(atk.champ).name,
-          sourceId: atk.champ.instanceId,
-          sourceTeam: atk.champ.team,
-          targetName: champDef(atk.champ).name,
-          targetTeam: atk.champ.team,
-          lane,
-        });
-        pushLog(log, `${champDef(atk.champ).name} se cura 80`, 'ulti');
+        const healed = atk.champ.stats.hp - hpBeforeHeal;
+        if (healed > 0) {
+          pushFloat(floats, {
+            kind: 'heal',
+            amount: healed,
+            targetType: 'champ',
+            targetId: atk.champ.instanceId,
+            sourceName: champDef(atk.champ).name,
+            sourceId: atk.champ.instanceId,
+            sourceTeam: atk.champ.team,
+            targetName: champDef(atk.champ).name,
+            targetTeam: atk.champ.team,
+            lane,
+          });
+          pushLog(log, `${champDef(atk.champ).name} se cura ${healed}`, 'ulti');
+        }
       }
     } else if (atk.ult && atk.champ.defId === 'zed') {
       def.champ.stats.hp = Math.max(0, def.champ.stats.hp - 30);
@@ -710,19 +714,6 @@ function fightersInLane(
   return { blue: collect(state.blue, bluePlan), red: collect(state.red, redPlan) };
 }
 
-/** Hay algún rival vivo en la misma línea (posiciones efectivas del turno, incl. ganks). */
-function hasLivingOpponentInLane(
-  state: TurnMatchState,
-  lane: LaneId,
-  siegerTeam: TeamColor,
-  bluePlan: TeamPlan,
-  redPlan: TeamPlan,
-): boolean {
-  const { blue, red } = fightersInLane(state, lane, bluePlan, redPlan, false);
-  const opponents = siegerTeam === 'blue' ? red : blue;
-  return opponents.some(f => f.champ.isAlive && f.champ.stats.hp > 0);
-}
-
 function resolveLaneGroup(
   state: TurnMatchState,
   lane: LaneId,
@@ -746,19 +737,23 @@ function resolveLaneGroup(
     const team = f.champ.team === 'blue' ? state.blue : state.red;
     if (f.champ.defId === 'soraka') {
       for (const a of living(team)) {
+        const hpBeforeHeal = a.stats.hp;
         a.stats.hp = Math.min(a.stats.maxHp, a.stats.hp + 100);
-        pushFloat(floats, {
-          kind: 'heal',
-          amount: 100,
-          targetType: 'champ',
-          targetId: a.instanceId,
-          sourceName: champDef(f.champ).name,
-          sourceId: f.champ.instanceId,
-          sourceTeam: f.champ.team,
-          targetName: champDef(a).name,
-          targetTeam: a.team,
-          lane,
-        });
+        const healed = a.stats.hp - hpBeforeHeal;
+        if (healed > 0) {
+          pushFloat(floats, {
+            kind: 'heal',
+            amount: healed,
+            targetType: 'champ',
+            targetId: a.instanceId,
+            sourceName: champDef(f.champ).name,
+            sourceId: f.champ.instanceId,
+            sourceTeam: f.champ.team,
+            targetName: champDef(a).name,
+            targetTeam: a.team,
+            lane,
+          });
+        }
       }
       pushLog(log, `${champDef(f.champ).name} usa Deseo y cura al equipo`, 'ulti');
     }
@@ -767,19 +762,23 @@ function resolveLaneGroup(
         .sort((x, y) => (x.stats.hp / x.stats.maxHp) - (y.stats.hp / y.stats.maxHp))[0];
       if (ally) {
         if (f.champ.defId === 'lulu' || f.champ.defId === 'yuumi') {
+          const hpBeforeHeal = ally.stats.hp;
           ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + 120);
-          pushFloat(floats, {
-            kind: 'heal',
-            amount: 120,
-            targetType: 'champ',
-            targetId: ally.instanceId,
-            sourceName: champDef(f.champ).name,
-            sourceId: f.champ.instanceId,
-            sourceTeam: f.champ.team,
-            targetName: champDef(ally).name,
-            targetTeam: ally.team,
-            lane,
-          });
+          const healed = ally.stats.hp - hpBeforeHeal;
+          if (healed > 0) {
+            pushFloat(floats, {
+              kind: 'heal',
+              amount: healed,
+              targetType: 'champ',
+              targetId: ally.instanceId,
+              sourceName: champDef(f.champ).name,
+              sourceId: f.champ.instanceId,
+              sourceTeam: f.champ.team,
+              targetName: champDef(ally).name,
+              targetTeam: ally.team,
+              lane,
+            });
+          }
           pushLog(log, `${champDef(f.champ).name} escuda a ${champDef(ally).name}`, 'ulti');
         }
         if (f.champ.defId === 'shen') {

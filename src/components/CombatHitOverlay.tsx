@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CombatFloat, TeamColor } from '@/types/game';
 import { formatCombatHitNarrative } from '@/lib/combat-flavor';
@@ -18,28 +17,12 @@ function teamAccent(team: TeamColor | undefined): string {
 }
 
 export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Props) {
-  const [visible, setVisible] = useState<CombatFloat | null>(null);
-  const [progressKey, setProgressKey] = useState(0);
+  if (!hit || typeof document === 'undefined') return null;
 
-  useEffect(() => {
-    if (!hit) {
-      setVisible(null);
-      return;
-    }
-    setVisible(hit);
-    setProgressKey(k => k + 1);
-  }, [hit?.id]);
-
-  const narrative = useMemo(
-    () => (visible ? formatCombatHitNarrative(visible) : ''),
-    [visible],
-  );
-
-  if (!visible || typeof document === 'undefined') return null;
-
-  const isHeal = visible.kind === 'heal';
-  const accent = isHeal ? '#2ECC71' : teamAccent(visible.sourceTeam);
-  const amount = Math.floor(visible.amount);
+  const narrative = formatCombatHitNarrative(hit);
+  const isHeal = hit.kind === 'heal';
+  const accent = isHeal ? '#2ECC71' : teamAccent(hit.sourceTeam);
+  const amount = Math.floor(hit.amount);
 
   return createPortal(
     <div
@@ -47,19 +30,19 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Pro
       aria-live="polite"
     >
       <div
-        key={visible.id}
+        key={hit.id}
         className="w-full max-w-lg rounded-2xl border-2 bg-[#0D1220]/96 px-5 py-4 text-center shadow-[0_10px_40px_rgba(0,0,0,0.65)] backdrop-blur-md"
         style={{
           borderColor: accent,
           animation: 'combat-hit-pop 0.45s cubic-bezier(0.22, 1.4, 0.36, 1) both',
         }}
       >
-        {visible.sourceName && (
+        {hit.sourceName && (
           <p
             className="text-xs font-black uppercase tracking-[0.22em] mb-1.5"
             style={{ color: accent }}
           >
-            {visible.sourceName}
+            {hit.sourceName}
           </p>
         )}
         <p
@@ -82,7 +65,7 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Pro
         </p>
         <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-black/50">
           <div
-            key={progressKey}
+            key={hit.id}
             className="h-full rounded-full"
             style={{
               backgroundColor: accent,

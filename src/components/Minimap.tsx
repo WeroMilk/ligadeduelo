@@ -10,6 +10,7 @@ export type AttackBeam = {
   fromId: string;
   toId: string;
   toKind: 'champ' | 'structure';
+  effectKind?: CombatFloat['kind'];
 };
 
 type MinimapProps = {
@@ -36,6 +37,8 @@ type MinimapProps = {
   impactTargetId?: string | null;
   /** Atacante del golpe activo (lunge hacia el objetivo). */
   lungeFromId?: string | null;
+  /** Colorea el impacto activo como daño o curación. */
+  activeEffectKind?: CombatFloat['kind'] | null;
 };
 
 type Pt = { x: number; y: number };
@@ -189,6 +192,7 @@ export default function Minimap({
   combatFloats = [],
   impactTargetId = null,
   lungeFromId = null,
+  activeEffectKind = null,
 }: MinimapProps) {
   const livingBlue = blueChampions.filter(c => c.isAlive);
   const livingRed = redChampions.filter(c => c.isAlive);
@@ -326,6 +330,9 @@ export default function Minimap({
             const midX = (a.x + b.x) * 50;
             const midY = (a.y + b.y) * 50;
             const thick = beam.toKind === 'structure' ? 3.4 : 2.6;
+            const isHealBeam = beam.effectKind === 'heal';
+            const beamColor = isHealBeam ? '#2ECC71' : '#F1C40F';
+            const glowColor = isHealBeam ? '#7DFFAE' : '#FFF3A0';
             return (
               <g key={`beam-${beam.fromId}-${beam.toId}-${i}`}>
                 <line
@@ -333,7 +340,7 @@ export default function Minimap({
                   y1={a.y * 100}
                   x2={b.x * 100}
                   y2={b.y * 100}
-                  stroke="#FF6B35"
+                  stroke={isHealBeam ? '#1D8F50' : '#FF6B35'}
                   strokeWidth={thick + 2.2}
                   strokeOpacity="0.35"
                   strokeLinecap="round"
@@ -343,12 +350,12 @@ export default function Minimap({
                   y1={a.y * 100}
                   x2={b.x * 100}
                   y2={b.y * 100}
-                  stroke="#F1C40F"
+                  stroke={beamColor}
                   strokeWidth={thick}
                   strokeOpacity="0.98"
                   strokeLinecap="round"
                   style={{
-                    filter: 'drop-shadow(0 0 5px #F1C40F)',
+                    filter: `drop-shadow(0 0 5px ${beamColor})`,
                     animation: 'minimap-beam 0.4s ease-in-out infinite alternate',
                   }}
                 />
@@ -356,7 +363,7 @@ export default function Minimap({
                   cx={b.x * 100}
                   cy={b.y * 100}
                   r={beam.toKind === 'structure' ? 3.2 : 2.4}
-                  fill="#FFF3A0"
+                  fill={glowColor}
                   opacity="0.95"
                   style={{ animation: 'minimap-impact-dot 0.55s ease-out infinite' }}
                 />
@@ -364,7 +371,7 @@ export default function Minimap({
                   cx={midX}
                   cy={midY}
                   r="1.6"
-                  fill="#FFFFFF"
+                  fill={glowColor}
                   opacity="0.95"
                   style={{ animation: 'minimap-beam-spark 0.45s linear infinite' }}
                 />
@@ -379,7 +386,7 @@ export default function Minimap({
                 cy={impactPos.y * 100}
                 r="6"
                 fill="none"
-                stroke="#E74C3C"
+                stroke={activeEffectKind === 'heal' ? '#2ECC71' : '#E74C3C'}
                 strokeWidth="1.8"
                 style={{ animation: 'minimap-impact-ring 0.7s ease-out infinite' }}
               />
@@ -387,7 +394,7 @@ export default function Minimap({
                 cx={impactPos.x * 100}
                 cy={impactPos.y * 100}
                 r="3.5"
-                fill="rgba(231,76,60,0.45)"
+                fill={activeEffectKind === 'heal' ? 'rgba(46,204,113,0.45)' : 'rgba(231,76,60,0.45)'}
                 style={{ animation: 'minimap-impact-flash 0.55s ease-out infinite' }}
               />
             </g>
@@ -549,6 +556,7 @@ export default function Minimap({
                 : false;
           const isLunging = lungeFromId === c.instanceId;
           const isImpacted = impactTargetId === c.instanceId;
+          const isHealing = isImpacted && activeEffectKind === 'heal';
           const icon = size * (isLunging || isImpacted ? 0.115 : 0.095);
           const action = showActions ? plan?.actions?.[c.instanceId] : undefined;
           return (
@@ -572,12 +580,14 @@ export default function Minimap({
                   borderColor: isLunging
                     ? '#F1C40F'
                     : isImpacted
-                      ? '#E74C3C'
+                      ? isHealing ? '#2ECC71' : '#E74C3C'
                       : team === 'blue' ? '#5DADE2' : '#F1948A',
                   boxShadow: isLunging
                     ? '0 0 12px rgba(241,196,15,0.9)'
                     : isImpacted
-                      ? '0 0 14px rgba(231,76,60,0.9)'
+                      ? isHealing
+                        ? '0 0 14px rgba(46,204,113,0.9)'
+                        : '0 0 14px rgba(231,76,60,0.9)'
                       : `0 0 0 1px ${team === 'blue' ? '#1A5276' : '#7B241C'}, 0 1px 4px rgba(0,0,0,0.7)`,
                   backgroundColor: def.color || '#333',
                   animation: isLunging

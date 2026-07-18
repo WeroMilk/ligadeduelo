@@ -324,9 +324,10 @@ export default function LiveMatch() {
       return;
     }
 
-    const damageHits = (res.floats || []).filter(f => f.kind === 'damage');
-    // Orden estable: por lane, manteniendo orden de emisión dentro de cada lane
-    const orderedHits = [...damageHits].sort((a, b) => (a.lane ?? 1) - (b.lane ?? 1));
+    // Daños y curaciones se narran uno a uno. El sort moderno es estable,
+    // así que conserva el orden de emisión dentro de cada línea.
+    const orderedHits = [...(res.floats || [])]
+      .sort((a, b) => (a.lane ?? 1) - (b.lane ?? 1));
 
     const laneCount = new Set(orderedHits.map(h => h.lane ?? 1)).size || 1;
     const estimatedMs =
@@ -365,11 +366,13 @@ export default function LiveMatch() {
           setActiveHit(hit);
           setScale(1.22);
           setCamPan(laneCameraPan(lane));
-          fireFx(
-            'hit',
-            undefined,
-            hit.sourceTeam === 'blue' ? 'blue' : hit.sourceTeam === 'red' ? 'red' : 'neutral',
-          );
+          if (hit.kind === 'damage') {
+            fireFx(
+              'hit',
+              undefined,
+              hit.sourceTeam === 'blue' ? 'blue' : hit.sourceTeam === 'red' ? 'red' : 'neutral',
+            );
+          }
         }, t);
         t += HIT_PAUSE_MS;
       }
@@ -664,10 +667,12 @@ export default function LiveMatch() {
   const cinemaApproach = phase?.t === 'lane' && !!phase.fight;
   const attackBeams: AttackBeam[] = (() => {
     if (!activeHit?.sourceId) return [];
+    if (activeHit.kind === 'heal' && activeHit.sourceId === activeHit.targetId) return [];
     return [{
       fromId: activeHit.sourceId,
       toId: activeHit.targetId,
       toKind: activeHit.targetType === 'champ' ? 'champ' : 'structure',
+      effectKind: activeHit.kind,
     }];
   })();
 
@@ -739,7 +744,8 @@ export default function LiveMatch() {
                 attackBeams={attackBeams}
                 combatFloats={activeFloats}
                 impactTargetId={activeHit?.targetId ?? null}
-                lungeFromId={activeHit?.sourceId ?? null}
+                lungeFromId={activeHit?.kind === 'damage' ? activeHit.sourceId ?? null : null}
+                activeEffectKind={activeHit?.kind ?? null}
               />
             </div>
           </div>
