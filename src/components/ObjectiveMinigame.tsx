@@ -40,6 +40,12 @@ type QteProfile = {
 };
 
 const ENEMY_ESCAPE_CHANCE = 0.42;
+/** Combo máximo: llega a x3 y llena toda la barra amarilla. */
+const MAX_COMBO = 3;
+/** Bonus a la barra azul por nivel de combo: x1=+0%, x2=+40%, x3=+80%. */
+function comboDamageFactor(combo: number): number {
+  return 1 + (Math.min(MAX_COMBO, Math.max(1, combo)) - 1) * 0.4;
+}
 /** Probabilidad de victoria del jugador al pulsar «Simular». */
 const SIM_WIN_RATE = 0.6;
 const SIM_HIT_CHANCE_ON_WIN = 0.86;
@@ -431,11 +437,12 @@ export default function ObjectiveMinigame({
     const z = zoneRef.current;
     const age = z ? Date.now() - z.spawnedAt : profile.zoneMs;
     const isPerfect = age <= profile.zoneMs * 0.38;
-    const dmgBonus = isPerfect ? Math.ceil(profile.hitDmg * 0.35) : 0;
-    const totalDmg = profile.hitDmg + dmgBonus;
-    const nextCombo = comboRef.current + 1;
+    const nextCombo = Math.min(MAX_COMBO, comboRef.current + 1);
     comboRef.current = nextCombo;
     setCombo(nextCombo);
+    // Cada nivel de combo suma más porcentaje a la barra azul; el acierto perfecto añade extra.
+    const perfectBonus = isPerfect ? Math.ceil(profile.hitDmg * 0.35) : 0;
+    const totalDmg = Math.round(profile.hitDmg * comboDamageFactor(nextCombo)) + perfectBonus;
 
     setFlash('hit');
     if (isPerfect) {
@@ -948,14 +955,14 @@ export default function ObjectiveMinigame({
                 {combo >= 2 && (phase === 'skirmish' || phase === 'monster') && (
                   <div>
                     <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider mb-0.5">
-                      <span className="text-[#F1C40F]">Combo x{combo}</span>
-                      <span className="text-[#F5B041]">{Math.min(10, combo) * 10}%</span>
+                      <span className="text-[#F1C40F]">Combo x{Math.min(MAX_COMBO, combo)}</span>
+                      <span className="text-[#F5B041]">+{Math.round((comboDamageFactor(combo) - 1) * 100)}% barra azul</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-black/50 overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-200"
                         style={{
-                          width: `${Math.min(100, combo * 10)}%`,
+                          width: `${(Math.min(MAX_COMBO, combo) / MAX_COMBO) * 100}%`,
                           background: 'linear-gradient(90deg, #E67E22, #F1C40F, #F5B041)',
                           boxShadow: '0 0 8px rgba(241,196,15,0.7)',
                         }}
