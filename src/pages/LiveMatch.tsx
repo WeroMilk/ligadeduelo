@@ -28,7 +28,8 @@ const MAP_SIZE_MOBILE_MAX = 340;
 const MAP_SIZE_MOBILE_MIN = 120;
 const MAP_SLOT_SCALE = 1.08;
 const DESKTOP_SIDEBAR_W = 288;
-const DESKTOP_MAP_MAX = 460;
+/* Tope alto: en la práctica manda el alto/ancho real disponible. */
+const DESKTOP_MAP_MAX = 900;
 const DESKTOP_MAP_MIN = 200;
 
 /**
@@ -50,7 +51,10 @@ function useMapSize(
         const h = el.clientHeight;
         const w = el.clientWidth;
         const reserved = 56;
-        const availW = w - DESKTOP_SIDEBAR_W - 24;
+        // Reserva: padding del body (32) + sidebar + gap (lg: 320+32, md: 288+24)
+        const lg = window.matchMedia('(min-width: 1024px)').matches;
+        const sidebarReserve = 32 + (lg ? 320 + 32 : DESKTOP_SIDEBAR_W + 24);
+        const availW = w - sidebarReserve;
         const byH = Math.floor((h - reserved) / MAP_SLOT_SCALE);
         const byW = Math.floor(Math.max(160, availW) / MAP_SLOT_SCALE);
         setSize(Math.max(DESKTOP_MAP_MIN, Math.min(DESKTOP_MAP_MAX, byH, byW)));
