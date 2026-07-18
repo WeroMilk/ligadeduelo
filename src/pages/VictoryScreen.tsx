@@ -142,7 +142,7 @@ export default function VictoryScreen() {
           <div key={c.id} className="absolute w-2 h-2 rounded-sm animate-confetti" style={{ left: `${c.x}%`, top: '-10px', backgroundColor: c.color, animationDelay: `${c.delay}s` }} />
         ))}
       </div>
-      <div className="relative z-10 my-auto flex w-full max-w-sm md:max-w-xl flex-col items-center gap-3 md:gap-4 py-2">
+      <div className="relative z-10 flex w-full max-w-sm md:max-w-xl flex-col items-center gap-3 md:gap-4 py-2">
         <div
           className={`w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center shrink-0 ${
             nexusWin

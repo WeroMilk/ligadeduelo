@@ -51,7 +51,7 @@ export default function DefeatScreen() {
         }`}
       />
 
-      <div className="relative z-10 my-auto flex flex-col items-center gap-3 md:gap-4 max-w-sm md:max-w-md w-full py-2">
+      <div className="relative z-10 flex flex-col items-center gap-3 md:gap-4 max-w-sm md:max-w-md w-full py-2">
         <div
           className={`w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center ${
             nexusLoss
