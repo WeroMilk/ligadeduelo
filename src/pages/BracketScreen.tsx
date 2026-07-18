@@ -52,6 +52,20 @@ export default function BracketScreen() {
     return () => clearTimeout(timer);
   }, [currentRoundIdx, winnersKey, dispatch, currentRound, aiMatchDelayMs]);
 
+  // Tras la eliminación, encadena todas las rondas sin exigir "Seguir torneo".
+  // Las partidas IA se resuelven en el efecto anterior; al completar una ronda,
+  // este efecto crea la siguiente hasta llegar automáticamente al resultado final.
+  useEffect(() => {
+    if (!eliminated || !currentRound) return;
+    if (currentRound.matches.some(match => match.winner === null)) return;
+
+    const timer = window.setTimeout(() => {
+      dispatch({ type: 'ADVANCE_BRACKET' });
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [eliminated, currentRoundIdx, winnersKey, currentRound, dispatch]);
+
   if (!tournament || !displayRound) return null;
 
   const playerMatch = canPlayMatches
@@ -408,15 +422,21 @@ export default function BracketScreen() {
           })}
         </div>
 
-        {canAdvance && (
+        {canAdvance && !eliminated && (
           <button
             type="button"
             onClick={handleAdvance}
             className="w-full mt-4 shrink-0 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform shadow-[0_4px_20px_rgba(201,168,76,0.3)]"
           >
-            {eliminated ? 'SEGUIR TORNEO' : 'AVANZAR RONDA'}
+            AVANZAR RONDA
             <ChevronRight className="w-5 h-5" />
           </button>
+        )}
+
+        {eliminated && roundComplete && (
+          <p className="mt-4 text-center text-xs font-bold uppercase tracking-wider text-[#C9A84C] animate-pulse">
+            Continuando torneo automáticamente…
+          </p>
         )}
       </div>
 
