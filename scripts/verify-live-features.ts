@@ -2,9 +2,16 @@ import assert from 'node:assert/strict';
 import { createPausableScheduler } from '../src/lib/pausable-scheduler';
 import { manaCostFor, ULT_TOTAL_MANA } from '../src/lib/champion-mechanics';
 import { QTE_REPLAY_AD_MS, POST_MATCH_AD_MS } from '../src/components/AdInterstitial';
-import { createTurnTeam, createTurnMatch } from '../src/lib/turn-engine';
+import {
+  createTurnTeam,
+  createTurnMatch,
+  resolveRound,
+  generateAIPlan,
+  finishPendingObjective,
+} from '../src/lib/turn-engine';
 import { buildAllRosters } from '../src/lib/rosters';
 import { FAN_ORGS } from '../src/lib/game-data';
+import type { TeamPlan } from '../src/types/game';
 
 async function sleep(ms: number) {
   await new Promise(r => setTimeout(r, ms));
@@ -48,7 +55,45 @@ function testChampionKdaFields() {
   console.log('✓ 10 campeones con HP/MN/KDA');
 }
 
+function emptyPlan(): TeamPlan {
+  return { actions: {}, ultimates: [] };
+}
+
+function testStructureSnapshots() {
+  let found = 0;
+  for (let i = 0; i < 12; i++) {
+    const blue = createTurnTeam('b', 'Azul', 'blue', ['aatrox', 'lee_sin', 'zed', 'jinx', 'thresh']);
+    const red = createTurnTeam('r', 'Rojo', 'red', ['garen', 'amumu', 'lux', 'ashe', 'soraka']);
+    let tm = createTurnMatch(blue, red);
+    for (let r = 0; r < 8 && !tm.isComplete; r++) {
+      const bluePlan = generateAIPlan(tm, 'blue', emptyPlan());
+      const redPlan = generateAIPlan(tm, 'red', emptyPlan());
+      tm = resolveRound(tm, bluePlan, redPlan);
+      if (tm.pendingObjective) {
+        tm = finishPendingObjective(tm, {
+          skirmishWinner: 'blue',
+          attackingTeam: 'blue',
+          monsterTaken: true,
+          loserFate: 'killed',
+        });
+      }
+      const structFloats = (tm.lastResolution?.floats || []).filter(
+        f => f.targetType === 'tower' || f.targetType === 'nexus',
+      );
+      for (const f of structFloats) {
+        assert.equal(typeof f.structureHpBefore, 'number', 'structureHpBefore');
+        assert.equal(typeof f.structureHpAfter, 'number', 'structureHpAfter');
+        assert.ok((f.structureHpBefore ?? 0) >= (f.structureHpAfter ?? 0));
+        found += 1;
+      }
+    }
+  }
+  assert.ok(found > 0, 'debe emitir snapshots de HP estructural en algún asedio');
+  console.log(`✓ Snapshots de HP en daño a estructuras (${found} golpes)`);
+}
+
 await testScheduler();
 testAdsDurations();
 testChampionKdaFields();
+testStructureSnapshots();
 console.log('\nTodas las verificaciones de partida viva OK');

@@ -33,7 +33,12 @@ export default function DefeatScreen() {
 
   const handleViewBracket = () => {
     playClickSound();
-    dispatch({ type: 'SET_SCREEN', screen: 'bracket', bracketViewRound: 0 });
+    // Abrir la ronda donde ocurrió la eliminación (o la actual), no forzar Octavos.
+    const round =
+      state.playerEliminatedRound
+      ?? state.tournament?.currentRound
+      ?? 0;
+    dispatch({ type: 'SET_SCREEN', screen: 'bracket', bracketViewRound: round });
   };
 
   return (

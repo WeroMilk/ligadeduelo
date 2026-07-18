@@ -11,9 +11,11 @@ type Props = {
   hit: CombatFloat | null;
   /** Duración visible (debe coincidir con la cola del cine). */
   durationMs?: number;
+  /** Congela la barra/animación del popup. */
+  paused?: boolean;
 };
 
-export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Props) {
+export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS, paused = false }: Props) {
   const critKey = hit && hit.kind === 'damage' && hit.amount >= 150 ? hit.id : null;
   useEffect(() => {
     if (critKey == null) return;
@@ -40,6 +42,7 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Pro
         style={{
           background: `linear-gradient(rgba(13,18,32,0.96), rgba(13,18,32,0.96)) padding-box, ${palette.fill} border-box`,
           animation: 'combat-hit-pop 0.45s cubic-bezier(0.22, 1.4, 0.36, 1) both',
+          animationPlayState: paused ? 'paused' : 'running',
         }}
       >
         {hit.sourceName && (
@@ -63,7 +66,10 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Pro
         )}
         <div
           className={`mt-2 flex items-center justify-center gap-2 ${isCrit ? 'animate-combat-crit' : ''}`}
-          style={isCrit ? undefined : { animation: 'combat-hit-amount 0.55s ease-out both' }}
+          style={{
+            animation: isCrit ? undefined : 'combat-hit-amount 0.55s ease-out both',
+            animationPlayState: paused ? 'paused' : 'running',
+          }}
         >
           {isHeal ? (
             <Plus
@@ -74,14 +80,14 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Pro
           ) : (
             <span
               className={`font-black tabular-nums ${isCrit ? 'text-5xl sm:text-6xl' : 'text-4xl sm:text-5xl'}`}
-              style={{ textShadow: isCrit ? '0 2px 16px #F1C40Fcc' : `0 2px 12px ${palette.glow}88`, color: isCrit ? '#F1C40F' : palette.signColor }}
+              style={{ textShadow: `0 2px 12px ${palette.glow}88`, color: palette.signColor }}
             >
               −
             </span>
           )}
           <span
             className={`font-black tabular-nums ${isCrit ? 'text-5xl sm:text-6xl' : 'text-4xl sm:text-5xl'}`}
-            style={{ textShadow: isCrit ? '0 2px 16px #F1C40Fcc' : `0 2px 12px ${palette.glow}88`, color: isCrit ? '#F1C40F' : palette.numberColor }}
+            style={{ textShadow: `0 2px 12px ${palette.glow}88`, color: palette.numberColor }}
           >
             {amount}
           </span>
@@ -93,6 +99,7 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS }: Pro
             style={{
               background: palette.fill,
               animation: `combat-hit-bar ${durationMs}ms linear forwards`,
+              animationPlayState: paused ? 'paused' : 'running',
             }}
           />
         </div>

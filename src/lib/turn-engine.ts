@@ -969,6 +969,7 @@ function siegeTower(
         && nexus.hp - dmg <= 0
       ) {
         // Deja el nexo a 1 HP y marca amenaza; el QTE decide el resultado final.
+        const hpBefore = nexus.hp;
         const applied = Math.max(0, nexus.hp - 1);
         nexus.hp = 1;
         siegerSnap.damageDealt = applied;
@@ -983,6 +984,9 @@ function siegeTower(
           targetName: structureTargetName('nexus', lane),
           targetTeam: towerTeam,
           lane,
+          structureHpBefore: hpBefore,
+          structureHpAfter: 1,
+          structureMaxHp: nexus.maxHp,
         });
         pushLog(
           log,
@@ -1012,6 +1016,7 @@ function siegeTower(
         return;
       }
 
+      const hpBefore = nexus.hp;
       nexus.hp = Math.max(0, nexus.hp - dmg);
       siegerSnap.damageDealt = dmg;
       pushFloat(floats, {
@@ -1025,6 +1030,9 @@ function siegeTower(
         targetName: structureTargetName('nexus', lane),
         targetTeam: towerTeam,
         lane,
+        structureHpBefore: hpBefore,
+        structureHpAfter: nexus.hp,
+        structureMaxHp: nexus.maxHp,
       });
       pushLog(log, `${champDef(sieger).name} golpea el Nexo · ${dmg} de daño (${nexus.hp}/${nexus.maxHp})`);
       duels.push({
@@ -1051,6 +1059,7 @@ function siegeTower(
 
   const raw = calcSiegeDamage(sieger, SIEGE_TOWER_DMG, 'tower');
   const dmg = Math.min(raw, tower.hp);
+  const hpBefore = tower.hp;
   tower.hp = Math.max(0, tower.hp - dmg);
   siegerSnap.damageDealt = dmg;
   pushFloat(floats, {
@@ -1064,6 +1073,9 @@ function siegeTower(
     targetName: structureTargetName('tower', lane),
     targetTeam: towerTeam,
     lane,
+    structureHpBefore: hpBefore,
+    structureHpAfter: tower.hp,
+    structureMaxHp: tower.maxHp,
   });
   pushLog(log, `${champDef(sieger).name} asedia la torre ${laneLabel(lane)} · ${dmg} de daño (${tower.hp}/${tower.maxHp})`);
   let summary = `${champDef(sieger).name} asedia torre ${laneLabel(lane)} (−${dmg})`;

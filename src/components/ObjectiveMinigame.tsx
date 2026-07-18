@@ -25,8 +25,10 @@ type Props = {
   /** Cambia para reiniciar el intento (tras anuncio de repetición). */
   attemptKey?: number;
   allowSimulate?: boolean;
-  /** Equipo del jugador humano (para sesgar la simulación a su favor ~70%). */
+  /** Equipo del jugador humano (para sesgar la simulación a su favor). */
   playerSide?: TeamColor;
+  /** Win rate del botón Simular (p. ej. 0.6 normal, 0.75 coop compartido). */
+  simulateWinRate?: number;
 };
 
 type QteProfile = {
@@ -199,8 +201,10 @@ export default function ObjectiveMinigame({
   attemptKey: _attemptKey = 0,
   allowSimulate = true,
   playerSide = 'blue',
+  simulateWinRate = SIM_WIN_RATE,
 }: Props) {
   void _attemptKey;
+  const simWinRate = Math.max(0, Math.min(1, simulateWinRate));
   const isGank = pending.kind === 'gank';
   const isNexusDefense = pending.kind === 'nexus_defense';
   const isNexusAssault = pending.kind === 'nexus_assault';
@@ -643,7 +647,7 @@ export default function ObjectiveMinigame({
   const startAutoSimulate = () => {
     if (paused || completedRef.current || finishedRef.current || simulatingRef.current) return;
     if (phase !== 'countdown') return;
-    simForceWinRef.current = Math.random() < SIM_WIN_RATE;
+    simForceWinRef.current = Math.random() < simWinRate;
     simulatingRef.current = true;
     setSimulating(true);
     setLog('Simulación elegida · empezará al terminar la cuenta');
@@ -873,25 +877,6 @@ export default function ObjectiveMinigame({
                 </div>
               </div>
 
-              {combo >= 2 && (phase === 'skirmish' || phase === 'monster') && (
-                <div className="absolute left-3 right-3 top-[5.6rem] z-[2] pointer-events-none">
-                  <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider mb-0.5">
-                    <span className="text-[#F1C40F]">Combo x{combo}</span>
-                    <span className="text-[#F5B041]">{Math.min(10, combo) * 10}%</span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-black/50 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-200"
-                      style={{
-                        width: `${Math.min(100, combo * 10)}%`,
-                        background: 'linear-gradient(90deg, #E67E22, #F1C40F, #F5B041)',
-                        boxShadow: '0 0 8px rgba(241,196,15,0.7)',
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-
               {zone && !simulating && (
                 <button
                   type="button"
@@ -959,15 +944,35 @@ export default function ObjectiveMinigame({
                 </div>
               )}
 
-              <p className="absolute bottom-3 inset-x-0 text-center text-[10px] text-[#8B9BB4] z-[1]">
-                {isNexusAssault
-                  ? 'Toca las bolitas amarillas para tumbar el nexo enemigo'
-                  : isNexusDefense
-                    ? 'Toca las bolitas amarillas antes de que el asaltante tumbe el nexo'
-                    : `Equipo atacante: ${attackingTeam === 'blue' ? 'Azul (tú)' : 'Rojo'}${
-                        loserFate === 'escaped' && skirmishWinner === 'blue' ? ' · el rival escapó' : ''
-                      }`}
-              </p>
+              <div className="absolute bottom-2 inset-x-0 z-[2] px-3 pointer-events-none space-y-1">
+                {combo >= 2 && (phase === 'skirmish' || phase === 'monster') && (
+                  <div>
+                    <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider mb-0.5">
+                      <span className="text-[#F1C40F]">Combo x{combo}</span>
+                      <span className="text-[#F5B041]">{Math.min(10, combo) * 10}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-black/50 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-200"
+                        style={{
+                          width: `${Math.min(100, combo * 10)}%`,
+                          background: 'linear-gradient(90deg, #E67E22, #F1C40F, #F5B041)',
+                          boxShadow: '0 0 8px rgba(241,196,15,0.7)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+                <p className="text-center text-[10px] text-[#8B9BB4]">
+                  {isNexusAssault
+                    ? 'Toca las bolitas amarillas para tumbar el nexo enemigo'
+                    : isNexusDefense
+                      ? 'Toca las bolitas amarillas antes de que el asaltante tumbe el nexo'
+                      : `Equipo atacante: ${attackingTeam === 'blue' ? 'Azul (tú)' : 'Rojo'}${
+                          loserFate === 'escaped' && skirmishWinner === 'blue' ? ' · el rival escapó' : ''
+                        }`}
+                </p>
+              </div>
             </div>
 
           </>

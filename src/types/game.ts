@@ -242,6 +242,10 @@ export interface CombatFloat {
   /** Equipo del objetivo (perspectiva aliado/enemigo del jugador azul). */
   targetTeam?: TeamColor;
   lane?: LaneId;
+  /** Snapshot de HP estructural antes/después del golpe (para cine sincronizado). */
+  structureHpBefore?: number;
+  structureHpAfter?: number;
+  structureMaxHp?: number;
 }
 
 export interface PendingObjective {

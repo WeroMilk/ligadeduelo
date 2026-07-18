@@ -23,12 +23,14 @@ export default function BracketScreen() {
   const currentRound = tournament?.rounds[currentRoundIdx];
   const displayRoundIdx = state.bracketViewRound ?? currentRoundIdx;
   const displayRound = tournament?.rounds[displayRoundIdx];
-  const viewOnly = state.bracketViewRound !== null || state.playerEliminatedRound !== null;
+  const eliminated = state.playerEliminatedRound !== null;
+  /** Solo bloquea entrar a partidas: eliminado o consultando otra ronda. */
+  const viewingHistory = state.bracketViewRound !== null && state.bracketViewRound !== currentRoundIdx;
+  const canPlayMatches = !eliminated && !viewingHistory;
   const winnersKey = currentRound?.matches.map(m => `${m.id}:${m.winner ?? '-'}`).join('|') ?? '';
 
-  // Resolver partidas IA uno a uno (solo resultado, sin canvas)
+  // Resolver partidas IA uno a uno (sigue aunque se consulte historial o se esté eliminado)
   useEffect(() => {
-    if (state.bracketViewRound !== null) return;
     if (!currentRound) return;
 
     const next = currentRound.matches.find(
@@ -48,17 +50,31 @@ export default function BracketScreen() {
     }, aiMatchDelayMs);
 
     return () => clearTimeout(timer);
-  }, [currentRoundIdx, winnersKey, dispatch, currentRound, aiMatchDelayMs, state.bracketViewRound]);
+  }, [currentRoundIdx, winnersKey, dispatch, currentRound, aiMatchDelayMs]);
 
   if (!tournament || !displayRound) return null;
 
-  const playerMatch = !viewOnly
+  const playerMatch = canPlayMatches
     ? currentRound?.matches.find(m => m.isPlayerMatch && m.winner === null)
     : null;
   const pendingCount = (currentRound?.matches ?? []).filter(
     m => m.winner === null && !m.isPlayerMatch,
   ).length;
   const activeMatch = currentRound?.matches.find(m => m.id === activeMatchId);
+  const roundComplete = !!currentRound?.matches.every(m => m.winner !== null);
+  const canAdvance = !playerMatch && roundComplete;
+
+  const handleSelectRound = (roundIdx: number) => {
+    const round = tournament.rounds[roundIdx];
+    if (!round) return;
+    // Solo rondas ya alcanzadas o con partidos rellenados
+    if (roundIdx > currentRoundIdx && round.matches.length === 0) return;
+    playClickSound();
+    dispatch({
+      type: 'SET_BRACKET_VIEW_ROUND',
+      round: roundIdx === currentRoundIdx ? null : roundIdx,
+    });
+  };
 
   const handleStartMatch = (matchId: string) => {
     if (simulating) return;
@@ -150,18 +166,60 @@ export default function BracketScreen() {
             </p>
           </div>
 
-          <div className="flex gap-2 mt-2 md:mt-3">
-            {['Octavos', 'Cuartos', 'Semifinal', 'Final'].map((name, i) => (
-              <div
-                key={name}
-                className={`flex-1 h-1.5 rounded-full ${
-                  i < displayRoundIdx ? 'bg-[#C9A84C]' :
-                  i === displayRoundIdx ? 'bg-gradient-to-r from-[#C9A84C] to-[#C9A84C]/30' :
-                  'bg-[#1E2740]'
-                }`}
-              />
-            ))}
+          <div className="flex gap-1.5 mt-2 md:mt-3">
+            {['Octavos', 'Cuartos', 'Semifinal', 'Final'].map((name, i) => {
+              const round = tournament.rounds[i];
+              const reachable = i <= currentRoundIdx || (round?.matches.length ?? 0) > 0;
+              const selected = i === displayRoundIdx;
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  disabled={!reachable}
+                  onClick={() => handleSelectRound(i)}
+                  className={`flex-1 min-w-0 rounded-md px-1 py-1 transition-all disabled:opacity-35 disabled:cursor-default ${
+                    selected
+                      ? 'bg-[#C9A84C]/20 ring-1 ring-[#C9A84C]/70'
+                      : reachable
+                        ? 'bg-[#141B2D] hover:bg-[#1A2238] active:scale-[0.98]'
+                        : 'bg-[#0D1220]'
+                  }`}
+                  aria-label={`Ver ${name}`}
+                  aria-pressed={selected}
+                >
+                  <div
+                    className={`h-1.5 rounded-full mb-1 ${
+                      i < currentRoundIdx ? 'bg-[#C9A84C]' :
+                      i === currentRoundIdx ? 'bg-gradient-to-r from-[#C9A84C] to-[#C9A84C]/30' :
+                      'bg-[#1E2740]'
+                    }`}
+                  />
+                  <p className={`text-[9px] md:text-[10px] font-bold uppercase tracking-wider truncate ${
+                    selected ? 'text-[#C9A84C]' : 'text-[#8B9BB4]'
+                  }`}>
+                    {name}
+                  </p>
+                </button>
+              );
+            })}
           </div>
+          {viewingHistory && (
+            <p className="text-center text-[10px] text-[#8B9BB4] mt-1.5">
+              Consultando historial ·{' '}
+              <button
+                type="button"
+                className="text-[#C9A84C] font-bold underline-offset-2 hover:underline"
+                onClick={() => handleSelectRound(currentRoundIdx)}
+              >
+                Volver a ronda actual
+              </button>
+            </p>
+          )}
+          {eliminated && !viewingHistory && (
+            <p className="text-center text-[10px] text-[#E74C3C] mt-1.5 font-bold">
+              Eliminado · puedes seguir el torneo y consultar rondas anteriores
+            </p>
+          )}
         </div>
       </div>
 
@@ -193,10 +251,10 @@ export default function BracketScreen() {
           }`}
         >
           {displayRound.matches.map(match => {
-            const isPlayer = match.isPlayerMatch;
+            const isPlayer = match.isPlayerMatch && canPlayMatches && displayRoundIdx === currentRoundIdx;
             const winner = match.winner;
             const winnerName = getMatchWinner(match);
-            const isActive = simulating && match.id === activeMatchId;
+            const isActive = simulating && match.id === activeMatchId && displayRoundIdx === currentRoundIdx;
             const isCompleted = !!winner;
             const cardClassName = `rounded-xl border-2 p-2.5 md:p-4 transition-all md:flex md:flex-col md:justify-center w-full text-left ${
               isActive
@@ -350,13 +408,13 @@ export default function BracketScreen() {
           })}
         </div>
 
-        {!viewOnly && !playerMatch && currentRound?.matches.every(m => m.winner !== null) && (
+        {canAdvance && (
           <button
             type="button"
             onClick={handleAdvance}
             className="w-full mt-4 shrink-0 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform shadow-[0_4px_20px_rgba(201,168,76,0.3)]"
           >
-            AVANZAR RONDA
+            {eliminated ? 'SEGUIR TORNEO' : 'AVANZAR RONDA'}
             <ChevronRight className="w-5 h-5" />
           </button>
         )}

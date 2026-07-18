@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { KillAnnounce, ObjectiveBonusAnnounce, TeamColor } from '@/types/game';
 
@@ -13,6 +13,8 @@ type Props = {
   onBusyChange?: (busy: boolean) => void;
   /** inline = entre stats y panel de bajas; fixed-top = header global */
   placement?: 'inline' | 'fixed-top';
+  /** Congela el timer del anuncio visible. */
+  paused?: boolean;
 };
 
 export const ANNOUNCE_DURATION_MS = 6000;
@@ -36,12 +38,12 @@ function teamColor(team: TeamColor): string {
   return team === 'blue' ? '#3498DB' : '#E74C3C';
 }
 
-function AnnounceBanner({ current }: { current: AnnounceItem }) {
+function AnnounceBanner({ current, paused }: { current: AnnounceItem; paused: boolean }) {
   if (current.kind === 'kill') {
     return (
       <div
         className="w-full rounded-lg border bg-[#0D1220]/95 px-3 py-1.5 text-center shadow-[0_4px_16px_rgba(0,0,0,0.45)] backdrop-blur-sm animate-kill-banner"
-        style={{ borderColor: teamColor(current.data.team) }}
+        style={{ borderColor: teamColor(current.data.team), animationPlayState: paused ? 'paused' : 'running' }}
         aria-live="polite"
       >
         {multiLabel(current.data.multi) && (
@@ -59,6 +61,7 @@ function AnnounceBanner({ current }: { current: AnnounceItem }) {
   return (
     <div
       className="w-full rounded-lg border border-[#F1C40F] bg-[#0D1220]/95 px-3 py-1.5 text-center shadow-[0_4px_16px_rgba(241,196,15,0.2)] backdrop-blur-sm animate-kill-banner"
+      style={{ animationPlayState: paused ? 'paused' : 'running' }}
       aria-live="polite"
     >
       <p className="text-[8px] font-bold uppercase tracking-wider text-[#F1C40F]">Bonus de objetivo</p>
@@ -74,9 +77,15 @@ export default function CombatAnnounceOverlay({
   batch,
   onBusyChange,
   placement = 'inline',
+  paused = false,
 }: Props) {
   const [queue, setQueue] = useState<AnnounceItem[]>([]);
   const [current, setCurrent] = useState<AnnounceItem | null>(null);
+  const remainingMs = useRef(ANNOUNCE_DURATION_MS);
+  const startedAt = useRef<number | null>(null);
+  const timerRef = useRef<number | null>(null);
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   useEffect(() => {
     if (!batch || batch.items.length === 0) return;
@@ -93,18 +102,55 @@ export default function CombatAnnounceOverlay({
     const [next, ...rest] = queue;
     setCurrent(next);
     setQueue(rest);
+    remainingMs.current = ANNOUNCE_DURATION_MS;
   }, [current, queue]);
 
   useEffect(() => {
-    if (!current) return;
-    const t = window.setTimeout(() => setCurrent(null), ANNOUNCE_DURATION_MS);
-    return () => window.clearTimeout(t);
-  }, [current]);
+    if (!current) {
+      if (timerRef.current != null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      startedAt.current = null;
+      return;
+    }
+
+    if (paused) {
+      if (timerRef.current != null && startedAt.current != null) {
+        const elapsed = Date.now() - startedAt.current;
+        remainingMs.current = Math.max(0, remainingMs.current - elapsed);
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+        startedAt.current = null;
+      }
+      return;
+    }
+
+    startedAt.current = Date.now();
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      startedAt.current = null;
+      remainingMs.current = ANNOUNCE_DURATION_MS;
+      setCurrent(null);
+    }, remainingMs.current);
+
+    return () => {
+      if (timerRef.current != null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      if (startedAt.current != null && !pausedRef.current) {
+        const elapsed = Date.now() - startedAt.current;
+        remainingMs.current = Math.max(0, remainingMs.current - elapsed);
+        startedAt.current = null;
+      }
+    };
+  }, [current, paused]);
 
   if (placement === 'inline') {
     return (
-      <div className="pointer-events-none flex min-h-[2.75rem] w-full shrink-0 items-center justify-center px-1">
-        {current ? <AnnounceBanner current={current} /> : null}
+      <div className="pointer-events-none flex min-h-[2rem] md:min-h-[2.75rem] w-full shrink-0 items-center justify-center px-1">
+        {current ? <AnnounceBanner current={current} paused={paused} /> : null}
       </div>
     );
   }
@@ -117,7 +163,7 @@ export default function CombatAnnounceOverlay({
   const body = (
     <div className={topWrapClass}>
       <div className="w-full max-w-md">
-        <AnnounceBanner current={current} />
+        <AnnounceBanner current={current} paused={paused} />
       </div>
     </div>
   );

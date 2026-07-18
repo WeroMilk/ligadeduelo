@@ -24,15 +24,17 @@ import { objectiveName } from '@/lib/game-data';
 import { getMatchTimings } from '@/lib/express-mode';
 import type { CombatFloat, LaneId, RoundResolution, Structure, TeamPlan } from '@/types/game';
 
-const MAP_SIZE_MOBILE_MAX = 280;
-const MAP_SIZE_MOBILE_MIN = 168;
-const MAP_SLOT_SCALE = 1.12;
+const MAP_SIZE_MOBILE_MAX = 260;
+const MAP_SIZE_MOBILE_MIN = 120;
+/** Capsula + anuncios + estructuras + stats + marcador + gaps en móvil. */
+const MOBILE_BELOW_MAP_RESERVE = 292;
+const MAP_SLOT_SCALE = 1.08;
 const DESKTOP_SIDEBAR_W = 288;
 const DESKTOP_MAP_MAX = 460;
 const DESKTOP_MAP_MIN = 200;
 
 function useMapSize(containerRef: React.RefObject<HTMLElement | null>) {
-  const [size, setSize] = useState(240);
+  const [size, setSize] = useState(220);
   useEffect(() => {
     const el = containerRef.current;
     const update = () => {
@@ -51,10 +53,9 @@ function useMapSize(containerRef: React.RefObject<HTMLElement | null>) {
         return;
       }
 
-      // Móvil: mapa + estructuras + marcador + stats en columna
-      const reserved = 250;
-      const byH = Math.floor((h - reserved) / MAP_SLOT_SCALE);
-      const byW = Math.floor(w - 16);
+      // Móvil: encajar mapa + paneles en el viewport sin scroll
+      const byH = Math.floor((h - MOBILE_BELOW_MAP_RESERVE) / MAP_SLOT_SCALE);
+      const byW = Math.floor(w - 12);
       setSize(Math.max(MAP_SIZE_MOBILE_MIN, Math.min(MAP_SIZE_MOBILE_MAX, byH, byW)));
     };
     update();
@@ -85,6 +86,34 @@ function approxLanePos(team: 'blue' | 'red', lane: LaneId): { x: number; y: numb
   const mid = lane === 0 ? { x: 0.22, y: 0.32 } : lane === 2 ? { x: 0.62, y: 0.72 } : { x: 0.42, y: 0.52 };
   if (team === 'blue') return mid;
   return { x: 1 - mid.x + 0.08, y: 1 - mid.y - 0.08 };
+}
+
+/** HP estructural previo al cine: deshace floats de torre/nexo sobre una copia. */
+function structuresBeforeCinema(structures: Structure[], floats: CombatFloat[]): Structure[] {
+  const clone = structures.map(s => ({ ...s }));
+  const structureFloats = floats.filter(f => f.targetType === 'tower' || f.targetType === 'nexus');
+  for (let i = structureFloats.length - 1; i >= 0; i--) {
+    const f = structureFloats[i];
+    const s = clone.find(x => x.id === f.targetId);
+    if (!s) continue;
+    const hp = f.structureHpBefore != null
+      ? f.structureHpBefore
+      : Math.min(s.maxHp, s.hp + Math.max(0, f.amount));
+    s.hp = hp;
+    s.isDestroyed = hp <= 0;
+  }
+  return clone;
+}
+
+function applyStructureHitVisual(structures: Structure[], hit: CombatFloat): Structure[] {
+  if (hit.targetType !== 'tower' && hit.targetType !== 'nexus') return structures;
+  return structures.map(s => {
+    if (s.id !== hit.targetId) return s;
+    const hp = hit.structureHpAfter != null
+      ? hit.structureHpAfter
+      : Math.max(0, s.hp - Math.max(0, hit.amount));
+    return { ...s, hp, isDestroyed: hp <= 0 };
+  });
 }
 
 type Phase =
@@ -183,6 +212,8 @@ export default function LiveMatch() {
   const [punch, setPunch] = useState(0);
   const [spectacleBursts, setSpectacleBursts] = useState<SpectacleBurst[]>([]);
   const [cinemaRes, setCinemaRes] = useState<RoundResolution | null>(null);
+  /** HP de torres/nexos sincronizado con el golpe narrado (null = usar estado real). */
+  const [visualStructures, setVisualStructures] = useState<Structure[] | null>(null);
   const [activeFloats, setActiveFloats] = useState<CombatFloat[]>([]);
   const [activeHit, setActiveHit] = useState<CombatFloat | null>(null);
   const [camPan, setCamPan] = useState({ x: 0, y: 0 });
@@ -326,6 +357,7 @@ export default function LiveMatch() {
     setActiveFloats([]);
     setActiveHit(null);
     setSpectacleBursts([]);
+    setVisualStructures(null);
     setCamPan({ x: 0, y: 0 });
     setCinemaRes(null);
     setPhase({ t: 'idle' });
@@ -343,6 +375,7 @@ export default function LiveMatch() {
     setCinemaRes(res);
     setActiveHit(null);
     setActiveFloats([]);
+    setVisualStructures(null);
     setCamPan({ x: 0, y: 0 });
     setScale(1.12);
     const objItems: AnnounceItem[] = res.objectiveBonus
@@ -407,9 +440,13 @@ export default function LiveMatch() {
     ) {
       awaitingQte.current = true;
       needsPostQteClaim.current = true;
+      setVisualStructures(null);
       setPhase({ t: 'qte' });
       return;
     }
+
+    // HP estructural se revela golpe a golpe (no el resultado ya aplicado del motor).
+    setVisualStructures(structuresBeforeCinema(current.structures, res.floats || []));
 
     // Daños y curaciones se narran uno a uno. El sort moderno es estable,
     // así que conserva el orden de emisión dentro de cada línea.
@@ -453,6 +490,9 @@ export default function LiveMatch() {
           setActiveHit(hit);
           setScale(1.22);
           setCamPan(laneCameraPan(lane));
+          if (hit.targetType === 'tower' || hit.targetType === 'nexus') {
+            setVisualStructures(prev => applyStructureHitVisual(prev ?? current.structures, hit));
+          }
           if (hit.kind === 'damage') {
             fireFx(
               'hit',
@@ -952,6 +992,7 @@ export default function LiveMatch() {
 
   const pauseBlocked = !!pendingQteResult || showReplayAd;
   const qteReplaysLeft = qteReplaysRemaining(qteReplayCount);
+  const displayStructures = visualStructures ?? tm.structures;
 
   return (
     <div className={`flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden relative ${shake === 'hard' ? 'animate-screen-shake-hard' : shake === 'soft' ? 'animate-screen-shake' : ''}`}>
@@ -992,14 +1033,14 @@ export default function LiveMatch() {
 
       <div
         ref={bodyRef}
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide px-3 py-2 w-full max-w-lg mx-auto flex flex-col gap-2 md:max-w-6xl md:px-4 md:py-2 md:flex-row md:items-stretch md:justify-center md:gap-6 lg:gap-8"
+        className="flex-1 min-h-0 overflow-hidden md:overflow-y-auto overscroll-contain scrollbar-hide px-2 py-1.5 w-full max-w-lg mx-auto flex flex-col gap-1.5 md:max-w-6xl md:px-4 md:py-2 md:flex-row md:items-stretch md:justify-center md:gap-6 lg:gap-8"
       >
-        <div className="flex w-full min-h-0 flex-col items-center gap-1.5 md:flex-1 md:min-w-0 md:justify-center md:gap-2">
+        <div className="flex w-full min-h-0 flex-1 flex-col items-center justify-between gap-1 md:flex-none md:justify-center md:gap-2 md:flex-1 md:min-w-0">
           <div key={capsule} className="rounded-full border border-[#C9A84C]/40 bg-[#141B2D] px-3 py-0.5 shrink-0 animate-scale-in">
             <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-[#C9A84C]">{capsule}</p>
           </div>
 
-          <div className="relative flex shrink-0 items-center justify-center overflow-hidden" style={{ width: slot, height: slot, maxWidth: '100%' }}>
+          <div className="relative flex shrink-0 items-center justify-center overflow-hidden mx-auto" style={{ width: slot, height: slot, maxWidth: '100%' }}>
             <div
               key={`punch-${punch}`}
               className={punch > 0 ? 'animate-fx-punch' : undefined}
@@ -1017,7 +1058,7 @@ export default function LiveMatch() {
                 size={mapSize}
                 blueChampions={tm.blue.champions}
                 redChampions={tm.red.champions}
-                structures={tm.structures}
+                structures={displayStructures}
                 objective={cinemaRes?.objective ?? tm.objective}
                 bluePlan={state.playerPlan}
                 redPlan={state.enemyPlanPreview}
@@ -1043,7 +1084,7 @@ export default function LiveMatch() {
             </div>
             </div>
             <CombatScreenFX signal={fx} />
-            <CombatHitOverlay hit={activeHit} durationMs={timings.hitPauseMs} />
+            <CombatHitOverlay hit={activeHit} durationMs={timings.hitPauseMs} paused={matchFrozen} />
 
             {phase?.t === 'prompt' && !statsOpen && !isCoopPvp && (
               <DecisionOverlay
@@ -1102,35 +1143,33 @@ export default function LiveMatch() {
             )}
           </div>
 
-          <CombatAnnounceOverlay batch={announceBatch} placement="inline" />
+          <CombatAnnounceOverlay batch={announceBatch} placement="inline" paused={matchFrozen} />
 
-          <div className="w-full space-y-1.5 md:hidden" style={{ maxWidth: mapSize }}>
-            <div className="rounded-xl border border-[#1E2740] bg-[#0D1220] px-2 py-1.5 shrink-0 space-y-1">
-              <StructureHpRow structures={tm.structures} team="blue" />
-              <StructureHpRow structures={tm.structures} team="red" />
+          <div className="w-full space-y-1 md:hidden shrink-0" style={{ maxWidth: Math.max(mapSize, 260) }}>
+            <div className="rounded-lg border border-[#1E2740] bg-[#0D1220] px-1.5 py-1 shrink-0 space-y-0.5">
+              <StructureHpRow structures={displayStructures} team="blue" />
+              <StructureHpRow structures={displayStructures} team="red" />
             </div>
 
             <button
               type="button"
               onClick={openStats}
-              className="w-full shrink-0 flex items-center justify-center gap-2 rounded-xl border-2 border-[#C9A84C]/45 bg-[#C9A84C]/12 px-3 py-2 text-xs font-bold uppercase tracking-wider text-[#C9A84C] active:scale-[0.99]"
+              className="w-full shrink-0 flex items-center justify-center gap-1.5 rounded-lg border border-[#C9A84C]/45 bg-[#C9A84C]/12 px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[#C9A84C] active:scale-[0.99]"
             >
-              <BarChart3 className="h-4 w-4" />
+              <BarChart3 className="h-3.5 w-3.5" />
               Estadísticas
             </button>
 
-            <div className="grid w-full shrink-0 grid-cols-2 gap-2 text-[11px]">
-              <div className="min-w-0 rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1.5">
-                <p className="text-[#8B9BB4]">Azul</p>
-                <p className="font-bold text-[#F0E6D2] truncate">{tm.blue.name}</p>
-                <p className="text-base font-bold text-[#3498DB] mt-0.5">{tm.blue.kills}</p>
-                <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
+            <div className="grid w-full shrink-0 grid-cols-2 gap-1.5 text-[10px]">
+              <div className="min-w-0 rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1">
+                <p className="text-[#8B9BB4] leading-none">Azul</p>
+                <p className="font-bold text-[#F0E6D2] truncate leading-tight">{tm.blue.name}</p>
+                <p className="text-sm font-bold text-[#3498DB] leading-none mt-0.5">{tm.blue.kills} <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4]">bajas</span></p>
               </div>
-              <div className="min-w-0 rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1.5 text-right">
-                <p className="text-[#8B9BB4]">Rojo</p>
-                <p className="font-bold text-[#F0E6D2] truncate">{tm.red.name}</p>
-                <p className="text-base font-bold text-[#E74C3C] mt-0.5">{tm.red.kills}</p>
-                <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
+              <div className="min-w-0 rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1 text-right">
+                <p className="text-[#8B9BB4] leading-none">Rojo</p>
+                <p className="font-bold text-[#F0E6D2] truncate leading-tight">{tm.red.name}</p>
+                <p className="text-sm font-bold text-[#E74C3C] leading-none mt-0.5">{tm.red.kills} <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4]">bajas</span></p>
               </div>
             </div>
           </div>
@@ -1157,8 +1196,8 @@ export default function LiveMatch() {
               Estructuras
             </p>
             <div className="space-y-1.5">
-              <StructureHpRow structures={tm.structures} team="blue" />
-              <StructureHpRow structures={tm.structures} team="red" />
+              <StructureHpRow structures={displayStructures} team="blue" />
+              <StructureHpRow structures={displayStructures} team="red" />
             </div>
           </div>
 
@@ -1207,6 +1246,7 @@ export default function LiveMatch() {
           attemptKey={qteAttempt}
           allowSimulate={state.gameMode === 'ai' || isCoopLocal(state.gameMode)}
           playerSide={humanSide}
+          simulateWinRate={isCoop ? 0.75 : 0.6}
         />
       )}
 

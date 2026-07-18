@@ -82,7 +82,7 @@ interface GameState {
   lastMatchWinnerName: string | null;
   /** Express: timestamp límite para armado 5+5. */
   setupDeadlineMs: number | null;
-  /** Solo UI del rack: ronda a mostrar (p. ej. 0 = octavos tras derrota). */
+  /** Solo UI del rack: ronda que se está consultando (historial). null = seguir la ronda activa. */
   bracketViewRound: number | null;
 }
 
@@ -114,6 +114,7 @@ const initialState: GameState = {
 
 type GameAction =
   | { type: 'SET_SCREEN'; screen: GameScreen; bracketViewRound?: number | null }
+  | { type: 'SET_BRACKET_VIEW_ROUND'; round: number | null }
   | { type: 'SET_GAME_MODE'; mode: GameMode }
   | { type: 'ADD_LOBBY_PLAYER'; name: string; teamName?: string }
   | { type: 'UPDATE_LOBBY_PLAYER'; id: string; name?: string; teamName?: string }
@@ -412,6 +413,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             : action.screen !== 'bracket'
               ? null
               : state.bracketViewRound,
+      };
+
+    case 'SET_BRACKET_VIEW_ROUND':
+      return {
+        ...state,
+        bracketViewRound: action.round,
       };
 
     case 'SET_GAME_MODE': {

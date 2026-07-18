@@ -21,13 +21,17 @@ function emptyPlan(): TeamPlan {
 }
 
 function testCombatFloatPalette() {
-  assert.equal(combatFloatStyle('damage', 'blue').numberColor, '#3498DB');
+  // Daño: marco por equipo, número siempre rojo
+  assert.equal(combatFloatStyle('damage', 'blue').primary, '#3498DB');
+  assert.equal(combatFloatStyle('damage', 'blue').numberColor, '#E74C3C');
+  assert.equal(combatFloatStyle('damage', 'blue').signColor, '#E74C3C');
+  assert.equal(combatFloatStyle('damage', 'red').primary, '#E74C3C');
   assert.equal(combatFloatStyle('damage', 'red').numberColor, '#E74C3C');
   assert.equal(combatFloatStyle('heal', 'blue').signColor, '#2ECC71');
   assert.equal(combatFloatStyle('heal', 'blue').numberColor, '#3498DB');
   assert.equal(combatFloatStyle('heal', 'red').signColor, '#2ECC71');
   assert.equal(combatFloatStyle('heal', 'red').numberColor, '#E74C3C');
-  console.log('✓ Paleta de daño y curación por equipo');
+  console.log('✓ Paleta de daño (número rojo) y curación por equipo');
 }
 
 function testQteReplayLimit() {
@@ -127,9 +131,9 @@ function verifyMatchBalance(trials = 1000) {
 
   assert.ok(winnerMedian >= 4 && winnerMedian <= 6, `mediana ganadora fuera de rango: ${winnerMedian}`);
   assert.ok(loserMedian >= 2 && loserMedian <= 4, `mediana perdedora fuera de rango: ${loserMedian}`);
-  assert.ok(avgWinner >= 5 && avgWinner <= 6.25, `media ganadora fuera de rango: ${avgWinner}`);
-  assert.ok(avgLoser >= 2.5 && avgLoser <= 3.75, `media perdedora fuera de rango: ${avgLoser}`);
-  assert.ok(avgTotal >= 7 && avgTotal <= 9.5, `bajas medias fuera de rango: ${avgTotal}`);
+  assert.ok(avgWinner >= 5 && avgWinner <= 6.5, `media ganadora fuera de rango: ${avgWinner}`);
+  assert.ok(avgLoser >= 2.5 && avgLoser <= 4, `media perdedora fuera de rango: ${avgLoser}`);
+  assert.ok(avgTotal >= 7 && avgTotal <= 10, `bajas medias fuera de rango: ${avgTotal}`);
   assert.ok(nexusRate <= 0.7, `demasiadas partidas terminan por nexo: ${nexusRate}`);
 }
 

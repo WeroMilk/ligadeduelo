@@ -13,7 +13,7 @@ export type CombatFloatStyle = {
   glow: string;
   /** Color del signo +/-. */
   signColor: string;
-  /** Color del número (curación: azul o rojo según equipo). */
+  /** Color del número. */
   numberColor: string;
 };
 
@@ -23,16 +23,17 @@ export function combatFloatStyle(
   sourceTeam: TeamColor | undefined,
 ): CombatFloatStyle {
   if (kind === 'damage') {
+    // Marco según equipo del atacante; el número de daño siempre rojo.
     const teamColor = sourceTeam === 'blue' ? BLUE : RED;
     const teamDark = sourceTeam === 'blue' ? '#2471A3' : BLOOD;
     return {
       primary: teamColor,
       secondary: teamDark,
       fill: teamDark,
-      textFill: teamColor,
-      glow: teamColor,
-      signColor: teamColor,
-      numberColor: teamColor,
+      textFill: RED,
+      glow: RED,
+      signColor: RED,
+      numberColor: RED,
     };
   }
 
