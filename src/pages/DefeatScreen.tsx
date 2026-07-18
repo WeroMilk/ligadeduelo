@@ -33,7 +33,7 @@ export default function DefeatScreen() {
 
   const handleViewBracket = () => {
     playClickSound();
-    dispatch({ type: 'SET_SCREEN', screen: 'bracket' });
+    dispatch({ type: 'SET_SCREEN', screen: 'bracket', bracketViewRound: 0 });
   };
 
   return (

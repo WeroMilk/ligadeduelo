@@ -21,10 +21,14 @@ export default function BracketScreen() {
   const isCoop = isCoopLocal(state.gameMode);
   const currentRoundIdx = tournament?.currentRound ?? 0;
   const currentRound = tournament?.rounds[currentRoundIdx];
+  const displayRoundIdx = state.bracketViewRound ?? currentRoundIdx;
+  const displayRound = tournament?.rounds[displayRoundIdx];
+  const viewOnly = state.bracketViewRound !== null || state.playerEliminatedRound !== null;
   const winnersKey = currentRound?.matches.map(m => `${m.id}:${m.winner ?? '-'}`).join('|') ?? '';
 
   // Resolver partidas IA uno a uno (solo resultado, sin canvas)
   useEffect(() => {
+    if (state.bracketViewRound !== null) return;
     if (!currentRound) return;
 
     const next = currentRound.matches.find(
@@ -44,15 +48,17 @@ export default function BracketScreen() {
     }, aiMatchDelayMs);
 
     return () => clearTimeout(timer);
-  }, [currentRoundIdx, winnersKey, dispatch, currentRound, aiMatchDelayMs]);
+  }, [currentRoundIdx, winnersKey, dispatch, currentRound, aiMatchDelayMs, state.bracketViewRound]);
 
-  if (!tournament || !currentRound) return null;
+  if (!tournament || !displayRound) return null;
 
-  const playerMatch = currentRound.matches.find(m => m.isPlayerMatch && m.winner === null);
-  const pendingCount = currentRound.matches.filter(
+  const playerMatch = !viewOnly
+    ? currentRound?.matches.find(m => m.isPlayerMatch && m.winner === null)
+    : null;
+  const pendingCount = (currentRound?.matches ?? []).filter(
     m => m.winner === null && !m.isPlayerMatch,
   ).length;
-  const activeMatch = currentRound.matches.find(m => m.id === activeMatchId);
+  const activeMatch = currentRound?.matches.find(m => m.id === activeMatchId);
 
   const handleStartMatch = (matchId: string) => {
     if (simulating) return;
@@ -140,7 +146,7 @@ export default function BracketScreen() {
               Torneo
             </h2>
             <p className="text-[#8B9BB4] text-xs md:text-sm">
-              {currentRound?.roundName || ''} · Ronda {currentRoundIdx + 1}/4
+              {displayRound.roundName || ''} · Ronda {displayRoundIdx + 1}/4
             </p>
           </div>
 
@@ -149,8 +155,8 @@ export default function BracketScreen() {
               <div
                 key={name}
                 className={`flex-1 h-1.5 rounded-full ${
-                  i < currentRoundIdx ? 'bg-[#C9A84C]' :
-                  i === currentRoundIdx ? 'bg-gradient-to-r from-[#C9A84C] to-[#C9A84C]/30' :
+                  i < displayRoundIdx ? 'bg-[#C9A84C]' :
+                  i === displayRoundIdx ? 'bg-gradient-to-r from-[#C9A84C] to-[#C9A84C]/30' :
                   'bg-[#1E2740]'
                 }`}
               />
@@ -179,14 +185,14 @@ export default function BracketScreen() {
 
         <div
           className={`flex flex-col gap-2 md:grid md:gap-4 md:auto-rows-min ${
-            (currentRound?.matches.length || 0) <= 2
+            (displayRound.matches.length || 0) <= 2
               ? 'md:grid-cols-2 md:max-w-3xl md:mx-auto md:w-full'
-              : (currentRound?.matches.length || 0) <= 4
+              : (displayRound.matches.length || 0) <= 4
                 ? 'md:grid-cols-2 lg:grid-cols-4'
                 : 'md:grid-cols-2 lg:grid-cols-4'
           }`}
         >
-          {currentRound?.matches.map(match => {
+          {displayRound.matches.map(match => {
             const isPlayer = match.isPlayerMatch;
             const winner = match.winner;
             const winnerName = getMatchWinner(match);
@@ -329,7 +335,7 @@ export default function BracketScreen() {
           })}
         </div>
 
-        {!playerMatch && currentRound?.matches.every(m => m.winner !== null) && (
+        {!viewOnly && !playerMatch && currentRound?.matches.every(m => m.winner !== null) && (
           <button
             type="button"
             onClick={handleAdvance}

@@ -45,7 +45,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] shadow-[0_0_40px_rgba(201,168,76,0.2)]"
+        className="modal-panel flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] shadow-[0_0_40px_rgba(201,168,76,0.2)]"
         style={{ maxHeight: 'min(36rem, calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)))' }}
         onClick={e => e.stopPropagation()}
       >
@@ -136,11 +136,11 @@ function RulesModal({ onClose }: { onClose: () => void }) {
           </section>
         </div>
 
-        <div className="shrink-0 border-t border-[#2A3550] px-4 py-3">
+        <div className="modal-footer shrink-0 border-t border-[#2A3550] px-3 pb-3 pt-2">
           <button
             type="button"
             onClick={onClose}
-            className="w-full rounded-xl py-3 font-bold"
+            className="w-full rounded-xl py-2.5 text-sm font-bold"
             style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
           >
             Entendido

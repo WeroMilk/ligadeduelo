@@ -82,6 +82,8 @@ interface GameState {
   lastMatchWinnerName: string | null;
   /** Express: timestamp límite para armado 5+5. */
   setupDeadlineMs: number | null;
+  /** Solo UI del rack: ronda a mostrar (p. ej. 0 = octavos tras derrota). */
+  bracketViewRound: number | null;
 }
 
 const initialState: GameState = {
@@ -107,10 +109,11 @@ const initialState: GameState = {
   playerSide: null,
   lastMatchWinnerName: null,
   setupDeadlineMs: null,
+  bracketViewRound: null,
 };
 
 type GameAction =
-  | { type: 'SET_SCREEN'; screen: GameScreen }
+  | { type: 'SET_SCREEN'; screen: GameScreen; bracketViewRound?: number | null }
   | { type: 'SET_GAME_MODE'; mode: GameMode }
   | { type: 'ADD_LOBBY_PLAYER'; name: string; teamName?: string }
   | { type: 'UPDATE_LOBBY_PLAYER'; id: string; name?: string; teamName?: string }
@@ -398,7 +401,16 @@ function applyMatchEnd(state: GameState, turnMatch: TurnMatchState): GameState {
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'SET_SCREEN':
-      return { ...state, currentScreen: action.screen };
+      return {
+        ...state,
+        currentScreen: action.screen,
+        bracketViewRound:
+          action.bracketViewRound !== undefined
+            ? action.bracketViewRound
+            : action.screen !== 'bracket'
+              ? null
+              : state.bracketViewRound,
+      };
 
     case 'SET_GAME_MODE': {
       if (action.mode === 'ai') {
@@ -750,6 +762,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         playerSide,
         lastMatchWinnerName: null,
         currentScreen: 'liveMatch',
+        bracketViewRound: null,
       };
     }
 
@@ -904,6 +917,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         currentScreen: 'bracket',
         matchResult: null,
         playerPlan: emptyPlan(),
+        bracketViewRound: null,
       };
     }
 

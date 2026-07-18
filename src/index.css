@@ -522,6 +522,14 @@
 .synergy-text-media { color: #5DADE2 !important; }
 .synergy-text-baja { color: #8B9BB4 !important; }
 
+/* ========== MODAL PANELS ========== */
+.modal-panel {
+  overflow: hidden;
+}
+.modal-footer {
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+
 /* ========== TOUCH OPTIMIZATIONS ========== */
 .coop-lobby input {
   font-size: 16px;

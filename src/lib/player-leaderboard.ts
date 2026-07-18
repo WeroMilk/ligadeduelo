@@ -74,6 +74,14 @@ export function getLeaderboard(): PlayerRunRecord[] {
   });
 }
 
+export function deleteRun(id: string): void {
+  writeAll(readAll().filter(r => r.id !== id));
+}
+
+export function clearAllRuns(): void {
+  writeAll([]);
+}
+
 export function formatPlayTime(ms: number): string {
   const sec = Math.max(0, Math.floor(ms / 1000));
   if (sec < 60) return `${sec}s`;

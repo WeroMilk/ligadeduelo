@@ -912,8 +912,7 @@ export default function LiveMatch() {
               />
             </div>
             <CombatScreenFX signal={fx} />
-            <CombatAnnounceOverlay batch={announceBatch} />
-            {!isPaused && <CombatHitOverlay hit={activeHit} durationMs={timings.hitPauseMs} />}
+            <CombatHitOverlay hit={activeHit} durationMs={timings.hitPauseMs} />
 
             {phase?.t === 'prompt' && !statsOpen && !isCoopPvp && (
               <DecisionOverlay
@@ -929,8 +928,8 @@ export default function LiveMatch() {
             )}
 
             {phase?.t === 'qte_result' && pendingQteResult && !showReplayAd && !playerWonQte(pendingQteResult) && (
-              <div className="absolute inset-0 z-[130] flex items-center justify-center bg-black/70 p-2">
-                <div className="w-full rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)]">
+              <div className="absolute inset-0 z-[130] flex items-center justify-center bg-black/70 p-3">
+                <div className="w-full max-w-sm overflow-hidden rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)]">
                   <p className="text-center text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
                     Combate de bolitas
                   </p>
@@ -988,6 +987,8 @@ export default function LiveMatch() {
             <BarChart3 className="h-4 w-4" />
             Estadísticas
           </button>
+
+          <CombatAnnounceOverlay batch={announceBatch} placement="inline" />
         </div>
 
         <div className="w-full grid grid-cols-2 gap-2 text-[11px] shrink-0 md:w-64 md:grid-cols-1 md:gap-3">

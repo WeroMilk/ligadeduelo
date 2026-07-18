@@ -56,7 +56,7 @@ export default function AdUnlockModal({
       onClick={handleClose}
     >
       <div
-        className="w-full max-w-sm rounded-2xl border-2 border-[#C9A84C]/45 bg-[#0D1220] p-5 shadow-[0_0_40px_rgba(201,168,76,0.18)]"
+        className="modal-panel w-full max-w-sm overflow-hidden rounded-2xl border-2 border-[#C9A84C]/45 bg-[#0D1220] p-3 shadow-[0_0_40px_rgba(201,168,76,0.18)]"
         onClick={e => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between gap-3">

@@ -29,7 +29,7 @@ export default function UltDetailPopup({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm overflow-hidden rounded-2xl border-2 border-[#9B59B6]/50 bg-[#0D1220] p-4 shadow-[0_0_40px_rgba(155,89,182,0.25)]"
+        className="w-full max-w-sm overflow-hidden rounded-2xl border-2 border-[#9B59B6]/50 bg-[#0D1220] shadow-[0_0_40px_rgba(155,89,182,0.25)] p-3"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-2 mb-2">

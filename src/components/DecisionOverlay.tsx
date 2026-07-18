@@ -40,7 +40,7 @@ export default function DecisionOverlay({
 
   return (
     <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/55 p-2">
-      <div className="max-h-[min(100%,calc(100dvh-1rem))] w-full max-w-sm overflow-hidden rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-2.5 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-1.5">
+      <div className="max-h-[min(100%,calc(100dvh-1rem))] w-full max-w-sm overflow-hidden rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-1.5">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
             {playerLabel ? `Turno · ${playerLabel}` : 'Decisión de equipo'}
@@ -75,7 +75,7 @@ export default function DecisionOverlay({
                   key={l.id}
                   type="button"
                   onClick={() => pick({ kind: 'jungle', target: l.id })}
-                  className="min-h-11 rounded-xl border border-[#2A3550] bg-[#0A0E1A] font-bold text-[#F0E6D2] flex items-center justify-center gap-2"
+                  className="min-h-11 rounded-xl border border-[#2A3550] bg-[#0A0E1A] px-3 md:px-4 font-bold text-[#F0E6D2] flex items-center justify-center gap-2 text-xs"
                 >
                   <TreePine className="w-4 h-4 text-[#27AE60]" />
                   {l.label}
@@ -85,7 +85,7 @@ export default function DecisionOverlay({
                 <button
                   type="button"
                   onClick={() => pick({ kind: 'jungle', target: 'objective' })}
-                  className="min-h-11 rounded-xl border border-[#E67E22]/50 bg-[#E67E22]/15 font-bold text-[#F5B041] flex items-center justify-center gap-2 col-span-2 animate-obj-breathe"
+                  className="min-h-11 rounded-xl border border-[#E67E22]/50 bg-[#E67E22]/15 px-3 md:px-4 font-bold text-[#F5B041] flex items-center justify-center gap-2 col-span-2 animate-obj-breathe text-xs"
                 >
                   <Ghost className="w-4 h-4" />
                   Objetivo {objectiveLabel ? `· ${objectiveLabel}` : ''}
@@ -112,7 +112,7 @@ export default function DecisionOverlay({
                     key={c.instanceId}
                     type="button"
                     onClick={() => pick({ kind: 'assist', champId: c.instanceId })}
-                    className="min-h-[4.5rem] rounded-xl border border-[#2A3550] bg-[#0A0E1A] px-2 py-2 flex items-center gap-2 text-left active:scale-[0.98]"
+                    className="min-h-[4.5rem] rounded-xl border border-[#2A3550] bg-[#0A0E1A] px-3 py-2 flex items-center gap-2 text-left active:scale-[0.98]"
                   >
                     {def.image ? (
                       <img
