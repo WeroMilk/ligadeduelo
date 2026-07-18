@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { playHitSound, playKillSound, playTowerSound, playObjectiveSound, playMultiKillSound } from '@/lib/sounds';
+import { playHitSound, playKillSound, playTowerSound, playObjectiveSound, playMultiKillSound, vibrate } from '@/lib/sounds';
 
 export type ScreenFxKind = 'hit' | 'kill' | 'tower' | 'objective';
 
@@ -24,10 +24,13 @@ export default function CombatScreenFX({ signal }: Props) {
     if (!signal) return;
     if (signal.kind === 'hit') playHitSound();
     else if (signal.kind === 'kill') {
-      if (signal.label && /BAJAS/i.test(signal.label)) playMultiKillSound();
-      else playKillSound();
-    } else if (signal.kind === 'tower') playTowerSound();
-    else if (signal.kind === 'objective') playObjectiveSound();
+      const isNexus = !!signal.label && /NEXO/i.test(signal.label);
+      if (signal.label && /BAJAS/i.test(signal.label)) { playMultiKillSound(); vibrate([40, 40, 60]); }
+      else { playKillSound(); vibrate(isNexus ? [80, 40, 120] : 45); }
+    } else if (signal.kind === 'tower') {
+      playTowerSound();
+      vibrate(!!signal.label && /NEXO/i.test(signal.label) ? [90, 50, 140] : 35);
+    } else if (signal.kind === 'objective') { playObjectiveSound(); vibrate([30, 30, 30]); }
 
     const id = ++fxId;
     const ev: FxEvent = {
@@ -53,6 +56,8 @@ export default function CombatScreenFX({ signal }: Props) {
           return (
             <div key={ev.id} className="absolute inset-0 animate-blood-screen">
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(120,0,0,0.55)_100%)]" />
+              {/* Onda expansiva de impacto */}
+              <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-[#FF3B3B]/70 animate-fx-shockwave" />
               <div className="absolute inset-0 animate-blood-splatter opacity-90"
                 style={{
                   backgroundImage: `
@@ -99,6 +104,9 @@ export default function CombatScreenFX({ signal }: Props) {
 
         if (ev.kind === 'tower') {
           const isNexus = !!ev.label && /NEXO/i.test(ev.label);
+          const waveColor = isNexus
+            ? ev.team === 'red' ? '#FF6B6B' : '#85C1E9'
+            : '#85C1E9';
           return (
             <div
               key={ev.id}
@@ -110,6 +118,12 @@ export default function CombatScreenFX({ signal }: Props) {
                   : 'bg-[radial-gradient(circle,rgba(52,152,219,0.25),transparent_60%)]'
               }`}
             >
+              <div
+                className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 ${
+                  isNexus ? 'h-28 w-28 animate-fx-shockwave-big' : 'h-20 w-20 animate-fx-shockwave'
+                }`}
+                style={{ borderColor: waveColor }}
+              />
               {ev.label && (
                 <div className="absolute inset-0 flex items-center justify-center px-4">
                   <p

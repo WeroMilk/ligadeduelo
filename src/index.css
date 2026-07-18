@@ -468,6 +468,83 @@
   animation: screen-shake 0.35s ease-out;
 }
 
+@keyframes screen-shake-hard {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  15% { transform: translate(-8px, 4px) rotate(-0.6deg); }
+  30% { transform: translate(9px, -6px) rotate(0.6deg); }
+  45% { transform: translate(-7px, -4px) rotate(-0.4deg); }
+  60% { transform: translate(6px, 5px) rotate(0.4deg); }
+  80% { transform: translate(-4px, 3px); }
+}
+
+.animate-screen-shake-hard {
+  animation: screen-shake-hard 0.46s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/* Onda expansiva de impacto */
+@keyframes fx-shockwave {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(3.2); opacity: 0; }
+}
+
+.animate-fx-shockwave {
+  animation: fx-shockwave 0.55s ease-out forwards;
+}
+
+@keyframes fx-shockwave-big {
+  0% { transform: translate(-50%, -50%) scale(0.35); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(4.5); opacity: 0; }
+}
+
+.animate-fx-shockwave-big {
+  animation: fx-shockwave-big 0.8s ease-out forwards;
+}
+
+/* Golpe de impacto (hit-stop) sobre el mapa: brillo + micro-escala, sin romper el pan/zoom */
+@keyframes fx-punch {
+  0% { filter: brightness(1) contrast(1); transform: scale(1); }
+  22% { filter: brightness(1.5) contrast(1.15); transform: scale(1.035); }
+  100% { filter: brightness(1) contrast(1); transform: scale(1); }
+}
+
+.animate-fx-punch {
+  animation: fx-punch 0.26s ease-out;
+}
+
+/* Número de daño crítico / gran golpe */
+@keyframes combat-crit-pop {
+  0% { opacity: 0; transform: scale(0.4) rotate(-8deg); }
+  45% { opacity: 1; transform: scale(1.35) rotate(3deg); }
+  70% { transform: scale(0.95) rotate(-1deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+.animate-combat-crit {
+  animation: combat-crit-pop 0.5s cubic-bezier(0.22, 1.4, 0.36, 1) both;
+}
+
+/* QTE: veredicto Perfect/Miss */
+@keyframes qte-verdict {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  25% { opacity: 1; transform: translate(-50%, -50%) scale(1.25); }
+  70% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
+}
+
+.animate-qte-verdict {
+  animation: qte-verdict 0.7s ease-out forwards;
+}
+
+/* QTE: partícula que estalla al acertar */
+@keyframes qte-spark {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(0.4); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--sx, 0px)), calc(-50% + var(--sy, 0px))) scale(1); }
+}
+
+.animate-qte-spark {
+  animation: qte-spark 0.5s ease-out forwards;
+}
+
 /* ========== SCROLLBAR ========== */
 .scrollbar-hide {
   -ms-overflow-style: none;

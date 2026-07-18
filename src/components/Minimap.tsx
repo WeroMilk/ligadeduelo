@@ -16,6 +16,15 @@ export type AttackBeam = {
   sourceTeam?: TeamColor;
 };
 
+/** Explosiones cortas de muerte/torre/nexo sobre el mapa. */
+export type SpectacleBurst = {
+  id: string;
+  kind: 'death' | 'tower' | 'nexus';
+  x: number;
+  y: number;
+  team?: TeamColor;
+};
+
 type MinimapProps = {
   blueChampions: Champion[];
   redChampions: Champion[];
@@ -44,6 +53,10 @@ type MinimapProps = {
   activeEffectKind?: CombatFloat['kind'] | null;
   /** Equipo del atacante del golpe activo (color de daño). */
   activeSourceTeam?: TeamColor | null;
+  /** Explosiones de muerte / destrucción. */
+  spectacleBursts?: SpectacleBurst[];
+  /** Campeones que están usando ultimate este turno (aura dorada). */
+  ultimateIds?: string[];
 };
 
 type Pt = { x: number; y: number };
@@ -213,11 +226,24 @@ function HealPlusSvg({
   );
 }
 
+function actionAccent(action: CombatAction): string {
+  if (action === 'attack') return '#E74C3C';
+  if (action === 'ability') return '#9B59B6';
+  return '#3498DB';
+}
+
 function ActionBadge({ action, size }: { action: CombatAction; size: number }) {
+  const accent = actionAccent(action);
   return (
     <div
-      className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 rounded-full bg-[#0A0E1A]/95 border border-[#C9A84C]/70 flex items-center justify-center text-[#C9A84C]"
-      style={{ width: size, height: size }}
+      className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 rounded-full bg-[#0A0E1A]/95 flex items-center justify-center"
+      style={{
+        width: size,
+        height: size,
+        border: `1.5px solid ${accent}`,
+        color: accent,
+        boxShadow: `0 0 6px ${accent}99`,
+      }}
     >
       {action === 'attack' && <Swords style={{ width: size * 0.55, height: size * 0.55 }} />}
       {action === 'ability' && <Sparkles style={{ width: size * 0.55, height: size * 0.55 }} />}
@@ -253,7 +279,10 @@ export default function Minimap({
   lungeFromId = null,
   activeEffectKind = null,
   activeSourceTeam = null,
+  spectacleBursts = [],
+  ultimateIds = [],
 }: MinimapProps) {
+  const ultSet = new Set(ultimateIds);
   const livingBlue = blueChampions.filter(c => c.isAlive);
   const livingRed = redChampions.filter(c => c.isAlive);
   const uid = useId().replace(/:/g, '');
@@ -635,8 +664,15 @@ export default function Minimap({
           const isLunging = lungeFromId === c.instanceId;
           const isImpacted = impactTargetId === c.instanceId;
           const isHealing = isImpacted && activeEffectKind === 'heal';
-          const icon = size * (isLunging || isImpacted ? 0.115 : 0.095);
+          const isUlting = ultSet.has(c.instanceId);
+          const icon = size * (isLunging || isImpacted || isUlting ? 0.115 : 0.095);
           const action = showActions ? plan?.actions?.[c.instanceId] : undefined;
+          const actionColor = action ? actionAccent(action) : null;
+          const lungeColor =
+            isHealing ? '#2ECC71'
+            : action === 'ability' || isUlting ? '#F1C40F'
+            : action === 'defend' ? '#3498DB'
+            : '#F1C40F';
           return (
             <div
               key={c.instanceId}
@@ -644,12 +680,25 @@ export default function Minimap({
               style={{
                 left: `${p.x * 100}%`,
                 top: `${p.y * 100}%`,
-                zIndex: dim ? 4 : isLunging || isImpacted ? 14 : 6,
+                zIndex: dim ? 4 : isLunging || isImpacted || isUlting ? 14 : 6,
                 opacity: dim ? 0.22 : 1,
                 transition: 'left 0.45s cubic-bezier(0.22, 1.2, 0.36, 1), top 0.45s cubic-bezier(0.22, 1.2, 0.36, 1), opacity 0.45s ease',
               }}
-              title={`${c.playerName ? `${c.playerName} · ` : ''}${def.name}${c.playerAffinity != null ? ` · ${c.playerAffinity}%` : ''}${c.recallingForMana ? ' · BASE' : ''}${action ? ` · ${actionLabelEs(action)}` : ''} · MN ${Math.floor(c.stats.mana)}/${c.stats.maxMana}`}
+              title={`${c.playerName ? `${c.playerName} · ` : ''}${def.name}${c.playerAffinity != null ? ` · ${c.playerAffinity}%` : ''}${c.recallingForMana ? ' · BASE' : ''}${action ? ` · ${actionLabelEs(action)}` : ''}${isUlting ? ' · ULT' : ''} · MN ${Math.floor(c.stats.mana)}/${c.stats.maxMana}`}
             >
+              {(isUlting || (showActions && actionColor && !dim && !c.recallingForMana)) && (
+                <div
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none"
+                  style={{
+                    width: icon * 1.55,
+                    height: icon * 1.55,
+                    border: `2px solid ${isUlting ? '#F1C40F' : actionColor}`,
+                    boxShadow: `0 0 10px ${isUlting ? '#F1C40F' : actionColor}`,
+                    animation: isUlting ? 'minimap-ult-ring 0.9s ease-out infinite' : 'minimap-action-ring 1.1s ease-out infinite',
+                    opacity: 0.85,
+                  }}
+                />
+              )}
               <div
                 className="rounded-full overflow-hidden border-2 relative"
                 style={{
@@ -658,22 +707,28 @@ export default function Minimap({
                   borderColor: c.recallingForMana
                     ? '#8B9BB4'
                     : isLunging
-                      ? '#F1C40F'
+                      ? lungeColor
                       : isImpacted
                         ? isHealing ? '#2ECC71' : damageAccent
-                        : team === 'blue' ? '#5DADE2' : '#F1948A',
+                        : isUlting
+                          ? '#F1C40F'
+                          : team === 'blue' ? '#5DADE2' : '#F1948A',
                   boxShadow: isLunging
-                    ? '0 0 12px rgba(241,196,15,0.9)'
+                    ? `0 0 14px ${lungeColor}E6`
                     : isImpacted
                       ? isHealing
                         ? '0 0 14px rgba(46,204,113,0.9)'
                         : `0 0 14px ${damageAccent}E6`
+                      : isUlting
+                        ? '0 0 16px rgba(241,196,15,0.95)'
                       : `0 0 0 1px ${team === 'blue' ? '#1A5276' : '#7B241C'}, 0 1px 4px rgba(0,0,0,0.7)`,
                   backgroundColor: def.color || '#333',
                   animation: isLunging
                     ? 'minimap-lunge 0.5s ease-out'
                     : isImpacted
                       ? 'minimap-hit-bounce 0.5s ease-out'
+                      : isUlting
+                        ? 'minimap-ult-pulse 0.7s ease-out infinite'
                       : dim || c.recallingForMana
                         ? undefined
                         : 'minimap-idle-bob 2.2s ease-in-out infinite',
@@ -784,6 +839,67 @@ export default function Minimap({
           );
         })}
 
+        {spectacleBursts.map(b => {
+          const color =
+            b.kind === 'nexus'
+              ? b.team === 'red' ? '#FF6B6B' : '#85C1E9'
+              : b.kind === 'tower'
+                ? '#85C1E9'
+                : '#E74C3C';
+          const burstSize = b.kind === 'nexus' ? size * 0.22 : b.kind === 'tower' ? size * 0.16 : size * 0.12;
+          return (
+            <div
+              key={b.id}
+              className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+              style={{
+                left: `${b.x * 100}%`,
+                top: `${b.y * 100}%`,
+                width: burstSize,
+                height: burstSize,
+                zIndex: 26,
+                animation: 'minimap-death-burst 0.85s ease-out forwards',
+              }}
+            >
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{
+                  border: `2px solid ${color}`,
+                  boxShadow: `0 0 16px ${color}`,
+                  animation: 'minimap-death-ring 0.85s ease-out forwards',
+                }}
+              />
+              {b.kind === 'death' && (
+                <>
+                  {[0, 1, 2, 3, 4, 5].map(i => {
+                    const ang = (Math.PI * 2 * i) / 6;
+                    return (
+                      <span
+                        key={i}
+                        className="absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full"
+                        style={{
+                          backgroundColor: color,
+                          ['--dx' as string]: `${Math.cos(ang) * burstSize * 0.7}px`,
+                          ['--dy' as string]: `${Math.sin(ang) * burstSize * 0.7}px`,
+                          animation: 'minimap-death-shard 0.8s ease-out forwards',
+                        }}
+                      />
+                    );
+                  })}
+                </>
+              )}
+              {(b.kind === 'tower' || b.kind === 'nexus') && (
+                <div
+                  className="absolute inset-[18%] rounded-sm"
+                  style={{
+                    background: `linear-gradient(135deg, ${color}cc, transparent 60%)`,
+                    animation: 'minimap-structure-crack 0.85s ease-out forwards',
+                  }}
+                />
+              )}
+            </div>
+          );
+        })}
+
         {combatFloats.map((f, i) => {
           let p: Pt | undefined;
           if (f.targetType === 'champ') {
@@ -794,7 +910,9 @@ export default function Minimap({
           }
           if (!p) return null;
           const isHeal = f.kind === 'heal';
+          const isCrit = f.kind === 'damage' && f.amount >= 150;
           const palette = combatFloatStyle(f.kind, f.sourceTeam);
+          const baseFont = Math.max(14, size * 0.055);
           return (
             <div
               key={`${f.id}-${i}`}
@@ -802,13 +920,28 @@ export default function Minimap({
               style={{
                 left: `${p.x * 100}%`,
                 top: `${p.y * 100}%`,
-                fontSize: Math.max(14, size * 0.055),
-                background: `linear-gradient(rgba(10,14,26,0.88), rgba(10,14,26,0.88)) padding-box, ${palette.fill} border-box`,
-                animation: 'minimap-float-big 1.4s cubic-bezier(0.22, 1.4, 0.36, 1) forwards',
-                zIndex: 22,
+                fontSize: isCrit ? baseFont * 1.42 : baseFont,
+                background: isCrit
+                  ? `linear-gradient(rgba(10,14,26,0.9), rgba(10,14,26,0.9)) padding-box, linear-gradient(90deg, #F1C40F, ${palette.numberColor}) border-box`
+                  : `linear-gradient(rgba(10,14,26,0.88), rgba(10,14,26,0.88)) padding-box, ${palette.fill} border-box`,
+                animation: isCrit
+                  ? 'combat-crit-pop 0.5s cubic-bezier(0.22, 1.4, 0.36, 1) both, minimap-float-big 1.5s cubic-bezier(0.22, 1.4, 0.36, 1) forwards'
+                  : 'minimap-float-big 1.4s cubic-bezier(0.22, 1.4, 0.36, 1) forwards',
+                zIndex: isCrit ? 24 : 22,
               }}
             >
-              <span style={{ textShadow: `0 2px 4px #000, 0 0 10px ${palette.glow}99` }} className="inline-flex items-center gap-0.5">
+              {isCrit && (
+                <span
+                  className="absolute left-1/2 -translate-x-1/2 -top-3 whitespace-nowrap font-black uppercase tracking-wider"
+                  style={{ fontSize: '0.42em', color: '#F1C40F', textShadow: '0 1px 3px #000' }}
+                >
+                  ¡Crítico!
+                </span>
+              )}
+              <span
+                style={{ textShadow: isCrit ? `0 2px 6px #000, 0 0 14px #F1C40Fbb` : `0 2px 4px #000, 0 0 10px ${palette.glow}99` }}
+                className="inline-flex items-center gap-0.5"
+              >
                 {isHeal ? (
                   <Plus
                     style={{ width: '0.9em', height: '0.9em', color: palette.signColor }}
@@ -891,6 +1024,35 @@ export default function Minimap({
           0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
           60% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
           100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        @keyframes minimap-action-ring {
+          0% { transform: scale(0.7); opacity: 0.9; }
+          100% { transform: scale(1.35); opacity: 0; }
+        }
+        @keyframes minimap-ult-ring {
+          0% { transform: scale(0.75); opacity: 1; }
+          100% { transform: scale(1.55); opacity: 0; }
+        }
+        @keyframes minimap-ult-pulse {
+          0%, 100% { filter: brightness(1); box-shadow: 0 0 10px rgba(241,196,15,0.7); }
+          50% { filter: brightness(1.35); box-shadow: 0 0 18px rgba(241,196,15,1); }
+        }
+        @keyframes minimap-death-burst {
+          0% { opacity: 1; transform: translate(-50%, -50%) scale(0.6); }
+          100% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); }
+        }
+        @keyframes minimap-death-ring {
+          0% { opacity: 1; transform: scale(0.4); }
+          100% { opacity: 0; transform: scale(1.8); }
+        }
+        @keyframes minimap-death-shard {
+          0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+          100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) scale(0.3); }
+        }
+        @keyframes minimap-structure-crack {
+          0% { opacity: 1; transform: scale(0.8) rotate(0deg); }
+          40% { opacity: 1; transform: scale(1.1) rotate(8deg); }
+          100% { opacity: 0; transform: scale(1.4) rotate(-6deg); }
         }
       `}</style>
     </div>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pause, Play, BarChart3 } from 'lucide-react';
 import { useGame } from '@/hooks/useGameState';
-import Minimap, { type AttackBeam, type ObjectiveAnimPhase } from '@/components/Minimap';
+import Minimap, { type AttackBeam, type ObjectiveAnimPhase, type SpectacleBurst } from '@/components/Minimap';
 import DecisionOverlay, { type DecisionKind, type DecisionPayload } from '@/components/DecisionOverlay';
 import CombatScreenFX, { type ScreenFxKind } from '@/components/CombatScreenFX';
 import CombatAnnounceOverlay, { type AnnounceItem } from '@/components/CombatAnnounceOverlay';
@@ -78,6 +78,13 @@ function laneCameraPan(lane: LaneId): { x: number; y: number } {
   if (lane === 0) return { x: 10, y: 8 };
   if (lane === 2) return { x: -10, y: -8 };
   return { x: 0, y: 0 };
+}
+
+/** Posición aproximada en el minimapa por carril/equipo (para FX de muerte). */
+function approxLanePos(team: 'blue' | 'red', lane: LaneId): { x: number; y: number } {
+  const mid = lane === 0 ? { x: 0.22, y: 0.32 } : lane === 2 ? { x: 0.62, y: 0.72 } : { x: 0.42, y: 0.52 };
+  if (team === 'blue') return mid;
+  return { x: 1 - mid.x + 0.08, y: 1 - mid.y - 0.08 };
 }
 
 type Phase =
@@ -172,7 +179,9 @@ export default function LiveMatch() {
   const [promptLeft, setPromptLeft] = useState(timings.promptSec);
   const [scale, setScale] = useState(0.92);
   const [fx, setFx] = useState<FxSignal | null>(null);
-  const [shake, setShake] = useState(false);
+  const [shake, setShake] = useState<'none' | 'soft' | 'hard'>('none');
+  const [punch, setPunch] = useState(0);
+  const [spectacleBursts, setSpectacleBursts] = useState<SpectacleBurst[]>([]);
   const [cinemaRes, setCinemaRes] = useState<RoundResolution | null>(null);
   const [activeFloats, setActiveFloats] = useState<CombatFloat[]>([]);
   const [activeHit, setActiveHit] = useState<CombatFloat | null>(null);
@@ -267,12 +276,29 @@ export default function LiveMatch() {
     pauseStartedAt.current = matchFrozen || isPausedRef.current ? Date.now() : null;
   };
 
+  const pushBursts = (bursts: SpectacleBurst[]) => {
+    if (bursts.length === 0) return;
+    setSpectacleBursts(prev => [...prev.slice(-8), ...bursts]);
+    const ids = new Set(bursts.map(b => b.id));
+    window.setTimeout(() => {
+      setSpectacleBursts(prev => prev.filter(b => !ids.has(b.id)));
+    }, 900);
+  };
+
   const fireFx = (kind: ScreenFxKind, label?: string, team?: FxSignal['team']) => {
     fxNonce.current += 1;
     setFx({ kind, label, team, nonce: fxNonce.current });
-    if (kind === 'kill' || kind === 'hit') {
-      setShake(true);
-      window.setTimeout(() => setShake(false), 380);
+    const isNexus = !!label && /NEXO/i.test(label);
+    const level: 'none' | 'soft' | 'hard' =
+      kind === 'kill' || (kind === 'tower' && isNexus) ? 'hard'
+      : kind === 'hit' || kind === 'tower' || kind === 'objective' ? 'soft'
+      : 'none';
+    if (level !== 'none') {
+      setShake(level);
+      window.setTimeout(() => setShake('none'), level === 'hard' ? 460 : 340);
+    }
+    if (kind === 'kill' || kind === 'tower' || kind === 'objective') {
+      setPunch(p => p + 1);
     }
   };
 
@@ -299,6 +325,7 @@ export default function LiveMatch() {
     cinemaStuckMs.current = CINEMA_STUCK_MS_MIN;
     setActiveFloats([]);
     setActiveHit(null);
+    setSpectacleBursts([]);
     setCamPan({ x: 0, y: 0 });
     setCinemaRes(null);
     setPhase({ t: 'idle' });
@@ -441,6 +468,26 @@ export default function LiveMatch() {
     schedule(() => {
       setActiveHit(null);
       setActiveFloats([]);
+      const live = tmRef.current;
+      const allChamps = live ? [...live.blue.champions, ...live.red.champions] : [];
+      const deathBursts: SpectacleBurst[] = [];
+      for (const ka of res.killAnnounces || []) {
+        for (const name of ka.victimNames) {
+          const victim = allChamps.find(c => champDef(c).name === name);
+          if (!victim) continue;
+          const lane = (victim.position.lane ?? 1) as LaneId;
+          const pos = approxLanePos(victim.team, lane);
+          deathBursts.push({
+            id: `death-${res.round}-${name}-${Date.now()}`,
+            kind: 'death',
+            x: pos.x,
+            y: pos.y,
+            team: victim.team,
+          });
+        }
+      }
+      if (deathBursts.length > 0) pushBursts(deathBursts);
+
       const totalKills = (res.blueKillsDelta ?? 0) + (res.redKillsDelta ?? 0);
       if (totalKills > 0) {
         const killerSide = (res.blueKillsDelta ?? 0) >= (res.redKillsDelta ?? 0) ? 'blue' : 'red';
@@ -449,6 +496,16 @@ export default function LiveMatch() {
       const towers = (res.towersTakenBlue ?? 0) + (res.towersTakenRed ?? 0);
       if (towers > 0 && !res.autoNexus) {
         fireFx('tower', '¡Torre caída!', (res.towersTakenBlue ?? 0) > 0 ? 'blue' : 'red');
+        const destroyed = (live?.structures || []).filter(s => s.type === 'tower' && s.isDestroyed);
+        pushBursts(
+          destroyed.slice(-towers).map((s, i) => ({
+            id: `tower-${res.round}-${s.id}-${i}`,
+            kind: 'tower' as const,
+            x: s.team === 'blue' ? 0.22 + s.lane * 0.12 : 0.78 - s.lane * 0.12,
+            y: s.team === 'blue' ? 0.78 - s.lane * 0.12 : 0.22 + s.lane * 0.12,
+            team: s.team,
+          })),
+        );
       }
       if (res.autoNexus) {
         const playerWon = res.winner === 'blue';
@@ -457,6 +514,14 @@ export default function LiveMatch() {
           playerWon ? '¡NEXO ENEMIGO DESTRUIDO!' : '¡TU NEXO FUE DESTRUIDO!',
           playerWon ? 'blue' : 'red',
         );
+        const nexusTeam = playerWon ? 'red' : 'blue';
+        pushBursts([{
+          id: `nexus-${res.round}`,
+          kind: 'nexus',
+          x: nexusTeam === 'blue' ? 0.12 : 0.88,
+          y: nexusTeam === 'blue' ? 0.88 : 0.12,
+          team: nexusTeam,
+        }]);
       }
     }, Math.max(200, t - 100));
 
@@ -889,7 +954,7 @@ export default function LiveMatch() {
   const qteReplaysLeft = qteReplaysRemaining(qteReplayCount);
 
   return (
-    <div className={`flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden relative ${shake ? 'animate-screen-shake' : ''}`}>
+    <div className={`flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden relative ${shake === 'hard' ? 'animate-screen-shake-hard' : shake === 'soft' ? 'animate-screen-shake' : ''}`}>
       <div className="shrink-0 px-3 pb-2 pt-0 safe-top safe-chrome-x border-b border-[#1E2740] max-w-lg md:max-w-6xl mx-auto w-full md:px-4 md:py-3">
         <p className="text-[#C9A84C] text-[10px] md:text-xs uppercase tracking-wider">Partida en vivo</p>
         <div className="flex justify-between items-center gap-2">
@@ -930,11 +995,16 @@ export default function LiveMatch() {
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide px-3 py-2 w-full max-w-lg mx-auto flex flex-col gap-2.5 md:max-w-6xl md:px-4 md:py-2 md:flex-row md:items-stretch md:justify-center md:gap-6 lg:gap-8"
       >
         <div className="flex w-full min-h-0 flex-col items-center gap-1.5 md:flex-1 md:min-w-0 md:justify-center md:gap-2">
-          <div className="rounded-full border border-[#C9A84C]/40 bg-[#141B2D] px-3 py-0.5 shrink-0">
+          <div key={capsule} className="rounded-full border border-[#C9A84C]/40 bg-[#141B2D] px-3 py-0.5 shrink-0 animate-scale-in">
             <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-[#C9A84C]">{capsule}</p>
           </div>
 
           <div className="relative flex shrink-0 items-center justify-center overflow-hidden" style={{ width: slot, height: slot, maxWidth: '100%' }}>
+            <div
+              key={`punch-${punch}`}
+              className={punch > 0 ? 'animate-fx-punch' : undefined}
+              style={{ width: mapSize, height: mapSize }}
+            >
             <div
               className="transition-transform duration-500 ease-out"
               style={{
@@ -964,7 +1034,13 @@ export default function LiveMatch() {
                 lungeFromId={activeHit?.kind === 'damage' ? activeHit.sourceId ?? null : null}
                 activeEffectKind={activeHit?.kind ?? null}
                 activeSourceTeam={activeHit?.sourceTeam ?? null}
+                spectacleBursts={spectacleBursts}
+                ultimateIds={[
+                  ...(state.playerPlan?.ultimates || []),
+                  ...(state.enemyPlanPreview?.ultimates || []),
+                ]}
               />
+            </div>
             </div>
             <CombatScreenFX signal={fx} />
             <CombatHitOverlay hit={activeHit} durationMs={timings.hitPauseMs} />

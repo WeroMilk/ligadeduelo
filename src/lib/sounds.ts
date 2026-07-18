@@ -195,8 +195,30 @@ export function playZoneHitSound() {
   beep(990, 0.05, 'sine', 0.04);
 }
 
+export function playZonePerfectSound() {
+  beep(1180, 0.05, 'sine', 0.05);
+  setTimeout(() => beep(1560, 0.09, 'triangle', 0.045), 45);
+}
+
 export function playZoneMissSound() {
   beep(140, 0.1, 'sawtooth', 0.035);
+}
+
+export function playCritSound() {
+  beep(300, 0.05, 'square', 0.05);
+  setTimeout(() => beep(160, 0.12, 'sawtooth', 0.05), 35);
+  setTimeout(() => beep(90, 0.14, 'square', 0.035), 80);
+}
+
+/** Vibración corta en móvil; ignora silenciosamente si no está soportada. */
+export function vibrate(pattern: number | number[]) {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(pattern);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 const MELODY = [

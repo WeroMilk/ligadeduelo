@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Champion, ObjectiveType, PendingObjective, TeamColor } from '@/types/game';
 import { CHAMPIONS, objectiveName, objectiveImage } from '@/lib/game-data';
-import { playZoneHitSound, playZoneMissSound } from '@/lib/sounds';
+import { playZoneHitSound, playZoneMissSound, playZonePerfectSound, vibrate } from '@/lib/sounds';
 
 export type ObjectiveQtePayload = {
   skirmishWinner: TeamColor | null;
@@ -11,7 +11,9 @@ export type ObjectiveQtePayload = {
   loserFate?: 'killed' | 'escaped';
 };
 
-type Zone = { id: number; x: number; y: number };
+type Zone = { id: number; x: number; y: number; spawnedAt: number };
+type Verdict = { id: number; kind: 'perfect' | 'hit' | 'miss'; x: number; y: number };
+type Spark = { id: number; x: number; y: number; sx: number; sy: number; color: string };
 
 type Props = {
   pending: PendingObjective;
@@ -229,6 +231,12 @@ export default function ObjectiveMinigame({
   const [loserFate, setLoserFate] = useState<'killed' | 'escaped'>('killed');
   const [zone, setZone] = useState<Zone | null>(null);
   const [flash, setFlash] = useState<'hit' | 'miss' | null>(null);
+  const [verdict, setVerdict] = useState<Verdict | null>(null);
+  const [sparks, setSparks] = useState<Spark[]>([]);
+  const [combo, setCombo] = useState(0);
+  const comboRef = useRef(0);
+  const zoneRef = useRef<Zone | null>(null);
+  zoneRef.current = zone;
   const readyLog = isNexusAssault
     ? '¡Toca las bolitas amarillas y derriba el nexo enemigo!'
     : isNexusDefense
@@ -315,6 +323,34 @@ export default function ObjectiveMinigame({
     window.setTimeout(() => setter('idle'), ms);
   };
 
+  const burstFx = useCallback((x: number, y: number, color: string, count = 7) => {
+    const now = Date.now();
+    const next: Spark[] = Array.from({ length: count }, (_, i) => {
+      const ang = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+      const dist = 18 + Math.random() * 28;
+      return {
+        id: now + i,
+        x,
+        y,
+        sx: Math.cos(ang) * dist,
+        sy: Math.sin(ang) * dist,
+        color,
+      };
+    });
+    setSparks(prev => [...prev.slice(-18), ...next]);
+    window.setTimeout(() => {
+      setSparks(prev => prev.filter(s => s.id < now || s.id >= now + count));
+    }, 520);
+  }, []);
+
+  const showVerdict = useCallback((kind: Verdict['kind'], x: number, y: number) => {
+    const id = Date.now();
+    setVerdict({ id, kind, x, y });
+    window.setTimeout(() => {
+      setVerdict(v => (v?.id === id ? null : v));
+    }, 700);
+  }, []);
+
   const spawnZone = useCallback(() => {
     if (completedRef.current || finishedRef.current || pausedRef.current) {
       setZone(null);
@@ -329,6 +365,7 @@ export default function ObjectiveMinigame({
       id: Date.now(),
       x: 18 + Math.random() * 64,
       y: 28 + Math.random() * 48,
+      spawnedAt: Date.now(),
     });
   }, []);
 
@@ -387,23 +424,51 @@ export default function ObjectiveMinigame({
     if (p === 'skirmish' && (blueBarRef.current >= SKIRMISH_GOAL || redBarRef.current >= SKIRMISH_GOAL)) return;
     if (p === 'monster' && (monsterHpRef.current <= 0 || allyHpRef.current <= 0)) return;
 
+    const z = zoneRef.current;
+    const age = z ? Date.now() - z.spawnedAt : profile.zoneMs;
+    const isPerfect = age <= profile.zoneMs * 0.38;
+    const dmgBonus = isPerfect ? Math.ceil(profile.hitDmg * 0.35) : 0;
+    const totalDmg = profile.hitDmg + dmgBonus;
+    const nextCombo = comboRef.current + 1;
+    comboRef.current = nextCombo;
+    setCombo(nextCombo);
+
     setFlash('hit');
-    playZoneHitSound();
+    if (isPerfect) {
+      playZonePerfectSound();
+      vibrate([18, 22, 28]);
+    } else {
+      playZoneHitSound();
+      vibrate(12);
+    }
+    if (z) {
+      showVerdict(isPerfect ? 'perfect' : 'hit', z.x, z.y);
+      burstFx(z.x, z.y, isPerfect ? '#F1C40F' : '#2ECC71', isPerfect ? 10 : 6);
+    }
+
     if (p === 'skirmish') {
       setBlueBar(v => {
-        const next = Math.min(SKIRMISH_GOAL, v + profile.hitDmg);
+        const next = Math.min(SKIRMISH_GOAL, v + totalDmg);
         if (next >= SKIRMISH_GOAL) {
           finishedRef.current = true;
           setZone(null);
         }
         return next;
       });
-      setLog(simulatingRef.current ? 'Simulado · acierto' : '¡Bien! Tus aliados golpean');
+      setLog(
+        simulatingRef.current
+          ? 'Simulado · acierto'
+          : isPerfect
+            ? `¡PERFECTO! x${nextCombo}`
+            : nextCombo >= 3
+              ? `¡Combo x${nextCombo}!`
+              : '¡Bien! Tus aliados golpean',
+      );
       pulseAnim(setBlueAnim, 'lunge');
       pulseAnim(setRedAnim, 'shake');
     } else if (p === 'monster') {
       setMonsterHp(v => {
-        const next = Math.max(0, v - profile.hitDmg);
+        const next = Math.max(0, v - totalDmg);
         if (next <= 0) {
           finishedRef.current = true;
           setZone(null);
@@ -413,9 +478,11 @@ export default function ObjectiveMinigame({
       setLog(
         simulatingRef.current
           ? 'Simulado · acierto'
-          : isNexusAssault
-            ? '¡Bien! El nexo enemigo cruje'
-            : '¡Bien! Dañas al objetivo',
+          : isPerfect
+            ? `¡PERFECTO! x${nextCombo}`
+            : isNexusAssault
+              ? '¡Bien! El nexo enemigo cruje'
+              : '¡Bien! Dañas al objetivo',
       );
       pulseAnim(setBlueAnim, 'lunge');
       pulseAnim(setMonsterAnim, 'shake');
@@ -425,7 +492,7 @@ export default function ObjectiveMinigame({
     window.setTimeout(() => {
       if (!completedRef.current && !finishedRef.current) spawnZone();
     }, 280);
-  }, [profile.hitDmg, spawnZone, isNexusAssault]);
+  }, [profile.hitDmg, profile.zoneMs, spawnZone, isNexusAssault, showVerdict, burstFx]);
 
   useEffect(() => {
     if (phase !== 'skirmish' && phase !== 'monster') return;
@@ -459,6 +526,13 @@ export default function ObjectiveMinigame({
       }
       setFlash('miss');
       playZoneMissSound();
+      vibrate(30);
+      comboRef.current = 0;
+      setCombo(0);
+      if (zone) {
+        showVerdict('miss', zone.x, zone.y);
+        burstFx(zone.x, zone.y, '#E74C3C', 5);
+      }
       if (phase === 'skirmish') {
         setRedBar(v => Math.min(SKIRMISH_GOAL, v + profile.missPenalty));
         setLog(simulatingRef.current ? 'Simulado · fallo' : 'Fallaste · el rival golpea');
@@ -480,7 +554,7 @@ export default function ObjectiveMinigame({
       window.setTimeout(() => setFlash(null), 280);
     }, profile.zoneMs);
     return () => window.clearTimeout(t);
-  }, [zone, phase, profile.zoneMs, profile.missPenalty, isNexusAssault, paused]);
+  }, [zone, phase, profile.zoneMs, profile.missPenalty, isNexusAssault, paused, showVerdict, burstFx]);
 
   // Auto-simulación: ~70% victoria del jugador; acierto sesgado según resultado sorteado
   useEffect(() => {
@@ -799,6 +873,25 @@ export default function ObjectiveMinigame({
                 </div>
               </div>
 
+              {combo >= 2 && (phase === 'skirmish' || phase === 'monster') && (
+                <div className="absolute left-3 right-3 top-[5.6rem] z-[2] pointer-events-none">
+                  <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider mb-0.5">
+                    <span className="text-[#F1C40F]">Combo x{combo}</span>
+                    <span className="text-[#F5B041]">{Math.min(10, combo) * 10}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-black/50 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-200"
+                      style={{
+                        width: `${Math.min(100, combo * 10)}%`,
+                        background: 'linear-gradient(90deg, #E67E22, #F1C40F, #F5B041)',
+                        boxShadow: '0 0 8px rgba(241,196,15,0.7)',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
               {zone && !simulating && (
                 <button
                   type="button"
@@ -809,7 +902,11 @@ export default function ObjectiveMinigame({
                     top: `${zone.y}%`,
                     width: profile.zoneSizePx,
                     height: profile.zoneSizePx,
-                    boxShadow: isNexusQte ? '0 0 18px rgba(241,196,15,0.8)' : undefined,
+                    boxShadow: isNexusQte
+                      ? '0 0 18px rgba(241,196,15,0.8)'
+                      : combo >= 3
+                        ? '0 0 16px rgba(241,196,15,0.9)'
+                        : undefined,
                   }}
                   aria-label="Zona de acierto"
                 />
@@ -826,6 +923,40 @@ export default function ObjectiveMinigame({
                   }}
                   aria-hidden
                 />
+              )}
+
+              {sparks.map(s => (
+                <span
+                  key={s.id}
+                  className="pointer-events-none absolute z-[12] h-2 w-2 rounded-full animate-qte-spark"
+                  style={{
+                    left: `${s.x}%`,
+                    top: `${s.y}%`,
+                    backgroundColor: s.color,
+                    boxShadow: `0 0 6px ${s.color}`,
+                    ['--sx' as string]: `${s.sx}px`,
+                    ['--sy' as string]: `${s.sy}px`,
+                  }}
+                />
+              ))}
+
+              {verdict && (
+                <div
+                  className="pointer-events-none absolute z-[14] animate-qte-verdict"
+                  style={{ left: `${verdict.x}%`, top: `${verdict.y}%` }}
+                >
+                  <span
+                    className={`whitespace-nowrap text-sm sm:text-base font-black uppercase tracking-wider drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] ${
+                      verdict.kind === 'perfect'
+                        ? 'text-[#F1C40F]'
+                        : verdict.kind === 'hit'
+                          ? 'text-[#2ECC71]'
+                          : 'text-[#E74C3C]'
+                    }`}
+                  >
+                    {verdict.kind === 'perfect' ? '¡PERFECTO!' : verdict.kind === 'hit' ? '¡Bien!' : 'MISS'}
+                  </span>
+                </div>
               )}
 
               <p className="absolute bottom-3 inset-x-0 text-center text-[10px] text-[#8B9BB4] z-[1]">
