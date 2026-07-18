@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import { FAN_ORGS, fanOrgDisplayName, ROLE_COLORS, ROLE_NAMES } from '@/lib/game-data';
 import { buildAllRosters } from '@/lib/rosters';
@@ -6,22 +6,39 @@ import type { Role, RosterMember } from '@/types/game';
 import { Check, ChevronLeft, ChevronRight, User } from 'lucide-react';
 import NameSearch, { matchesNameQuery } from '@/components/NameSearch';
 
-/** Fila horizontal con flechas amarillas para navegar sin depender del swipe. */
-function ArrowScrollRow({ children, className = '' }: { children: ReactNode; className?: string }) {
+/** Fila con flechas que cambian la opción seleccionada (izq/der) y la centran en pantalla. */
+function FilterNavRow({
+  className = '',
+  onStepLeft,
+  onStepRight,
+  children,
+  activeKey,
+}: {
+  className?: string;
+  onStepLeft: () => void;
+  onStepRight: () => void;
+  children: ReactNode;
+  /** Cambia al navegar: centra el chip activo. */
+  activeKey: string;
+}) {
   const scrollerRef = useRef<HTMLDivElement>(null);
 
-  const scrollBy = (dir: -1 | 1) => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir * el.clientWidth * 0.7, behavior: 'smooth' });
-  };
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const active = scroller.querySelector<HTMLElement>('[data-filter-active="true"]');
+    if (!active) return;
+    const left =
+      active.offsetLeft - (scroller.clientWidth - active.offsetWidth) / 2;
+    scroller.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+  }, [activeKey]);
 
   return (
     <div className={`flex items-center gap-1 ${className}`}>
       <button
         type="button"
-        aria-label="Desplazar a la izquierda"
-        onClick={() => scrollBy(-1)}
+        aria-label="Anterior"
+        onClick={onStepLeft}
         className="shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-[#C9A84C] text-[#0A0E1A] shadow-[0_1px_6px_rgba(201,168,76,0.35)] active:scale-95"
       >
         <ChevronLeft className="h-4 w-4" strokeWidth={3} />
@@ -34,14 +51,21 @@ function ArrowScrollRow({ children, className = '' }: { children: ReactNode; cla
       </div>
       <button
         type="button"
-        aria-label="Desplazar a la derecha"
-        onClick={() => scrollBy(1)}
+        aria-label="Siguiente"
+        onClick={onStepRight}
         className="shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-[#C9A84C] text-[#0A0E1A] shadow-[0_1px_6px_rgba(201,168,76,0.35)] active:scale-95"
       >
         <ChevronRight className="h-4 w-4" strokeWidth={3} />
       </button>
     </div>
   );
+}
+
+function stepIndex<T>(list: readonly T[], current: T, dir: -1 | 1): T {
+  if (list.length === 0) return current;
+  const idx = list.indexOf(current);
+  const from = idx < 0 ? 0 : idx;
+  return list[(from + dir + list.length) % list.length]!;
 }
 
 const ROLES: Role[] = ['top', 'jungle', 'mid', 'adc', 'support'];
@@ -164,6 +188,33 @@ export default function RosterSelect() {
       .filter((row): row is NonNullable<typeof row> => row !== null);
   }, [roleFilter, orgFilter, orgsInRegion, list, searchQuery]);
 
+  const regionOptions = useMemo(
+    () => ['all' as const, ...REGIONS],
+    [],
+  );
+  const orgOptions = useMemo(
+    () => ['all' as const, ...orgsInRegion.map(o => o.id)],
+    [orgsInRegion],
+  );
+  const roleOptions = useMemo(
+    () => ['all' as const, ...ROLES] as const,
+    [],
+  );
+
+  const stepRegion = (dir: -1 | 1) => {
+    const next = stepIndex(regionOptions, regionFilter, dir);
+    setRegionFilter(next);
+    setOrgFilter('all');
+  };
+
+  const stepOrg = (dir: -1 | 1) => {
+    setOrgFilter(stepIndex(orgOptions, orgFilter, dir));
+  };
+
+  const stepRole = (dir: -1 | 1) => {
+    setRoleFilter(stepIndex(roleOptions, roleFilter, dir));
+  };
+
   const canConfirm = state.selectedRoster.length === 5 && ROLES.every(r => selectedByRole[r]);
 
   const toggleMember = (member: RosterMember, active: boolean) => {
@@ -207,9 +258,15 @@ export default function RosterSelect() {
           />
         </div>
 
-        <ArrowScrollRow className="mt-1.5 md:mt-2">
+        <FilterNavRow
+          className="mt-1.5 md:mt-2"
+          activeKey={`region-${regionFilter}`}
+          onStepLeft={() => stepRegion(-1)}
+          onStepRight={() => stepRegion(1)}
+        >
           <button
             type="button"
+            data-filter-active={regionFilter === 'all' ? 'true' : undefined}
             onClick={() => { setRegionFilter('all'); setOrgFilter('all'); }}
             className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 ${regionFilter === 'all' ? 'bg-[#C9A84C] text-[#0A0E1A]' : 'bg-[#141B2D] text-[#8B9BB4]'}`}
           >
@@ -219,17 +276,24 @@ export default function RosterSelect() {
             <button
               key={r}
               type="button"
+              data-filter-active={regionFilter === r ? 'true' : undefined}
               onClick={() => { setRegionFilter(r); setOrgFilter('all'); }}
               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 ${regionFilter === r ? 'bg-[#C9A84C] text-[#0A0E1A]' : 'bg-[#141B2D] text-[#8B9BB4]'}`}
             >
               {r}
             </button>
           ))}
-        </ArrowScrollRow>
+        </FilterNavRow>
 
-        <ArrowScrollRow className="mt-1">
+        <FilterNavRow
+          className="mt-1"
+          activeKey={`org-${orgFilter}`}
+          onStepLeft={() => stepOrg(-1)}
+          onStepRight={() => stepOrg(1)}
+        >
           <button
             type="button"
+            data-filter-active={orgFilter === 'all' ? 'true' : undefined}
             onClick={() => setOrgFilter('all')}
             className={`px-2 py-1 rounded-lg text-[10px] font-bold shrink-0 ${orgFilter === 'all' ? 'bg-[#2A3550] text-[#F0E6D2]' : 'bg-[#0D1220] text-[#8B9BB4]'}`}
           >
@@ -239,17 +303,24 @@ export default function RosterSelect() {
             <button
               key={o.id}
               type="button"
+              data-filter-active={orgFilter === o.id ? 'true' : undefined}
               onClick={() => setOrgFilter(o.id)}
               className={`px-2 py-1 rounded-lg text-[10px] font-bold shrink-0 max-w-[140px] truncate ${orgFilter === o.id ? 'bg-[#2A3550] text-[#F0E6D2]' : 'bg-[#0D1220] text-[#8B9BB4]'}`}
             >
               {fanOrgDisplayName(o)}
             </button>
           ))}
-        </ArrowScrollRow>
+        </FilterNavRow>
 
-        <ArrowScrollRow className="mt-1">
+        <FilterNavRow
+          className="mt-1"
+          activeKey={`role-${roleFilter}`}
+          onStepLeft={() => stepRole(-1)}
+          onStepRight={() => stepRole(1)}
+        >
           <button
             type="button"
+            data-filter-active={roleFilter === 'all' ? 'true' : undefined}
             onClick={() => setRoleFilter('all')}
             className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 ${roleFilter === 'all' ? 'bg-[#C9A84C] text-[#0A0E1A]' : 'bg-[#141B2D] text-[#8B9BB4]'}`}
           >
@@ -259,6 +330,7 @@ export default function RosterSelect() {
             <button
               key={r}
               type="button"
+              data-filter-active={roleFilter === r ? 'true' : undefined}
               onClick={() => setRoleFilter(r)}
               className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 ${roleFilter === r ? 'text-white' : 'bg-[#141B2D] text-[#8B9BB4]'}`}
               style={roleFilter === r ? { backgroundColor: ROLE_COLORS[r] } : undefined}
@@ -267,7 +339,7 @@ export default function RosterSelect() {
               {selectedByRole[r] ? ' ✓' : ''}
             </button>
           ))}
-        </ArrowScrollRow>
+        </FilterNavRow>
 
         {state.selectedRoster.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1.5 md:mt-2">
