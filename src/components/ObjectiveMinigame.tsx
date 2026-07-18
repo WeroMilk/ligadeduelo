@@ -18,6 +18,10 @@ type Props = {
   blueChampions: Champion[];
   redChampions: Champion[];
   onComplete: (result: ObjectiveQtePayload) => void;
+  /** Congela bolitas, simulación y countdown. */
+  paused?: boolean;
+  /** Cambia para reiniciar el intento (tras anuncio de repetición). */
+  attemptKey?: number;
 };
 
 type QteProfile = {
@@ -135,7 +139,10 @@ function MonsterIcon({ obj, anim }: { obj: ObjectiveType; anim: FighterAnim }) {
 const SKIRMISH_GOAL = 100;
 const MONSTER_HP = 100;
 
-type Phase = 'skirmish' | 'monster' | 'escape-popup';
+type Phase = 'countdown' | 'skirmish' | 'monster' | 'escape-popup';
+
+const COUNTDOWN_STEPS = ['3', '2', '1', '¡YA!'] as const;
+const COUNTDOWN_STEP_MS = 700;
 
 function NexusTarget({
   side,
@@ -180,6 +187,8 @@ export default function ObjectiveMinigame({
   blueChampions,
   redChampions,
   onComplete,
+  paused = false,
+  attemptKey = 0,
 }: Props) {
   const isGank = pending.kind === 'gank';
   const isNexusDefense = pending.kind === 'nexus_defense';
@@ -187,6 +196,11 @@ export default function ObjectiveMinigame({
   const isNexusQte = isNexusDefense || isNexusAssault;
   const isSkirmishOnly = isGank || isNexusDefense;
   const contested = pending.contested || isSkirmishOnly;
+  const playPhase: Phase = isNexusAssault
+    ? 'monster'
+    : contested || isSkirmishOnly
+      ? 'skirmish'
+      : 'monster';
   const profile = useMemo(
     () => profileFor(
       pending.objective,
@@ -194,9 +208,10 @@ export default function ObjectiveMinigame({
     ),
     [pending.objective, isGank, isNexusQte],
   );
-  const [phase, setPhase] = useState<Phase>(
-    isNexusAssault ? 'monster' : contested || isSkirmishOnly ? 'skirmish' : 'monster',
-  );
+  const [phase, setPhase] = useState<Phase>('countdown');
+  const [countdownIdx, setCountdownIdx] = useState(0);
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
   const [blueBar, setBlueBar] = useState(0);
   const [redBar, setRedBar] = useState(0);
   const [monsterHp, setMonsterHp] = useState(MONSTER_HP);
@@ -205,13 +220,12 @@ export default function ObjectiveMinigame({
   const [loserFate, setLoserFate] = useState<'killed' | 'escaped'>('killed');
   const [zone, setZone] = useState<Zone | null>(null);
   const [flash, setFlash] = useState<'hit' | 'miss' | null>(null);
-  const [log, setLog] = useState<string>(
-    isNexusAssault
-      ? '¡Toca las bolitas amarillas y derriba el nexo enemigo!'
-      : isNexusDefense
-        ? '¡Toca las bolitas amarillas y salva tu nexo!'
-        : '¡Toca las zonas a tiempo!',
-  );
+  const readyLog = isNexusAssault
+    ? '¡Toca las bolitas amarillas y derriba el nexo enemigo!'
+    : isNexusDefense
+      ? '¡Toca las bolitas amarillas y salva tu nexo!'
+      : '¡Toca las zonas a tiempo!';
+  const [log, setLog] = useState<string>('Prepárate…');
   const [blueAnim, setBlueAnim] = useState<FighterAnim>('idle');
   const [redAnim, setRedAnim] = useState<FighterAnim>('idle');
   const [monsterAnim, setMonsterAnim] = useState<FighterAnim>('idle');
@@ -225,12 +239,28 @@ export default function ObjectiveMinigame({
   const redBarRef = useRef(redBar);
   const monsterHpRef = useRef(monsterHp);
   const allyHpRef = useRef(allyHp);
-
   phaseRef.current = phase;
   blueBarRef.current = blueBar;
   redBarRef.current = redBar;
   monsterHpRef.current = monsterHp;
   allyHpRef.current = allyHp;
+
+  // Cuenta 3–2–1–¡YA! antes de cualquier intento
+  useEffect(() => {
+    if (phase !== 'countdown') return;
+    if (paused) return;
+    if (countdownIdx >= COUNTDOWN_STEPS.length) {
+      setLog(readyLog);
+      setPhase(playPhase);
+      return;
+    }
+    setLog('Prepárate…');
+    const t = window.setTimeout(() => {
+      if (pausedRef.current) return;
+      setCountdownIdx(i => i + 1);
+    }, COUNTDOWN_STEP_MS);
+    return () => window.clearTimeout(t);
+  }, [phase, countdownIdx, paused, playPhase, readyLog]);
 
   const finishOnce = useCallback((result: ObjectiveQtePayload) => {
     if (completedRef.current) return;
@@ -275,7 +305,7 @@ export default function ObjectiveMinigame({
   };
 
   const spawnZone = useCallback(() => {
-    if (completedRef.current || finishedRef.current) {
+    if (completedRef.current || finishedRef.current || pausedRef.current) {
       setZone(null);
       return;
     }
@@ -341,7 +371,7 @@ export default function ObjectiveMinigame({
   }, [finishOnce, isSkirmishOnly, isNexusDefense]);
 
   const applyHit = useCallback(() => {
-    if (completedRef.current || finishedRef.current) return;
+    if (pausedRef.current || completedRef.current || finishedRef.current) return;
     const p = phaseRef.current;
     if (p === 'skirmish' && (blueBarRef.current >= SKIRMISH_GOAL || redBarRef.current >= SKIRMISH_GOAL)) return;
     if (p === 'monster' && (monsterHpRef.current <= 0 || allyHpRef.current <= 0)) return;
@@ -388,27 +418,31 @@ export default function ObjectiveMinigame({
 
   useEffect(() => {
     if (phase !== 'skirmish' && phase !== 'monster') return;
+    if (paused) {
+      setZone(null);
+      return;
+    }
     finishedRef.current = false;
     completedRef.current = false;
     spawnZone();
     const iv = window.setInterval(() => {
-      if (completedRef.current || finishedRef.current) {
+      if (pausedRef.current || completedRef.current || finishedRef.current) {
         setZone(null);
         return;
       }
       spawnZone();
     }, profile.spawnGapMs);
     return () => window.clearInterval(iv);
-  }, [phase, spawnZone, profile.spawnGapMs]);
+  }, [phase, spawnZone, profile.spawnGapMs, paused]);
 
   useEffect(() => {
-    if (!zone) return;
+    if (!zone || paused) return;
     if (completedRef.current || finishedRef.current) {
       setZone(null);
       return;
     }
     const t = window.setTimeout(() => {
-      if (completedRef.current || finishedRef.current) {
+      if (pausedRef.current || completedRef.current || finishedRef.current) {
         setZone(null);
         return;
       }
@@ -435,32 +469,32 @@ export default function ObjectiveMinigame({
       window.setTimeout(() => setFlash(null), 280);
     }, profile.zoneMs);
     return () => window.clearTimeout(t);
-  }, [zone, phase, profile.zoneMs, profile.missPenalty, isNexusAssault]);
+  }, [zone, phase, profile.zoneMs, profile.missPenalty, isNexusAssault, paused]);
 
   // Auto-simulación: 50% acierto por bolita; si falla, el timeout de la zona cuenta miss
   useEffect(() => {
-    if (!zone || !simulating) return;
+    if (!zone || !simulating || paused) return;
     if (completedRef.current || finishedRef.current) return;
     if (phase !== 'skirmish' && phase !== 'monster') return;
 
     const delay = 180 + Math.random() * 220;
     const t = window.setTimeout(() => {
-      if (!simulatingRef.current || completedRef.current || finishedRef.current) return;
+      if (pausedRef.current || !simulatingRef.current || completedRef.current || finishedRef.current) return;
       if (Math.random() < SIM_HIT_CHANCE) {
         applyHit();
       }
     }, delay);
     return () => window.clearTimeout(t);
-  }, [zone, simulating, phase, applyHit]);
+  }, [zone, simulating, phase, applyHit, paused]);
 
   useEffect(() => {
-    if (phase !== 'escape-popup' || !simulating) return;
+    if (phase !== 'escape-popup' || !simulating || paused) return;
     const t = window.setTimeout(() => {
-      if (!simulatingRef.current) return;
+      if (pausedRef.current || !simulatingRef.current) return;
       continueAfterFate('blue', 'escaped');
     }, 900);
     return () => window.clearTimeout(t);
-  }, [phase, simulating, continueAfterFate]);
+  }, [phase, simulating, continueAfterFate, paused]);
 
   useEffect(() => {
     if (phase !== 'skirmish') return;
@@ -512,14 +546,14 @@ export default function ObjectiveMinigame({
 
   const onZoneClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (simulatingRef.current) return;
+    if (paused || simulatingRef.current) return;
     if (!zone || completedRef.current || finishedRef.current) return;
     applyHit();
   };
 
   const startAutoSimulate = () => {
-    if (completedRef.current || finishedRef.current || simulatingRef.current) return;
-    if (phase === 'escape-popup') return;
+    if (paused || completedRef.current || finishedRef.current || simulatingRef.current) return;
+    if (phase === 'escape-popup' || phase === 'countdown') return;
     simulatingRef.current = true;
     setSimulating(true);
     setLog('Simulando… 50% de acierto');
@@ -588,7 +622,23 @@ export default function ObjectiveMinigame({
           <p className="text-xs text-[#8B9BB4] mt-1">{log}</p>
         </div>
 
-        {phase === 'escape-popup' ? (
+        {phase === 'countdown' ? (
+          <div className="relative px-5 py-16 text-center space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
+              Prepárate
+            </p>
+            <p
+              className="text-6xl sm:text-7xl font-black text-[#F1C40F] drop-shadow-[0_0_24px_rgba(241,196,15,0.55)]"
+              style={{ fontFamily: 'Cinzel, serif' }}
+              key={countdownIdx}
+            >
+              {COUNTDOWN_STEPS[Math.min(countdownIdx, COUNTDOWN_STEPS.length - 1)]}
+            </p>
+            <p className="text-sm text-[#8B9BB4]">
+              {paused ? 'Pausa · la cuenta se reanuda al continuar' : 'Las bolitas amarillas empiezan al terminar la cuenta'}
+            </p>
+          </div>
+        ) : phase === 'escape-popup' ? (
           <div className="relative px-5 py-8 text-center space-y-4">
             <p
               className="text-2xl font-bold text-[#F1C40F]"
@@ -601,7 +651,7 @@ export default function ObjectiveMinigame({
                 ? 'Tu nexo resiste. Continúa la partida.'
                 : 'Sus campeones sobreviven, pero pierden el próximo turno.'}
             </p>
-            {!simulating && (
+            {!simulating && !paused && (
               <button
                 type="button"
                 className="w-full rounded-xl py-3 font-bold"

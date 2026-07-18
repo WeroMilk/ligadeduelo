@@ -1,6 +1,11 @@
-import { FAN_ORGS, CHAMPIONS } from '../src/lib/game-data';
+import { FAN_ORGS, CHAMPIONS, MANA_COSTS_UI } from '../src/lib/game-data';
 import { buildAllRosters } from '../src/lib/rosters';
-import { computeSynergy, resolvePlayerProfile, getChampionStyles } from '../src/lib/player-synergy';
+import {
+  computeSynergy,
+  resolvePlayerProfile,
+  getChampionStyles,
+  synergyBadgeStyle,
+} from '../src/lib/player-synergy';
 import {
   createTurnTeam,
   createTurnMatch,
@@ -8,6 +13,7 @@ import {
   generateAIPlan,
   champDef,
 } from '../src/lib/turn-engine';
+import { manaCostFor, ULT_TOTAL_MANA } from '../src/lib/champion-mechanics';
 import type { CombatFloat, TeamPlan } from '../src/types/game';
 
 function assert(cond: unknown, msg: string) {
@@ -36,14 +42,31 @@ const faker = resolvePlayerProfile('Faker', 'mid');
 const zed = CHAMPIONS.find(c => c.id === 'zed')!;
 const synFakerZed = computeSynergy(faker, zed);
 assert(synFakerZed.tier === 'firma', 'Faker–Zed debe ser Firma');
+assert(synFakerZed.affinity >= 90, 'Faker–Zed debe mostrar ≥90%');
+assert(synFakerZed.label === `${synFakerZed.affinity}%`, 'label debe ser porcentaje real');
 assert(synFakerZed.multiplier >= 1.1, 'multiplicador firma bajo');
+assert(synergyBadgeStyle(90).label === '90%', 'badge 90%');
+assert(synergyBadgeStyle(75).label === '75%', 'badge 75%');
+assert(synergyBadgeStyle(50).label === '50%', 'badge 50%');
+assert(synergyBadgeStyle(49).label === '49%', 'badge <50%');
 
 const neutral = resolvePlayerProfile('JugadorMedio', 'mid');
 const synNeutral = computeSynergy(neutral, zed);
 assert(synFakerZed.affinity > synNeutral.affinity, 'Faker–Zed debe superar afinidad media');
 console.log(
-  `✓ Faker–Zed afinidad ${synFakerZed.affinity} ×${synFakerZed.multiplier} > media ${synNeutral.affinity}`,
+  `✓ Faker–Zed dominio ${synFakerZed.affinity}% ×${synFakerZed.multiplier} > media ${synNeutral.affinity}%`,
 );
+
+// Coste de definitiva: 50 total fijo
+assert(ULT_TOTAL_MANA === 50, 'ULT_TOTAL_MANA = 50');
+assert(MANA_COSTS_UI.ultimateCost === 50, 'UI ultimateCost = 50');
+assert(manaCostFor('attack', false) === 20, 'Atacar 20');
+assert(manaCostFor('ability', false) === 40, 'Habilidad 40');
+assert(manaCostFor('defend', false) === 0, 'Defender 0');
+assert(manaCostFor('attack', true) === 50, 'Atacar+R = 50');
+assert(manaCostFor('ability', true) === 50, 'Habilidad+R = 50');
+assert(manaCostFor('defend', true) === 50, 'Defender+R = 50');
+console.log('✓ Definitiva consume exactamente 50 de maná');
 
 // 4) Un float ofensivo por atacante y ronda (muestra varias partidas)
 function offensiveFloats(floats: CombatFloat[]) {
@@ -77,6 +100,7 @@ for (let t = 0; t < TRIALS; t++) {
   const zedChamp = state.blue.champions.find(c => c.defId === 'zed')!;
   assert(zedChamp.playerName === 'Faker', 'Zed debe llevar a Faker');
   assert(zedChamp.synergyTier === 'firma', 'Zed de Faker debe ser firma');
+  assert((zedChamp.playerAffinity ?? 0) >= 90, 'Zed de Faker debe tener ≥90%');
 
   const redPlan = generateAIPlan(state, 'red', bluePlan);
   state = resolveRound(state, bluePlan, redPlan);

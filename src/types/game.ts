@@ -126,6 +126,8 @@ export interface Champion {
   isAlive: boolean;
   respawnTimer: number;
   kills: number;
+  deaths: number;
+  assists: number;
   position: Position;
   gold: number;
   tearStacks: number;
@@ -325,6 +327,31 @@ export interface TurnMatchState {
   deferredRedPlan: TeamPlan | null;
 }
 
+export interface ChampionMatchStats {
+  defId: string;
+  playerName: string;
+  role: Role;
+  kills: number;
+  deaths: number;
+  assists: number;
+}
+
+export interface TeamMatchStats {
+  teamId: string;
+  teamName: string;
+  totalKills: number;
+  totalDeaths: number;
+  champions: ChampionMatchStats[];
+}
+
+export interface MatchResultSummary {
+  scoreBlue: number;
+  scoreRed: number;
+  blue: TeamMatchStats;
+  red: TeamMatchStats;
+  endedByNexus?: boolean;
+}
+
 export interface Match {
   id: string;
   round: number;
@@ -334,6 +361,7 @@ export interface Match {
   winner: TeamColor | null;
   isPlayerMatch: boolean;
   isSimulated: boolean;
+  resultSummary?: MatchResultSummary | null;
 }
 
 export interface Round {

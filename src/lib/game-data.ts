@@ -204,7 +204,8 @@ export const MANA_COSTS_UI = {
   attack: 20,
   ability: 40,
   defend: 0,
-  ultimateExtra: 30,
+  /** Coste total al usar definitiva. */
+  ultimateCost: 50,
   ultimateCooldown: 3,
 } as const;
 

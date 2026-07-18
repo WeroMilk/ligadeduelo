@@ -3,6 +3,8 @@ import { useGame } from '@/hooks/useGameState';
 import { CHAMPIONS } from '@/lib/game-data';
 import { Trophy, Swords, ChevronRight, Crown, User } from 'lucide-react';
 import { playClickSound } from '@/lib/sounds';
+import BracketMatchModal from '@/components/BracketMatchModal';
+import type { Match } from '@/types/game';
 
 const AI_MATCH_DELAY_MS = 1100;
 
@@ -10,6 +12,7 @@ export default function BracketScreen() {
   const { state, dispatch } = useGame();
   const [simulating, setSimulating] = useState(false);
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
   const tournament = state.tournament;
   const currentRoundIdx = tournament?.currentRound ?? 0;
@@ -52,6 +55,11 @@ export default function BracketScreen() {
   const handleAdvance = () => {
     playClickSound();
     dispatch({ type: 'ADVANCE_BRACKET' });
+  };
+
+  const handleOpenSummary = (match: Match) => {
+    playClickSound();
+    setSelectedMatch(match);
   };
 
   const getMatchWinner = (match: { winner: string | null; teamA: { name: string }; teamB: { name: string } }) => {
@@ -138,7 +146,7 @@ export default function BracketScreen() {
                     : isPlayer && !winner
                     ? 'border-[#C9A84C] bg-[#C9A84C]/5 shadow-[0_0_20px_rgba(201,168,76,0.1)]'
                     : winner
-                    ? 'border-[#1E2740] bg-[#0D111F] opacity-60'
+                    ? 'border-[#1E2740] bg-[#0D111F] opacity-60 hover:opacity-80 hover:border-[#C9A84C]/40'
                     : 'border-[#1E2740] bg-[#141B2D]'
                 }`}
               >
@@ -215,9 +223,19 @@ export default function BracketScreen() {
                 </div>
 
                 {winner ? (
-                  <p className="text-center text-[#C9A84C] text-xs md:text-sm mt-3 md:mt-4 font-bold">
-                    Ganador: {winnerName}
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenSummary(match)}
+                    className="mt-3 md:mt-4 w-full text-center rounded-lg py-1.5 transition-colors hover:bg-[#C9A84C]/10"
+                    aria-label={`Ver resumen: ${match.teamA.name} vs ${match.teamB.name}`}
+                  >
+                    <p className="text-[#C9A84C] text-xs md:text-sm font-bold">
+                      Ganador: {winnerName}
+                    </p>
+                    <p className="text-[10px] text-[#8B9BB4] mt-0.5 underline-offset-2 hover:underline">
+                      Ver resumen
+                    </p>
+                  </button>
                 ) : isActive ? (
                   <p className="text-center text-[#3498DB] text-xs md:text-sm mt-3 md:mt-4 font-bold animate-pulse">
                     En disputa…
@@ -253,6 +271,10 @@ export default function BracketScreen() {
           </button>
         )}
       </div>
+
+      {selectedMatch && (
+        <BracketMatchModal match={selectedMatch} onClose={() => setSelectedMatch(null)} />
+      )}
     </div>
   );
 }

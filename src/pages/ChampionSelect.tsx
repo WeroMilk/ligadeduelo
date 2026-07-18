@@ -3,17 +3,10 @@ import { useGame } from '@/hooks/useGameState';
 import { ROLE_COLORS, ROLE_NAMES, CHAMPIONS, MANA_COSTS_UI } from '@/lib/game-data';
 import { getUltimate } from '@/lib/ultimates';
 import { preloadChampionImages } from '@/lib/preload-images';
-import { synergyForMember, type SynergyTier } from '@/lib/player-synergy';
+import { synergyBadgeStyle, synergyForMember } from '@/lib/player-synergy';
 import type { Role } from '@/types/game';
 import { Shield, TreePine, Zap, Crosshair, Heart, Check, ChevronRight, User } from 'lucide-react';
 import NameSearch, { matchesNameQuery } from '@/components/NameSearch';
-
-const SYNERGY_BADGE: Record<SynergyTier, { label: string; className: string }> = {
-  baja: { label: 'Baja', className: 'bg-[#4A5570]/40 text-[#8B9BB4] border-[#4A5570]' },
-  media: { label: 'Media', className: 'bg-[#3498DB]/20 text-[#5DADE2] border-[#3498DB]/50' },
-  alta: { label: 'Alta', className: 'bg-[#2ECC71]/20 text-[#2ECC71] border-[#2ECC71]/50' },
-  firma: { label: 'Firma', className: 'bg-[#C9A84C]/25 text-[#F1C40F] border-[#C9A84C]' },
-};
 
 const ROLE_ICONS: Record<Role, React.ReactNode> = {
   top: <Shield className="w-4 h-4" />,
@@ -107,6 +100,9 @@ export default function ChampionSelect() {
             <p className="truncate text-[11px] text-[#C9A84C] md:text-xs">
               {memberName || state.playerTeamName || 'Tu equipo'} · {state.selectedChampions.length}/5
             </p>
+            <p className="mt-0.5 text-[10px] leading-snug text-[#8B9BB4] md:text-[11px]">
+              % = qué tanto el integrante del equipo sabe usar a cada campeón
+            </p>
           </div>
           <div className="flex shrink-0 items-start gap-2">
             <NameSearch
@@ -160,7 +156,7 @@ export default function ChampionSelect() {
       <div className="mx-auto mt-1 w-full max-w-6xl shrink-0 px-4 md:mt-1.5">
         <p className="rounded-lg border border-[#1E2740] bg-[#141B2D]/80 px-3 py-1.5 text-center text-[10px] md:text-[11px] text-[#8B9BB4]">
           Maná: Atacar {MANA_COSTS_UI.attack} · Habilidad {MANA_COSTS_UI.ability} · Defender {MANA_COSTS_UI.defend}
-          {' · '}Definitiva +{MANA_COSTS_UI.ultimateExtra}
+          {' · '}Definitiva -{MANA_COSTS_UI.ultimateCost}
           {' · '}CD {MANA_COSTS_UI.ultimateCooldown} turnos
           {' · '}Sin maná = vuelve a base
         </p>
@@ -176,7 +172,7 @@ export default function ChampionSelect() {
             const isSelected = selectedIds.includes(champ.id);
             const ult = getUltimate(champ.id);
             const syn = synergyForMember(activeMember, champ.id);
-            const badge = syn ? SYNERGY_BADGE[syn.tier] : null;
+            const badge = syn ? synergyBadgeStyle(syn.affinity) : null;
             return (
               <button
                 key={champ.id}
@@ -229,7 +225,7 @@ export default function ChampionSelect() {
                     <p className="text-[#8B9BB4] text-[10px] mb-0.5">{ROLE_NAMES[champ.role]}</p>
                     {syn && activeMember && (
                       <p className="text-[9px] text-[#C9A84C] mb-1 truncate leading-tight">
-                        {activeMember.name} · ×{syn.multiplier.toFixed(2)}
+                        {activeMember.name} · {syn.affinity}%
                       </p>
                     )}
                     <div className="grid grid-cols-2 gap-x-1 gap-y-0 text-[10px] text-left px-0.5 leading-tight">

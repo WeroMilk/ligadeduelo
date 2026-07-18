@@ -3,6 +3,7 @@ import type {
   TurnMatchState, RoundResolution, CombatLogLine, Structure,
   DuelSummary, DuelFighterSummary, CombatFloat, ObjectiveType,
   KillAnnounce, ObjectiveBonusAnnounce, RosterMember,
+  MatchResultSummary, TeamMatchStats, ChampionMatchStats,
 } from '@/types/game';
 import { CHAMPIONS, getChampionBaseStats, ITEMS, ITEM_PRIORITY_BY_ROLE, MAX_MATCH_ROUNDS, GOLD_PER_ROUND, GOLD_PER_KILL, POINTS_KILL, POINTS_TOWER, POINTS_OBJECTIVE, POINTS_NEXUS, FREE_LANE_SIEGE_BONUS, objectiveForRound, objectiveName } from './game-data';
 import { applyBuffToStats, type BuffId } from './buffs';
@@ -58,6 +59,7 @@ function pushKill(
   kills: RawKill[],
   killer: Champion,
   victim: Champion,
+  assistCandidates?: Champion[],
 ) {
   kills.push({
     killerId: killer.instanceId,
@@ -65,6 +67,18 @@ function pushKill(
     victimName: champDef(victim).name,
     team: killer.team,
   });
+  victim.deaths = (victim.deaths || 0) + 1;
+  if (assistCandidates) {
+    for (const ally of assistCandidates) {
+      if (
+        ally.instanceId !== killer.instanceId
+        && ally.instanceId !== victim.instanceId
+        && ally.isAlive
+      ) {
+        ally.assists = (ally.assists || 0) + 1;
+      }
+    }
+  }
 }
 
 function aggregateKillAnnounces(raw: RawKill[]): KillAnnounce[] {
@@ -196,6 +210,8 @@ export function createTurnChampion(
     isAlive: true,
     respawnTimer: 0,
     kills: 0,
+    deaths: 0,
+    assists: 0,
     position: { lane, x: team === 'blue' ? 0.2 : 0.8 },
     gold: 100,
     tearStacks: 0,
@@ -425,7 +441,14 @@ function registerKill(
   }
   pushLog(log, `¡${champDef(atk.champ).name} elimina a ${champDef(def.champ).name}! (+1 baja)`, 'kill');
   notes.push(`${champDef(def.champ).name} KO`);
-  pushKill(killEvents, atk.champ, def.champ);
+  const killerTeam = atk.champ.team === 'blue' ? state.blue : state.red;
+  const assistCandidates = killerTeam.champions.filter(c =>
+    c.isAlive
+    && c.instanceId !== atk.champ.instanceId
+    && c.instanceId !== def.champ.instanceId
+    && c.position.lane === lane,
+  );
+  pushKill(killEvents, atk.champ, def.champ, assistCandidates);
   const laneEnemies = (atk.champ.team === 'blue' ? state.red : state.blue).champions.filter(
     c => c.position.lane === lane,
   );
@@ -623,6 +646,7 @@ function resolveFocusStrike(
   killEvents: RawKill[],
   allyCount: number,
   enemyCount: number,
+  alliesInLane: Champion[] = [],
 ): { blueKill: boolean; redKill: boolean } {
   let blueKill = false;
   let redKill = false;
@@ -687,7 +711,10 @@ function resolveFocusStrike(
       redKill = true;
     }
     pushLog(log, `¡${champDef(atk.champ).name} elimina a ${champDef(def.champ).name}! (+1 baja)`, 'kill');
-    pushKill(killEvents, atk.champ, def.champ);
+    const assistCandidates = alliesInLane.filter(c =>
+      c.instanceId !== atk.champ.instanceId && c.instanceId !== def.champ.instanceId,
+    );
+    pushKill(killEvents, atk.champ, def.champ, assistCandidates);
   }
 
   const blueF = atk.champ.team === 'blue' ? atk : def;
@@ -748,6 +775,19 @@ function fightersInLane(
   return { blue: collect(state.blue, bluePlan), red: collect(state.red, redPlan) };
 }
 
+/** Rivales vivos en la línea (planes del turno: ganks, botas, jungla). */
+function laneHasLivingEnemies(
+  state: TurnMatchState,
+  lane: LaneId,
+  siegerTeam: TeamColor,
+  bluePlan: TeamPlan,
+  redPlan: TeamPlan,
+): boolean {
+  const { blue, red } = fightersInLane(state, lane, bluePlan, redPlan, false);
+  const enemies = siegerTeam === 'blue' ? red : blue;
+  return enemies.some(f => f.champ.isAlive && f.champ.stats.hp > 0);
+}
+
 function resolveLaneGroup(
   state: TurnMatchState,
   lane: LaneId,
@@ -802,24 +842,31 @@ function resolveLaneGroup(
     f => !pairedRed.has(f.champ.instanceId) && f.champ.isAlive && f.champ.stats.hp > 0,
   );
 
-  const focusExtras = (extras: Fighter[], enemies: Fighter[], allyTotal: number, enemyTotal: number) => {
+  const focusExtras = (
+    extras: Fighter[],
+    enemies: Fighter[],
+    allies: Fighter[],
+    allyTotal: number,
+    enemyTotal: number,
+  ) => {
+    const alliesInLane = allies.map(f => f.champ);
     for (const atk of extras) {
       if (!atk.champ.isAlive || atk.champ.stats.hp <= 0) continue;
       const target = enemies.find(e => e.champ.isAlive && e.champ.stats.hp > 0);
       if (target) {
         resolveFocusStrike(
-          atk, target, state, log, duels, floats, lane, killEvents, allyTotal, enemyTotal,
+          atk, target, state, log, duels, floats, lane, killEvents, allyTotal, enemyTotal, alliesInLane,
         );
       } else {
         // Sin contrincante: siempre asedia torre/nexo (errores de carril)
         const towerTeam: TeamColor = atk.champ.team === 'blue' ? 'red' : 'blue';
-        siegeTower(state, towerTeam, lane, atk.champ, log, duels, floats, towerStats, siegeCtx);
+        siegeTower(state, towerTeam, lane, atk.champ, log, duels, floats, towerStats, siegeCtx, bluePlan, redPlan);
       }
     }
   };
 
-  focusExtras(blueExtras, red, blue.length, red.length);
-  focusExtras(redExtras, blue, red.length, blue.length);
+  focusExtras(blueExtras, red, blue, blue.length, red.length);
+  focusExtras(redExtras, blue, red, red.length, blue.length);
 
   // Si un bando limpió la línea, quienes pelearon 1v1 y siguen vivos asedian sí o sí
   const redLeft = red.some(r => r.champ.isAlive && r.champ.stats.hp > 0);
@@ -828,14 +875,14 @@ function resolveLaneGroup(
     for (const bf of blue) {
       if (!bf.champ.isAlive || bf.champ.stats.hp <= 0) continue;
       if (!pairedBlue.has(bf.champ.instanceId)) continue; // extras ya asediaron si no había blanco
-      siegeTower(state, 'red', lane, bf.champ, log, duels, floats, towerStats, siegeCtx);
+      siegeTower(state, 'red', lane, bf.champ, log, duels, floats, towerStats, siegeCtx, bluePlan, redPlan);
     }
   }
   if (!blueLeft) {
     for (const rf of red) {
       if (!rf.champ.isAlive || rf.champ.stats.hp <= 0) continue;
       if (!pairedRed.has(rf.champ.instanceId)) continue;
-      siegeTower(state, 'blue', lane, rf.champ, log, duels, floats, towerStats, siegeCtx);
+      siegeTower(state, 'blue', lane, rf.champ, log, duels, floats, towerStats, siegeCtx, bluePlan, redPlan);
     }
   }
 }
@@ -854,7 +901,18 @@ function siegeTower(
   floats: CombatFloat[],
   towerStats: { blue: number; red: number },
   siegeCtx?: SiegeCtx,
+  bluePlan?: TeamPlan | null,
+  redPlan?: TeamPlan | null,
 ) {
+  if (bluePlan && redPlan && laneHasLivingEnemies(state, lane, sieger.team, bluePlan, redPlan)) {
+    pushLog(
+      log,
+      `${champDef(sieger).name} no puede asediar: hay rivales en ${laneLabel(lane)}`,
+      'neutral',
+    );
+    return;
+  }
+
   const siegerSnap: DuelFighterSummary = {
     instanceId: sieger.instanceId,
     name: champDef(sieger).name,
@@ -997,7 +1055,7 @@ function siegeTower(
   });
   // Al tumbar la torre, el mismo golpe sigue al nexo (empuje de línea libre)
   if (towerFell) {
-    siegeTower(state, towerTeam, lane, sieger, log, duels, floats, towerStats, siegeCtx);
+    siegeTower(state, towerTeam, lane, sieger, log, duels, floats, towerStats, siegeCtx, bluePlan, redPlan);
   }
 }
 
@@ -1365,10 +1423,9 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
   if (next.round === 1) {
     for (const c of [...next.blue.champions, ...next.red.champions]) {
       if (!c.playerName) continue;
-      const synLabel = c.synergyTier === 'firma' ? 'firma ' : '';
       pushLog(
         log,
-        `${c.playerName} juega ${champDef(c).name} · Sinergia ${synLabel}${c.playerAffinity ?? 0}`,
+        `${c.playerName} juega ${champDef(c).name} · Dominio ${c.playerAffinity ?? 0}%`,
         'section',
       );
     }
@@ -1631,7 +1688,12 @@ function applySkirmishLoserFate(
     if (killer) {
       killer.kills = (killer.kills || 0) + 1;
       killer.gold += GOLD_PER_KILL;
-      pushKill(killEvents, killer, victim);
+      const assistCandidates = wTeam.champions.filter(c =>
+        winnerIds.includes(c.instanceId) && c.instanceId !== killer.instanceId,
+      );
+      pushKill(killEvents, killer, victim, assistCandidates);
+    } else {
+      victim.deaths = (victim.deaths || 0) + 1;
     }
     pushFloat(floats, {
       kind: 'damage',
@@ -1775,10 +1837,13 @@ export function finishPendingObjective(
     const wJg = livingIncludingSkipped(wTeam).find(c => champDef(c).role === 'jungle')
       || next[winner].champions.find(c => pending.blueIds.includes(c.instanceId) || pending.redIds.includes(c.instanceId));
 
-    // El ganador asedia la torre enemiga una vez (recompensa del gank)
+    // El ganador asedia la torre enemiga solo si la línea quedó libre de rivales
     if (wJg && wJg.isAlive && wJg.stats.hp > 0) {
       const towerTeam: TeamColor = winner === 'blue' ? 'red' : 'blue';
-      siegeTower(next, towerTeam, lane, wJg, log, duels, floats, towerStats);
+      siegeTower(
+        next, towerTeam, lane, wJg, log, duels, floats, towerStats, undefined,
+        state.deferredBluePlan, state.deferredRedPlan,
+      );
     }
 
     next.pendingObjective = null;
@@ -1895,7 +1960,7 @@ function applyFreeLaneAdvantage(
       const sieger = enemies[0].champ;
       pushLog(log, `${champDef(sieger).name} aprovecha la línea libre (${laneLabel(homeLane)})`, 'tower');
       for (let i = 0; i < FREE_LANE_SIEGE_BONUS; i++) {
-        siegeTower(state, allyTeam, homeLane, sieger, log, [], floats, towerStats, siegeCtx);
+        siegeTower(state, allyTeam, homeLane, sieger, log, [], floats, towerStats, siegeCtx, bluePlan, redPlan);
       }
     }
   };
@@ -2070,6 +2135,58 @@ export function aiBuyItems(team: TeamData) {
 }
 
 /** Simula una partida IA completa (bracket). */
+const ROLE_ORDER: Role[] = ['top', 'jungle', 'mid', 'adc', 'support'];
+
+function roleSortKey(role: Role): number {
+  const idx = ROLE_ORDER.indexOf(role);
+  return idx >= 0 ? idx : 99;
+}
+
+function buildChampionStats(champ: Champion, roster?: RosterMember[]): ChampionMatchStats {
+  const def = champDef(champ);
+  let playerName = champ.playerName;
+  if (!playerName && roster) {
+    const member = roster.find(m => m.role === def.role);
+    playerName = member?.name;
+  }
+  return {
+    defId: champ.defId,
+    playerName: playerName || '—',
+    role: def.role,
+    kills: champ.kills,
+    deaths: champ.deaths ?? 0,
+    assists: champ.assists ?? 0,
+  };
+}
+
+function buildTeamMatchStats(side: TeamData, opponentKills: number): TeamMatchStats {
+  const roster = side.rosterMembers;
+  const champions = [...side.champions]
+    .map(c => buildChampionStats(c, roster))
+    .sort((a, b) => roleSortKey(a.role) - roleSortKey(b.role));
+  return {
+    teamId: side.id,
+    teamName: side.name,
+    totalKills: side.kills,
+    totalDeaths: opponentKills,
+    champions,
+  };
+}
+
+export function buildMatchResultSummary(turnMatch: TurnMatchState): MatchResultSummary {
+  const nexusBlue = turnMatch.structures.find(s => s.id === 'nexus_blue');
+  const nexusRed = turnMatch.structures.find(s => s.id === 'nexus_red');
+  const endedByNexus = !!(nexusBlue?.isDestroyed || nexusRed?.isDestroyed || turnMatch.lastResolution?.autoNexus);
+
+  return {
+    scoreBlue: turnMatch.blue.kills,
+    scoreRed: turnMatch.red.kills,
+    blue: buildTeamMatchStats(turnMatch.blue, turnMatch.red.kills),
+    red: buildTeamMatchStats(turnMatch.red, turnMatch.blue.kills),
+    endedByNexus,
+  };
+}
+
 /** Simula una partida completa (ambos equipos juegan con IA). Sin input del jugador. */
 export function simulateAITurnMatch(teamA: TeamData, teamB: TeamData): TurnMatchState {
   const rosterA = teamA.rosterMembers ?? rosterForTeamName(teamA.name);

@@ -17,7 +17,8 @@ export const MANA_COST = {
   defend: 0,
 } as const;
 
-export const ULT_EXTRA_MANA = 30;
+/** Coste total fijo de maná al activar la definitiva (Atacar/Habilidad/Defender + R). */
+export const ULT_TOTAL_MANA = 50;
 export const ULT_COOLDOWN_TURNS = 3;
 
 type FighterLike = { champ: Champion; action: CombatAction; ult: boolean; lane: number };
@@ -41,11 +42,10 @@ function nexusHomeX(team: TeamColor): number {
 }
 
 export function manaCostFor(action: CombatAction, withUlt: boolean): number {
-  const base =
-    action === 'attack' ? MANA_COST.attack :
-    action === 'ability' ? MANA_COST.ability :
-    MANA_COST.defend;
-  return base + (withUlt ? ULT_EXTRA_MANA : 0);
+  if (withUlt) return ULT_TOTAL_MANA;
+  if (action === 'attack') return MANA_COST.attack;
+  if (action === 'ability') return MANA_COST.ability;
+  return MANA_COST.defend;
 }
 
 function pushLog(log: CombatLogLine[], text: string, tone: CombatLogLine['tone'] = 'neutral') {

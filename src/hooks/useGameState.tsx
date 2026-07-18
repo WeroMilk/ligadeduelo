@@ -3,9 +3,10 @@ import type {
   GameScreen, Champion, TeamData, Tournament, Match, TurnMatchState,
   GameMode, LobbyPlayer, RosterMember, TeamPlan, LaneId, TeamColor,
 } from '@/types/game';
-import { createTeam, simulateAIMatch } from '@/lib/game-engine';
+import { createTeam } from '@/lib/game-engine';
 import {
   createTurnMatch, createTurnTeam, resolveRound, generateAIPlan, aiBuyItems, finishPendingObjective,
+  simulateAITurnMatch, buildMatchResultSummary,
 } from '@/lib/turn-engine';
 import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats } from '@/lib/game-data';
 import { rosterForTeamName } from '@/lib/rosters';
@@ -246,6 +247,7 @@ function applyMatchEnd(state: GameState, turnMatch: TurnMatchState): GameState {
   const winner = resolveLiveWinner(turnMatch);
   const result = winner === 'blue' ? 'win' : 'lose';
   const sealed = { ...turnMatch, isComplete: true, winner };
+  const resultSummary = buildMatchResultSummary(sealed);
   let tournament = state.tournament;
   if (tournament && state.currentMatch) {
     const rounds = tournament.rounds.map((r, idx) => {
@@ -253,7 +255,9 @@ function applyMatchEnd(state: GameState, turnMatch: TurnMatchState): GameState {
       return {
         ...r,
         matches: r.matches.map(m =>
-          m.id === state.currentMatch!.id ? { ...m, winner, isSimulated: false } : m
+          m.id === state.currentMatch!.id
+            ? { ...m, winner, isSimulated: false, resultSummary }
+            : m
         ),
       };
     });
@@ -371,6 +375,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         isAlive: true,
         respawnTimer: 0,
         kills: 0,
+        deaths: 0,
+        assists: 0,
         position: { lane: 0, x: 0 },
         gold: 100,
         tearStacks: 0,
@@ -617,11 +623,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         const pendingIdx = round.matches.findIndex(m => !m.isPlayerMatch && m.winner === null);
         if (pendingIdx < 0) return round;
         const match = round.matches[pendingIdx];
-        const result = simulateAIMatch(match.teamA, match.teamB);
+        const finalState = simulateAITurnMatch(match.teamA, match.teamB);
+        const winner = finalState.winner || 'blue';
+        const resultSummary = buildMatchResultSummary(finalState);
         return {
           ...round,
           matches: round.matches.map((m, i) =>
-            i === pendingIdx ? { ...m, winner: result.winner, isSimulated: true } : m
+            i === pendingIdx ? { ...m, winner, isSimulated: true, resultSummary } : m
           ),
         };
       });

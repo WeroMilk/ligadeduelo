@@ -1,10 +1,48 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import { FAN_ORGS, fanOrgDisplayName, ROLE_COLORS, ROLE_NAMES } from '@/lib/game-data';
 import { buildAllRosters } from '@/lib/rosters';
 import type { Role, RosterMember } from '@/types/game';
-import { Check, ChevronRight, User } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, User } from 'lucide-react';
 import NameSearch, { matchesNameQuery } from '@/components/NameSearch';
+
+/** Fila horizontal con flechas amarillas para navegar sin depender del swipe. */
+function ArrowScrollRow({ children, className = '' }: { children: ReactNode; className?: string }) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  const scrollBy = (dir: -1 | 1) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.7, behavior: 'smooth' });
+  };
+
+  return (
+    <div className={`flex items-center gap-1 ${className}`}>
+      <button
+        type="button"
+        aria-label="Desplazar a la izquierda"
+        onClick={() => scrollBy(-1)}
+        className="shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-[#C9A84C] text-[#0A0E1A] shadow-[0_1px_6px_rgba(201,168,76,0.35)] active:scale-95"
+      >
+        <ChevronLeft className="h-4 w-4" strokeWidth={3} />
+      </button>
+      <div
+        ref={scrollerRef}
+        className="flex flex-1 min-w-0 gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide touch-pan-x"
+      >
+        {children}
+      </div>
+      <button
+        type="button"
+        aria-label="Desplazar a la derecha"
+        onClick={() => scrollBy(1)}
+        className="shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-[#C9A84C] text-[#0A0E1A] shadow-[0_1px_6px_rgba(201,168,76,0.35)] active:scale-95"
+      >
+        <ChevronRight className="h-4 w-4" strokeWidth={3} />
+      </button>
+    </div>
+  );
+}
 
 const ROLES: Role[] = ['top', 'jungle', 'mid', 'adc', 'support'];
 const REGIONS = ['LEC', 'LCK', 'LPL', 'LCS', 'PCS/LJL'] as const;
@@ -169,7 +207,7 @@ export default function RosterSelect() {
           />
         </div>
 
-        <div className="mt-1.5 flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide md:mt-2 md:pb-1">
+        <ArrowScrollRow className="mt-1.5 md:mt-2">
           <button
             type="button"
             onClick={() => { setRegionFilter('all'); setOrgFilter('all'); }}
@@ -187,9 +225,9 @@ export default function RosterSelect() {
               {r}
             </button>
           ))}
-        </div>
+        </ArrowScrollRow>
 
-        <div className="mt-1 flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
+        <ArrowScrollRow className="mt-1">
           <button
             type="button"
             onClick={() => setOrgFilter('all')}
@@ -207,9 +245,9 @@ export default function RosterSelect() {
               {fanOrgDisplayName(o)}
             </button>
           ))}
-        </div>
+        </ArrowScrollRow>
 
-        <div className="mt-1 flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide md:overflow-visible">
+        <ArrowScrollRow className="mt-1">
           <button
             type="button"
             onClick={() => setRoleFilter('all')}
@@ -229,7 +267,7 @@ export default function RosterSelect() {
               {selectedByRole[r] ? ' ✓' : ''}
             </button>
           ))}
-        </div>
+        </ArrowScrollRow>
 
         {state.selectedRoster.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1.5 md:mt-2">

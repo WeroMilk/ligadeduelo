@@ -362,12 +362,9 @@ export function computeSynergy(player: PlayerCombatProfile, champ: ChampionDef):
   let tier: SynergyTier = 'baja';
   if (isSignature || affinity >= 90) tier = 'firma';
   else if (affinity >= 75) tier = 'alta';
-  else if (affinity >= 55) tier = 'media';
+  else if (affinity >= 50) tier = 'media';
 
-  const label =
-    tier === 'firma' ? 'Firma' :
-    tier === 'alta' ? 'Alta' :
-    tier === 'media' ? 'Media' : 'Baja';
+  const label = `${affinity}%`;
 
   return {
     affinity,
@@ -378,6 +375,20 @@ export function computeSynergy(player: PlayerCombatProfile, champ: ChampionDef):
     isSignature,
     label,
   };
+}
+
+/** Color/estilo UI según rangos de dominio: ≥90, 75–89, 50–74, <50. */
+export function synergyBadgeStyle(affinity: number): { label: string; className: string } {
+  if (affinity >= 90) {
+    return { label: `${affinity}%`, className: 'bg-[#C9A84C]/25 text-[#F1C40F] border-[#C9A84C]' };
+  }
+  if (affinity >= 75) {
+    return { label: `${affinity}%`, className: 'bg-[#2ECC71]/20 text-[#2ECC71] border-[#2ECC71]/50' };
+  }
+  if (affinity >= 50) {
+    return { label: `${affinity}%`, className: 'bg-[#3498DB]/20 text-[#5DADE2] border-[#3498DB]/50' };
+  }
+  return { label: `${affinity}%`, className: 'bg-[#4A5570]/40 text-[#8B9BB4] border-[#4A5570]' };
 }
 
 export function synergyForMember(member: RosterMember | null | undefined, defId: string): SynergyResult | null {

@@ -3,14 +3,12 @@
  * No se puede cerrar; los clics no hacen nada.
  * No se muestra al ganar la final del torneo.
  */
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useState, useSyncExternalStore, useCallback } from 'react';
 import { useGame } from '@/hooks/useGameState';
-import { setAdHidden } from '@/lib/ad-visibility';
 import { getAdsDisabledForever, subscribeAdsDisabledForever } from '@/lib/ad-premium';
+import AdInterstitial, { POST_MATCH_AD_MS } from '@/components/AdInterstitial';
 
-export const POST_MATCH_AD_MS = 8000;
-const AD_IMG = '/ads/adios-anuncios.png';
+export { POST_MATCH_AD_MS };
 
 function shouldShowPostMatchAd(
   screen: string,
@@ -19,7 +17,6 @@ function shouldShowPostMatchAd(
   result: string | null | undefined,
 ) {
   if (screen !== 'victory' && screen !== 'defeat') return false;
-  // Ganar la final → pantalla de campeón, sin este anuncio
   if (screen === 'victory' && result === 'win') {
     const last = (roundsLen ?? 4) - 1;
     if ((round ?? 0) >= last) return false;
@@ -43,87 +40,19 @@ export default function PostMatchAd() {
       setVisible(false);
       return;
     }
-
     setVisible(true);
-    setAdHidden(true);
-    const t = window.setTimeout(() => {
-      setVisible(false);
-      setAdHidden(false);
-    }, POST_MATCH_AD_MS);
-
-    return () => {
-      window.clearTimeout(t);
-      setAdHidden(false);
-    };
   }, [matchKey, screen, round, roundsLen, result, adsOff]);
 
-  if (!visible) return null;
+  const onComplete = useCallback(() => {
+    setVisible(false);
+  }, []);
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[300] flex items-center justify-center bg-[#05080f]"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Publicidad"
-      onClick={e => {
-        e.preventDefault();
-        e.stopPropagation();
-      }}
-      onPointerDown={e => {
-        e.preventDefault();
-        e.stopPropagation();
-      }}
-    >
-      {/* Temporizador: línea blanca superior que se agota en 8s */}
-      <div
-        className="absolute left-0 top-0 z-10 w-full"
-        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
-        aria-hidden
-      >
-        <div className="relative h-[3px] w-full overflow-hidden bg-white/10">
-          <div
-            key={matchKey}
-            className="postmatch-timer-bar h-full w-full origin-left"
-          />
-        </div>
-      </div>
-
-      <style>{`
-        .postmatch-timer-bar {
-          background: linear-gradient(
-            90deg,
-            rgba(255, 255, 255, 0.98) 0%,
-            rgba(255, 255, 255, 0.88) 72%,
-            rgba(255, 255, 255, 0.35) 100%
-          );
-          box-shadow:
-            0 0 14px rgba(255, 255, 255, 0.40),
-            0 0 2px rgba(255, 255, 255, 0.85);
-          transform-origin: left center;
-          animation: postmatch-timer-shrink ${POST_MATCH_AD_MS}ms linear forwards;
-        }
-
-        @keyframes postmatch-timer-shrink {
-          from { transform: scaleX(1); opacity: 1; }
-          to { transform: scaleX(0); opacity: 0.55; }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .postmatch-timer-bar {
-            animation: none;
-            transform: scaleX(0);
-            opacity: 0.4;
-          }
-        }
-      `}</style>
-
-      <img
-        src={AD_IMG}
-        alt="¡Adiós anuncios! Transfiere $49 MXN a la cuenta CLABE para disfrutar sin interrupciones."
-        className="h-full w-full object-contain select-none pointer-events-none"
-        draggable={false}
-      />
-    </div>,
-    document.body,
+  return (
+    <AdInterstitial
+      open={visible}
+      durationMs={POST_MATCH_AD_MS}
+      onComplete={onComplete}
+      respectPremium
+    />
   );
 }

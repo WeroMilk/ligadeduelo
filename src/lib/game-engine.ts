@@ -33,6 +33,8 @@ function createChampion(defId: string, team: TeamColor): Champion {
     isAlive: true,
     respawnTimer: 0,
     kills: 0,
+    deaths: 0,
+    assists: 0,
     position: {
       lane: def.role === 'jungle' ? 1 : laneMap[def.role],
       x: baseX,

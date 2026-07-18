@@ -575,7 +575,7 @@ export default function Minimap({
                 opacity: dim ? 0.22 : 1,
                 transition: 'left 0.45s cubic-bezier(0.22, 1.2, 0.36, 1), top 0.45s cubic-bezier(0.22, 1.2, 0.36, 1), opacity 0.45s ease',
               }}
-              title={`${c.playerName ? `${c.playerName} · ` : ''}${def.name}${c.synergyTier === 'firma' ? ' · Firma' : c.synergyTier ? ` · ${c.synergyTier}` : ''}${c.recallingForMana ? ' · BASE' : ''}${action ? ` · ${actionLabelEs(action)}` : ''} · MN ${Math.floor(c.stats.mana)}/${c.stats.maxMana}`}
+              title={`${c.playerName ? `${c.playerName} · ` : ''}${def.name}${c.playerAffinity != null ? ` · ${c.playerAffinity}%` : ''}${c.recallingForMana ? ' · BASE' : ''}${action ? ` · ${actionLabelEs(action)}` : ''} · MN ${Math.floor(c.stats.mana)}/${c.stats.maxMana}`}
             >
               <div
                 className="rounded-full overflow-hidden border-2 relative"
@@ -671,11 +671,11 @@ export default function Minimap({
                   style={{
                     top: icon + (showHp ? 8 : 2),
                     fontSize: Math.max(6, icon * 0.18),
-                    color: c.synergyTier === 'firma' ? '#F1C40F' : '#8B9BB4',
+                    color: (c.playerAffinity ?? 0) >= 90 ? '#F1C40F' : '#8B9BB4',
                     backgroundColor: 'rgba(10,14,26,0.75)',
                   }}
                 >
-                  {c.synergyTier === 'firma' ? 'Firma' : c.playerName}
+                  {c.playerAffinity != null ? `${c.playerAffinity}%` : c.playerName}
                 </div>
               )}
             </div>
