@@ -296,15 +296,30 @@ export default function BracketScreen() {
                     En disputa…
                   </p>
                 ) : isPlayer ? (
-                  <button
-                    type="button"
-                    onClick={() => handleStartMatch(match.id)}
-                    disabled={simulating}
-                    className="w-full mt-3 md:mt-4 min-h-11 md:min-h-12 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold py-3 rounded-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-40"
-                  >
-                    <Swords className="w-4 h-4" />
-                    {matchButtonLabel(match)}
-                  </button>
+                  <div className="mt-3 md:mt-4 flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleStartMatch(match.id)}
+                      disabled={simulating}
+                      className="w-full min-h-11 md:min-h-12 bg-gradient-to-r from-[#C9A84C] to-[#B8953E] text-[#0A0E1A] font-bold py-3 rounded-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-40"
+                    >
+                      <Swords className="w-4 h-4" />
+                      {matchButtonLabel(match)}
+                    </button>
+                    {isCoop && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playClickSound();
+                          dispatch({ type: 'SIMULATE_BRACKET_MATCH', matchId: match.id });
+                        }}
+                        disabled={simulating}
+                        className="w-full min-h-10 rounded-lg border border-[#8B9BB4]/40 bg-[#141B2D] font-bold text-xs text-[#8B9BB4] flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40"
+                      >
+                        SIMULAR PARTIDA
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   <p className="text-center text-[#4A5570] text-xs md:text-sm mt-3 md:mt-4">
                     En espera…

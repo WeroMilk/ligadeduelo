@@ -48,7 +48,7 @@ function ChampRow({ champ, side }: { champ: Champion; side: 'blue' | 'red' }) {
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[8px] font-bold text-[#F0E6D2]">
-          {(def?.name || champ.defId).slice(0, 10)}
+          {def?.name || champ.defId}
           <span className="ml-0.5 font-normal text-[#8B9BB4]">
             {champ.kills || 0}/{champ.deaths || 0}/{champ.assists || 0}
           </span>

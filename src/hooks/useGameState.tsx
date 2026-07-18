@@ -141,6 +141,8 @@ type GameAction =
   | { type: 'FINISH_LIVE_MATCH' }
   | { type: 'ADVANCE_BRACKET' }
   | { type: 'SIMULATE_ONE_AI_MATCH' }
+  | { type: 'SIMULATE_BRACKET_MATCH'; matchId: string }
+  | { type: 'SIMULATE_LIVE_MATCH' }
   | { type: 'EXIT_TO_MODE' }
   | { type: 'RESET_TOURNAMENT' }
   | { type: 'AUTO_FILL_SETUP' };
@@ -346,7 +348,7 @@ function resolveLiveWinner(turnMatch: TurnMatchState): 'blue' | 'red' {
   return turnMatch.blue.score >= turnMatch.red.score ? 'blue' : 'red';
 }
 
-function applyMatchEnd(state: GameState, turnMatch: TurnMatchState): GameState {
+function applyMatchEnd(state: GameState, turnMatch: TurnMatchState, simulated = false): GameState {
   const winner = resolveLiveWinner(turnMatch);
   const result = winner === 'blue' ? 'win' : 'lose';
   const sealed = { ...turnMatch, isComplete: true, winner };
@@ -361,7 +363,7 @@ function applyMatchEnd(state: GameState, turnMatch: TurnMatchState): GameState {
         ...r,
         matches: r.matches.map(m =>
           m.id === match.id
-            ? { ...m, winner, isSimulated: false, resultSummary }
+            ? { ...m, winner, isSimulated: simulated, resultSummary }
             : m
         ),
       };
@@ -941,6 +943,47 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         };
       });
       return { ...state, tournament: { ...state.tournament, rounds } };
+    }
+
+    case 'SIMULATE_BRACKET_MATCH': {
+      if (!state.tournament || !isCoopLocal(state.gameMode)) return state;
+      const roundIdx = state.tournament.currentRound;
+      const round = state.tournament.rounds[roundIdx];
+      const matchIdx = round.matches.findIndex(m => m.id === action.matchId);
+      if (matchIdx < 0 || round.matches[matchIdx].winner !== null) return state;
+      const match = round.matches[matchIdx];
+      const finalState = simulateAITurnMatch(match.teamA, match.teamB);
+      const winner = finalState.winner || 'blue';
+      const resultSummary = buildMatchResultSummary(finalState);
+      let humanEliminatedRound = { ...state.humanEliminatedRound };
+      const loserId = winner === 'blue' ? match.teamB.id : match.teamA.id;
+      if (isHumanTeamId(loserId)) {
+        humanEliminatedRound[loserId] = roundIdx;
+      }
+      const rounds = state.tournament.rounds.map((r, idx) => {
+        if (idx !== roundIdx) return r;
+        return {
+          ...r,
+          matches: r.matches.map((m, i) =>
+            i === matchIdx ? { ...m, winner, isSimulated: true, resultSummary } : m
+          ),
+        };
+      });
+      const leavingLive = state.currentMatch?.id === action.matchId;
+      return {
+        ...state,
+        tournament: { ...state.tournament, rounds },
+        humanEliminatedRound,
+        currentMatch: leavingLive ? null : state.currentMatch,
+        turnMatch: leavingLive ? null : state.turnMatch,
+        currentScreen: leavingLive ? 'bracket' : state.currentScreen,
+      };
+    }
+
+    case 'SIMULATE_LIVE_MATCH': {
+      if (!state.turnMatch || !state.currentMatch || !isCoopLocal(state.gameMode)) return state;
+      const finalState = simulateAITurnMatch(state.currentMatch.teamA, state.currentMatch.teamB);
+      return applyMatchEnd(state, finalState, true);
     }
 
     case 'EXIT_TO_MODE':

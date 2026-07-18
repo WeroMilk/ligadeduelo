@@ -584,6 +584,37 @@ export default function LiveMatch() {
     }
   };
 
+  const simulateHumanTurn = () => {
+    if (!tm) return;
+    const side = humanSide;
+    const team = side === 'blue' ? tm.blue : tm.red;
+    if (!livingJungler(team)) {
+      pickQueue.current = [];
+      resolveWithPicks([]);
+      return;
+    }
+    const aiPlan = generateAIPlan(tm, side);
+    const picks: DecisionPayload[] = [];
+    if (aiPlan.jungleTarget !== undefined) {
+      picks.push({ kind: 'jungle', target: aiPlan.jungleTarget });
+      if (
+        aiPlan.jungleTarget === 'objective'
+        && tm.objective
+        && aiPlan.objectiveAssistId
+        && assistCandidates.some(c => c.instanceId === aiPlan.objectiveAssistId)
+      ) {
+        picks.push({ kind: 'assist', champId: aiPlan.objectiveAssistId });
+      }
+    }
+    pickQueue.current = [];
+    resolveWithPicks(picks);
+  };
+
+  const simulateLiveMatch = () => {
+    if (!window.confirm('¿Simular el resto de esta partida automáticamente?')) return;
+    dispatch({ type: 'SIMULATE_LIVE_MATCH' });
+  };
+
   const beginPrompts = (round: number) => {
     const current = tmRef.current;
     if (!current || current.isComplete) return;
@@ -855,6 +886,17 @@ export default function LiveMatch() {
           <h1 className="text-base md:text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
             Ronda {displayRound}/{tm.maxRounds}
           </h1>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isCoop && (
+            <button
+              type="button"
+              onClick={simulateLiveMatch}
+              disabled={pauseBlocked}
+              className="rounded-full border border-[#8B9BB4]/40 bg-[#141B2D] px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4] active:scale-95 disabled:opacity-40"
+            >
+              Simular
+            </button>
+          )}
           <button
             type="button"
             onClick={togglePause}
@@ -869,6 +911,7 @@ export default function LiveMatch() {
             {isPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
             {isPaused ? 'Continuar' : 'Pausa'}
           </button>
+        </div>
         </div>
       </div>
 
@@ -926,6 +969,7 @@ export default function LiveMatch() {
                 showTimer={!isCoopSolo}
                 teamColor={humanSide}
                 onPick={isPaused ? () => undefined : acceptPick}
+                onSimulateTurn={isCoop && !isCoopPvp && !isPaused ? simulateHumanTurn : undefined}
               />
             )}
 
@@ -1059,7 +1103,7 @@ export default function LiveMatch() {
           onComplete={onQteComplete}
           paused={isPaused}
           attemptKey={qteAttempt}
-          allowSimulate={state.gameMode === 'ai'}
+          allowSimulate={state.gameMode === 'ai' || isCoopLocal(state.gameMode)}
         />
       )}
 
