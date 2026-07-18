@@ -188,8 +188,9 @@ export default function ObjectiveMinigame({
   redChampions,
   onComplete,
   paused = false,
-  attemptKey = 0,
+  attemptKey: _attemptKey = 0,
 }: Props) {
+  void _attemptKey;
   const isGank = pending.kind === 'gank';
   const isNexusDefense = pending.kind === 'nexus_defense';
   const isNexusAssault = pending.kind === 'nexus_assault';
