@@ -24,27 +24,31 @@ import { objectiveName } from '@/lib/game-data';
 import { getMatchTimings } from '@/lib/express-mode';
 import type { CombatFloat, LaneId, ObjectiveBonusAnnounce, RoundResolution, Structure, TeamPlan, TeamColor } from '@/types/game';
 
-const MAP_SIZE_MOBILE_MAX = 260;
+const MAP_SIZE_MOBILE_MAX = 340;
 const MAP_SIZE_MOBILE_MIN = 120;
-/** Capsula + anuncios + estructuras + stats + marcador + gaps en móvil. */
-const MOBILE_BELOW_MAP_RESERVE = 292;
 const MAP_SLOT_SCALE = 1.08;
 const DESKTOP_SIDEBAR_W = 288;
 const DESKTOP_MAP_MAX = 460;
 const DESKTOP_MAP_MIN = 200;
 
-function useMapSize(containerRef: React.RefObject<HTMLElement | null>) {
+/**
+ * Desktop: mide el body.
+ * Móvil: mide el hueco flexible del mapa (slotRef) para que crezca con el espacio real.
+ */
+function useMapSize(
+  bodyRef: React.RefObject<HTMLElement | null>,
+  slotRef: React.RefObject<HTMLElement | null>,
+) {
   const [size, setSize] = useState(220);
   useEffect(() => {
-    const el = containerRef.current;
     const update = () => {
-      if (!el) return;
       const desktop = window.matchMedia('(min-width: 768px)').matches;
-      const h = el.clientHeight;
-      const w = el.clientWidth;
 
       if (desktop) {
-        // Escritorio: mapa a la izquierda; estructuras y marcador en panel lateral
+        const el = bodyRef.current;
+        if (!el) return;
+        const h = el.clientHeight;
+        const w = el.clientWidth;
         const reserved = 56;
         const availW = w - DESKTOP_SIDEBAR_W - 24;
         const byH = Math.floor((h - reserved) / MAP_SLOT_SCALE);
@@ -53,23 +57,26 @@ function useMapSize(containerRef: React.RefObject<HTMLElement | null>) {
         return;
       }
 
-      // Móvil: encajar mapa + paneles en el viewport sin scroll
-      const byH = Math.floor((h - MOBILE_BELOW_MAP_RESERVE) / MAP_SLOT_SCALE);
-      const byW = Math.floor(w - 12);
-      setSize(Math.max(MAP_SIZE_MOBILE_MIN, Math.min(MAP_SIZE_MOBILE_MAX, byH, byW)));
+      const slot = slotRef.current;
+      if (!slot) return;
+      const side = Math.min(slot.clientWidth, slot.clientHeight);
+      const bySlot = Math.floor(side / MAP_SLOT_SCALE);
+      setSize(Math.max(MAP_SIZE_MOBILE_MIN, Math.min(MAP_SIZE_MOBILE_MAX, bySlot)));
     };
+
     update();
     window.addEventListener('resize', update);
-    let ro: ResizeObserver | null = null;
-    if (el && typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(update);
-      ro.observe(el);
+    const ro =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    if (ro) {
+      if (bodyRef.current) ro.observe(bodyRef.current);
+      if (slotRef.current) ro.observe(slotRef.current);
     }
     return () => {
       window.removeEventListener('resize', update);
       ro?.disconnect();
     };
-  }, [containerRef]);
+  }, [bodyRef, slotRef]);
   return size;
 }
 const CINEMA_STUCK_MS_MIN = 12000;
@@ -180,15 +187,15 @@ function StructureHpRow({ structures, team }: { structures: Structure[]; team: '
     const pct = destroyed ? 0 : Math.max(0, Math.min(100, (s!.hp / s!.maxHp) * 100));
     return (
       <div key={label} className="flex-1 min-w-0">
-        <div className="flex justify-between text-[9px] leading-tight">
-          <span style={{ color }}>{label}</span>
-          <span className="text-[#8B9BB4]">
+        <div className="flex justify-between text-[10px] leading-tight tracking-wide">
+          <span className="font-medium" style={{ color }}>{label}</span>
+          <span className="text-[#8B9BB4] tabular-nums">
             {destroyed ? '✕' : `${Math.floor(s!.hp)}`}
           </span>
         </div>
-        <div className="h-1.5 rounded-full bg-black/50 overflow-hidden">
+        <div className="mt-1 h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
           <div
-            className="h-full transition-all"
+            className="h-full rounded-full transition-all"
             style={{
               width: `${pct}%`,
               backgroundColor: destroyed ? '#4A5570' : pct > 50 ? '#27AE60' : pct > 25 ? '#F1C40F' : '#E74C3C',
@@ -200,7 +207,7 @@ function StructureHpRow({ structures, team }: { structures: Structure[]; team: '
   };
 
   return (
-    <div className="flex gap-1.5 w-full">
+    <div className="flex gap-2 w-full">
       {towers.map((s, i) => bar(s, `Torre ${labels[i]}`))}
       {bar(nexus, 'Nexo')}
     </div>
@@ -216,7 +223,8 @@ export default function LiveMatch() {
   const isCoopSolo = isCoop && !!state.currentMatch?.isPlayerMatch && !isCoopPvp;
   const humanSide = state.playerSide ?? 'blue';
   const bodyRef = useRef<HTMLDivElement>(null);
-  const mapSize = useMapSize(bodyRef);
+  const slotRef = useRef<HTMLDivElement>(null);
+  const mapSize = useMapSize(bodyRef, slotRef);
   const [phase, setPhase] = useState<Phase | null>(null);
   const [promptLeft, setPromptLeft] = useState(timings.promptSec);
   const [scale, setScale] = useState(0.92);
@@ -1046,143 +1054,156 @@ export default function LiveMatch() {
 
       <div
         ref={bodyRef}
-        className="flex-1 min-h-0 overflow-hidden md:overflow-y-auto overscroll-contain scrollbar-hide px-2 py-1.5 w-full max-w-lg mx-auto flex flex-col gap-1.5 md:max-w-6xl md:px-4 md:py-2 md:flex-row md:items-stretch md:justify-center md:gap-6 lg:gap-8"
+        className="flex-1 min-h-0 overflow-hidden md:overflow-y-auto overscroll-contain scrollbar-hide px-3 py-2 w-full max-w-lg mx-auto flex flex-col gap-2 md:max-w-6xl md:px-4 md:py-2 md:flex-row md:items-stretch md:justify-center md:gap-6 lg:gap-8"
       >
-        <div className="flex w-full min-h-0 flex-1 flex-col items-center justify-between gap-1 md:flex-none md:justify-center md:gap-2 md:flex-1 md:min-w-0">
+        <div className="flex w-full min-h-0 flex-1 flex-col items-center gap-2 md:justify-center md:flex-1 md:min-w-0">
           <div key={capsule} className="rounded-full border border-[#C9A84C]/40 bg-[#141B2D] px-3 py-0.5 shrink-0 animate-scale-in">
             <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-[#C9A84C]">{capsule}</p>
           </div>
 
-          <div className="relative flex shrink-0 items-center justify-center overflow-hidden mx-auto" style={{ width: slot, height: slot, maxWidth: '100%' }}>
+          {/* Hueco flexible: el mapa crece con el espacio real en móvil */}
+          <div
+            ref={slotRef}
+            className="relative flex w-full min-h-0 flex-1 items-center justify-center overflow-hidden md:flex-none md:shrink-0"
+          >
             <div
-              key={`punch-${punch}`}
-              className={punch > 0 ? 'animate-fx-punch' : undefined}
-              style={{ width: mapSize, height: mapSize }}
+              className="relative flex items-center justify-center overflow-hidden"
+              style={{ width: slot, height: slot, maxWidth: '100%' }}
             >
-            <div
-              className="transition-transform duration-500 ease-out"
-              style={{
-                transform: `translate(${camPan.x}%, ${camPan.y}%) scale(${scale})`,
-                width: mapSize,
-                height: mapSize,
-              }}
-            >
-              <Minimap
-                size={mapSize}
-                blueChampions={tm.blue.champions}
-                redChampions={tm.red.champions}
-                structures={displayStructures}
-                objective={cinemaRes?.objective ?? tm.objective}
-                bluePlan={state.playerPlan}
-                redPlan={state.enemyPlanPreview}
-                showActions={phase?.t === 'lane' && phase.fight}
-                showHp
-                focusLane={focusLane}
-                cinemaApproach={!!cinemaApproach}
-                highlightObjective={phase?.t === 'objective' || phase?.t === 'qte'}
-                objectiveAnim={phase?.t === 'objective' ? phase.anim : 'none'}
-                objectiveWinner={cinemaRes?.objectiveWinner ?? null}
-                attackBeams={attackBeams}
-                combatFloats={activeFloats}
-                impactTargetId={activeHit?.targetId ?? null}
-                lungeFromId={activeHit?.kind === 'damage' ? activeHit.sourceId ?? null : null}
-                activeEffectKind={activeHit?.kind ?? null}
-                activeSourceTeam={activeHit?.sourceTeam ?? null}
-                spectacleBursts={spectacleBursts}
-                ultimateIds={[
-                  ...(state.playerPlan?.ultimates || []),
-                  ...(state.enemyPlanPreview?.ultimates || []),
-                ]}
-              />
-            </div>
-            </div>
-            <CombatScreenFX signal={fx} />
-            <CombatHitOverlay hit={activeHit} durationMs={timings.hitPauseMs} paused={matchFrozen} />
+              <div
+                key={`punch-${punch}`}
+                className={punch > 0 ? 'animate-fx-punch' : undefined}
+                style={{ width: mapSize, height: mapSize }}
+              >
+              <div
+                className="transition-transform duration-500 ease-out"
+                style={{
+                  transform: `translate(${camPan.x}%, ${camPan.y}%) scale(${scale})`,
+                  width: mapSize,
+                  height: mapSize,
+                }}
+              >
+                <Minimap
+                  size={mapSize}
+                  blueChampions={tm.blue.champions}
+                  redChampions={tm.red.champions}
+                  structures={displayStructures}
+                  objective={cinemaRes?.objective ?? tm.objective}
+                  bluePlan={state.playerPlan}
+                  redPlan={state.enemyPlanPreview}
+                  showActions={phase?.t === 'lane' && phase.fight}
+                  showHp
+                  focusLane={focusLane}
+                  cinemaApproach={!!cinemaApproach}
+                  highlightObjective={phase?.t === 'objective' || phase?.t === 'qte'}
+                  objectiveAnim={phase?.t === 'objective' ? phase.anim : 'none'}
+                  objectiveWinner={cinemaRes?.objectiveWinner ?? null}
+                  attackBeams={attackBeams}
+                  combatFloats={activeFloats}
+                  impactTargetId={activeHit?.targetId ?? null}
+                  lungeFromId={activeHit?.kind === 'damage' ? activeHit.sourceId ?? null : null}
+                  activeEffectKind={activeHit?.kind ?? null}
+                  activeSourceTeam={activeHit?.sourceTeam ?? null}
+                  spectacleBursts={spectacleBursts}
+                  ultimateIds={[
+                    ...(state.playerPlan?.ultimates || []),
+                    ...(state.enemyPlanPreview?.ultimates || []),
+                  ]}
+                />
+              </div>
+              </div>
+              <CombatScreenFX signal={fx} />
+              <CombatHitOverlay hit={activeHit} durationMs={timings.hitPauseMs} paused={matchFrozen} />
 
-            {phase?.t === 'prompt' && !statsOpen && !isCoopPvp && (
-              <DecisionOverlay
-                kind={phase.kind}
-                objectiveLabel={objLabel}
-                allowObjective={!!tm.objective}
-                assistOptions={assistCandidates}
-                secondsLeft={isCoopSolo ? 0 : promptLeft}
-                showTimer={!isCoopSolo}
-                teamColor={humanSide}
-                onPick={isPaused ? () => undefined : acceptPick}
-                onSimulateTurn={isCoop && !isCoopPvp && !isPaused ? simulateHumanTurn : undefined}
-              />
-            )}
+              {phase?.t === 'prompt' && !statsOpen && !isCoopPvp && (
+                <DecisionOverlay
+                  kind={phase.kind}
+                  objectiveLabel={objLabel}
+                  allowObjective={!!tm.objective}
+                  assistOptions={assistCandidates}
+                  secondsLeft={isCoopSolo ? 0 : promptLeft}
+                  showTimer={!isCoopSolo}
+                  teamColor={humanSide}
+                  onPick={isPaused ? () => undefined : acceptPick}
+                  onSimulateTurn={isCoop && !isCoopPvp && !isPaused ? simulateHumanTurn : undefined}
+                />
+              )}
 
-            {phase?.t === 'qte_result' && pendingQteResult && !showReplayAd && !playerWonQte(pendingQteResult) && (
-              <div className="absolute inset-0 z-[130] flex items-center justify-center bg-black/70 p-3">
-                <div className="w-full max-w-sm overflow-hidden rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)]">
-                  <p className="text-center text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
-                    Combate de bolitas
-                  </p>
-                  <h3
-                    className="mt-1 text-center text-lg font-bold text-[#F0E6D2]"
-                    style={{ fontFamily: 'Cinzel, serif' }}
-                  >
-                    ¡Casi!
-                  </h3>
-                  <p className="mt-1 text-center text-xs text-[#8B9BB4]">
-                    {qteReplaysLeft > 0
-                      ? `Perdiste este intento. Puedes repetir (${qteReplaysLeft} disponibles) viendo un anuncio de 10 segundos.`
-                      : 'Perdiste este intento. Ya usaste tus 3 repeticiones de esta partida.'}
-                  </p>
-                  <div className={`mt-3 grid grid-cols-1 gap-2 ${
-                    qteReplaysLeft > 0 ? 'sm:grid-cols-2' : ''
-                  }`}>
-                    {qteReplaysLeft > 0 && (
+              {phase?.t === 'qte_result' && pendingQteResult && !showReplayAd && !playerWonQte(pendingQteResult) && (
+                <div className="absolute inset-0 z-[130] flex items-center justify-center bg-black/70 p-3">
+                  <div className="w-full max-w-sm overflow-hidden rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)]">
+                    <p className="text-center text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
+                      Combate de bolitas
+                    </p>
+                    <h3
+                      className="mt-1 text-center text-lg font-bold text-[#F0E6D2]"
+                      style={{ fontFamily: 'Cinzel, serif' }}
+                    >
+                      ¡Casi!
+                    </h3>
+                    <p className="mt-1 text-center text-xs text-[#8B9BB4]">
+                      {qteReplaysLeft > 0
+                        ? `Perdiste este intento. Puedes repetir (${qteReplaysLeft} disponibles) viendo un anuncio de 10 segundos.`
+                        : 'Perdiste este intento. Ya usaste tus 3 repeticiones de esta partida.'}
+                    </p>
+                    <div className={`mt-3 grid grid-cols-1 gap-2 ${
+                      qteReplaysLeft > 0 ? 'sm:grid-cols-2' : ''
+                    }`}>
+                      {qteReplaysLeft > 0 && (
+                        <button
+                          type="button"
+                          onClick={requestQteReplay}
+                          className="min-h-10 rounded-xl border border-[#C9A84C]/45 bg-[#C9A84C]/12 font-bold text-[#C9A84C]"
+                        >
+                          Repetir
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={requestQteReplay}
-                        className="min-h-10 rounded-xl border border-[#C9A84C]/45 bg-[#C9A84C]/12 font-bold text-[#C9A84C]"
+                        onClick={() => confirmQteResult(pendingQteResult)}
+                        className="min-h-10 rounded-xl font-bold"
+                        style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
                       >
-                        Repetir
+                        Continuar
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => confirmQteResult(pendingQteResult)}
-                      className="min-h-10 rounded-xl font-bold"
-                      style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
-                    >
-                      Continuar
-                    </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <CombatAnnounceOverlay batch={announceBatch} placement="inline" paused={matchFrozen} />
 
-          <div className="w-full space-y-1 md:hidden shrink-0" style={{ maxWidth: Math.max(mapSize, 260) }}>
-            <div className="rounded-lg border border-[#1E2740] bg-[#0D1220] px-1.5 py-1 shrink-0 space-y-0.5">
+          {/* Panel inferior móvil · estilo iOS */}
+          <div className="w-full space-y-2 md:hidden shrink-0 pb-[env(safe-area-inset-bottom,0px)]">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5 backdrop-blur-md shadow-[0_1px_0_rgba(255,255,255,0.04)_inset]">
               <StructureHpRow structures={displayStructures} team="blue" />
+              <div className="my-2 border-t border-white/[0.06]" />
               <StructureHpRow structures={displayStructures} team="red" />
             </div>
 
             <button
               type="button"
               onClick={openStats}
-              className="w-full shrink-0 flex items-center justify-center gap-1.5 rounded-lg border border-[#C9A84C]/45 bg-[#C9A84C]/12 px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[#C9A84C] active:scale-[0.99]"
+              className="w-full min-h-10 shrink-0 flex items-center justify-center gap-2 rounded-full border border-[#C9A84C]/35 bg-[#C9A84C]/15 px-4 text-[12px] font-semibold uppercase tracking-wide text-[#C9A84C] active:opacity-70 transition-opacity"
             >
-              <BarChart3 className="h-3.5 w-3.5" />
+              <BarChart3 className="h-4 w-4" />
               Estadísticas
             </button>
 
-            <div className="grid w-full shrink-0 grid-cols-2 gap-1.5 text-[10px]">
-              <div className="min-w-0 rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1">
-                <p className="text-[#8B9BB4] leading-none">Azul</p>
-                <p className="font-bold text-[#F0E6D2] truncate leading-tight">{tm.blue.name}</p>
-                <p className="text-sm font-bold text-[#3498DB] leading-none mt-0.5">{tm.blue.kills} <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4]">bajas</span></p>
+            <div className="grid w-full shrink-0 grid-cols-2 gap-2">
+              <div className="min-w-0 rounded-2xl border border-[#3498DB]/35 bg-[#3498DB]/10 px-3 py-2.5 backdrop-blur-sm">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-[#8B9BB4]">Azul</p>
+                <p className="text-[11px] font-semibold text-[#F0E6D2] truncate mt-0.5">{tm.blue.name}</p>
+                <p className="text-xl font-semibold tabular-nums text-[#3498DB] leading-none mt-1.5">{tm.blue.kills}</p>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-[#8B9BB4] mt-0.5">Bajas</p>
               </div>
-              <div className="min-w-0 rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1 text-right">
-                <p className="text-[#8B9BB4] leading-none">Rojo</p>
-                <p className="font-bold text-[#F0E6D2] truncate leading-tight">{tm.red.name}</p>
-                <p className="text-sm font-bold text-[#E74C3C] leading-none mt-0.5">{tm.red.kills} <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B9BB4]">bajas</span></p>
+              <div className="min-w-0 rounded-2xl border border-[#E74C3C]/35 bg-[#E74C3C]/10 px-3 py-2.5 text-right backdrop-blur-sm">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-[#8B9BB4]">Rojo</p>
+                <p className="text-[11px] font-semibold text-[#F0E6D2] truncate mt-0.5">{tm.red.name}</p>
+                <p className="text-xl font-semibold tabular-nums text-[#E74C3C] leading-none mt-1.5">{tm.red.kills}</p>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-[#8B9BB4] mt-0.5">Bajas</p>
               </div>
             </div>
           </div>
