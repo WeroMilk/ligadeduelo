@@ -874,9 +874,9 @@ export default function LiveMatch() {
 
       <div
         ref={bodyRef}
-        className="flex-1 min-h-0 overflow-hidden px-3 py-2 max-w-lg mx-auto w-full flex flex-col justify-between gap-2 md:max-w-6xl md:px-4 md:py-3 md:flex-row md:items-center md:justify-center md:gap-10"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-hide px-3 py-2 max-w-lg mx-auto w-full flex flex-col gap-2.5 md:overflow-hidden md:max-w-6xl md:px-4 md:py-3 md:flex-row md:items-start md:justify-center md:gap-10"
       >
-        <div className="flex flex-col items-center gap-1.5 md:gap-3 w-full min-h-0 md:w-auto md:shrink-0">
+        <div className="flex w-full min-h-0 flex-col items-center gap-1.5 md:w-auto md:shrink-0 md:gap-3">
           <div className="rounded-full border border-[#C9A84C]/40 bg-[#141B2D] px-3 py-0.5 shrink-0">
             <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-wider text-[#C9A84C]">{capsule}</p>
           </div>
@@ -991,16 +991,34 @@ export default function LiveMatch() {
             <BarChart3 className="h-4 w-4" />
             Estadísticas
           </button>
+
+          <div
+            className="grid w-full shrink-0 grid-cols-2 gap-2 text-[11px] md:hidden"
+            style={{ maxWidth: mapSize }}
+          >
+            <div className="min-w-0 rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1.5">
+              <p className="text-[#8B9BB4]">Azul</p>
+              <p className="font-bold text-[#F0E6D2] truncate">{tm.blue.name}</p>
+              <p className="text-base font-bold text-[#3498DB] mt-0.5">{tm.blue.kills}</p>
+              <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
+            </div>
+            <div className="min-w-0 rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1.5 text-right">
+              <p className="text-[#8B9BB4]">Rojo</p>
+              <p className="font-bold text-[#F0E6D2] truncate">{tm.red.name}</p>
+              <p className="text-base font-bold text-[#E74C3C] mt-0.5">{tm.red.kills}</p>
+              <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
+            </div>
+          </div>
         </div>
 
-        <div className="w-full grid grid-cols-2 gap-2 text-[11px] shrink-0 md:w-64 md:grid-cols-1 md:gap-3">
-          <div className="rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1 md:py-4 md:px-3">
+        <div className="hidden w-full shrink-0 grid-cols-1 gap-3 text-[11px] md:grid md:w-64">
+          <div className="min-w-0 rounded-lg border border-[#3498DB]/30 bg-[#3498DB]/10 px-2 py-1 md:py-4 md:px-3">
             <p className="text-[#8B9BB4]">Azul</p>
             <p className="font-bold text-[#F0E6D2] truncate md:text-sm">{tm.blue.name}</p>
             <p className="text-base md:text-2xl font-bold text-[#3498DB] mt-0.5 md:mt-1">{tm.blue.kills}</p>
             <p className="text-[10px] uppercase tracking-wider text-[#8B9BB4]">Bajas</p>
           </div>
-          <div className="rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1 text-right md:text-left md:py-4 md:px-3">
+          <div className="min-w-0 rounded-lg border border-[#E74C3C]/30 bg-[#E74C3C]/10 px-2 py-1 md:py-4 md:px-3">
             <p className="text-[#8B9BB4]">Rojo</p>
             <p className="font-bold text-[#F0E6D2] truncate md:text-sm">{tm.red.name}</p>
             <p className="text-base md:text-2xl font-bold text-[#E74C3C] mt-0.5 md:mt-1">{tm.red.kills}</p>
