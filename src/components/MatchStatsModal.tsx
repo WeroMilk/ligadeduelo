@@ -18,6 +18,29 @@ function sortedChamps(team: TeamData): Champion[] {
   });
 }
 
+function StatBar({
+  label,
+  value,
+  max,
+  color,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  color: string;
+}) {
+  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+  return (
+    <div className="flex items-center gap-1">
+      <span className="w-6 shrink-0 text-[9px] font-bold uppercase text-[#8B9BB4]">{label}</span>
+      <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-black/50">
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+      </div>
+      <span className="shrink-0 text-[10px] font-semibold tabular-nums text-[#C5D0E0]">{value}</span>
+    </div>
+  );
+}
+
 function ChampRow({ champ, side }: { champ: Champion; side: 'blue' | 'red' }) {
   const def = CHAMPIONS.find(c => c.id === champ.defId);
   const role = def?.role || 'mid';
@@ -46,21 +69,19 @@ function ChampRow({ champ, side }: { champ: Champion; side: 'blue' | 'red' }) {
           </span>
         )}
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 space-y-1">
         <p className="truncate text-xs font-bold text-[#F0E6D2]">
           {def?.name || champ.defId}
+          <span className="ml-1 text-[10px] font-normal text-[#8B9BB4]">
+            {ROLE_NAMES[role].slice(0, 3)}
+            {dead ? ' · ✕' : ''}
+          </span>
           <span className="ml-1 text-[11px] font-semibold tabular-nums text-[#8B9BB4]">
             {champ.kills || 0}/{champ.deaths || 0}/{champ.assists || 0}
           </span>
         </p>
-        <p className="truncate text-[10px] text-[#8B9BB4] mt-0.5">
-          {ROLE_NAMES[role].slice(0, 3)}
-          {' · HP '}
-          <span className="tabular-nums text-[#C5D0E0]">{hp}</span>
-          {' · MN '}
-          <span className="tabular-nums text-[#C5D0E0]">{mn}</span>
-          {dead ? ' · ✕' : ''}
-        </p>
+        <StatBar label="HP" value={hp} max={champ.stats.maxHp} color={dead ? '#4A5570' : '#2ECC71'} />
+        <StatBar label="MN" value={mn} max={champ.stats.maxMana} color="#3498DB" />
       </div>
     </div>
   );
@@ -151,7 +172,7 @@ export default function MatchStatsModal({ open, onClose, blue, red }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 px-4 py-3">
+          <div className="grid grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-2">
             <TeamColumn team={blue} side="blue" />
             <TeamColumn team={red} side="red" />
           </div>
