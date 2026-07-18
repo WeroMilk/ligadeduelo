@@ -42,7 +42,7 @@ export default function DefeatScreen() {
   };
 
   return (
-    <div className="screen-center relative bg-[#0A0E1A] px-4 py-4 md:py-8 safe-top safe-chrome-x safe-bottom">
+    <div className="screen-center relative bg-[#0A0E1A] px-4 py-3 md:py-4 safe-top safe-chrome-x safe-bottom">
       <div
         className={`absolute inset-0 ${
           nexusLoss
@@ -51,7 +51,7 @@ export default function DefeatScreen() {
         }`}
       />
 
-      <div className="relative z-10 flex flex-col items-center gap-4 md:gap-6 max-w-sm w-full">
+      <div className="relative z-10 my-auto flex flex-col items-center gap-3 md:gap-4 max-w-sm md:max-w-md w-full py-2">
         <div
           className={`w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center ${
             nexusLoss

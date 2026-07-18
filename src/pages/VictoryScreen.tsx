@@ -5,9 +5,61 @@ import { Trophy, ChevronRight, User, Landmark } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { playVictorySound, playClickSound } from '@/lib/sounds';
 import { CHAMPIONS, ROLE_NAMES } from '@/lib/game-data';
-import type { Role } from '@/types/game';
+import type { Role, TeamData } from '@/types/game';
 
 const ROLE_ORDER: Role[] = ['top', 'jungle', 'mid', 'adc', 'support'];
+
+function roleRank(role: Role) {
+  const i = ROLE_ORDER.indexOf(role);
+  return i >= 0 ? i : 99;
+}
+
+function CoopTeamColumn({ team, side }: { team: TeamData; side: 'blue' | 'red' }) {
+  const accent = side === 'blue' ? '#3498DB' : '#E74C3C';
+  const list = [...team.champions].sort((a, b) => {
+    const da = CHAMPIONS.find(c => c.id === a.defId);
+    const db = CHAMPIONS.find(c => c.id === b.defId);
+    return roleRank(da?.role || 'mid') - roleRank(db?.role || 'mid');
+  });
+
+  return (
+    <div className="min-w-0 rounded-lg border border-[#1E2740] bg-[#141B2D]/80 p-2 space-y-1">
+      <p className="truncate text-[10px] font-bold uppercase tracking-wide" style={{ color: accent }}>
+        {team.name}
+      </p>
+      {list.map(champ => {
+        const def = CHAMPIONS.find(c => c.id === champ.defId);
+        const role = def?.role || 'mid';
+        return (
+          <div key={champ.instanceId} className="flex items-center gap-1.5">
+            {def?.image ? (
+              <img
+                src={def.image}
+                alt={def.name}
+                className="h-6 w-6 rounded-full object-cover border border-[#2A3550] shrink-0"
+              />
+            ) : (
+              <div
+                className="h-6 w-6 rounded-full flex items-center justify-center shrink-0"
+                style={{ backgroundColor: def?.color || '#333' }}
+              >
+                <User className="w-3 h-3 text-white" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[11px] font-bold text-[#F0E6D2]">{def?.name || champ.defId}</p>
+              <p className="truncate text-[9px] text-[#8B9BB4]">
+                {ROLE_NAMES[role].slice(0, 3)}
+                {champ.playerName ? ` · ${champ.playerName}` : ''}
+                {` · ${champ.kills || 0}/${champ.deaths || 0}/${champ.assists || 0}`}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function endedByNexus(tm: ReturnType<typeof useGame>['state']['turnMatch']): boolean {
   if (!tm) return false;
@@ -84,34 +136,34 @@ export default function VictoryScreen() {
   });
 
   return (
-    <div className="screen-center relative bg-[#0A0E1A] px-4 py-4 md:py-8 safe-top safe-chrome-x safe-bottom">
+    <div className="screen-center relative bg-[#0A0E1A] px-4 py-3 md:py-4 safe-top safe-chrome-x safe-bottom">
       <div className="absolute inset-0 pointer-events-none">
         {confetti.map(c => (
           <div key={c.id} className="absolute w-2 h-2 rounded-sm animate-confetti" style={{ left: `${c.x}%`, top: '-10px', backgroundColor: c.color, animationDelay: `${c.delay}s` }} />
         ))}
       </div>
-      <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-4 md:gap-6 pb-4">
+      <div className="relative z-10 my-auto flex w-full max-w-sm md:max-w-xl flex-col items-center gap-3 md:gap-4 py-2">
         <div
-          className={`w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center shrink-0 ${
+          className={`w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center shrink-0 ${
             nexusWin
               ? 'bg-gradient-to-br from-[#3498DB] to-[#1A5276] shadow-[0_0_60px_rgba(52,152,219,0.45)]'
               : 'bg-gradient-to-br from-[#C9A84C] to-[#8B6914] shadow-[0_0_60px_rgba(201,168,76,0.4)]'
           }`}
         >
           {nexusWin ? (
-            <Landmark className="w-10 h-10 md:w-12 md:h-12 text-[#0A0E1A]" />
+            <Landmark className="w-8 h-8 md:w-10 md:h-10 text-[#0A0E1A]" />
           ) : (
-            <Trophy className="w-10 h-10 md:w-12 md:h-12 text-[#0A0E1A]" />
+            <Trophy className="w-8 h-8 md:w-10 md:h-10 text-[#0A0E1A]" />
           )}
         </div>
         <div className="text-center shrink-0">
           <h1
-            className={`text-3xl md:text-4xl font-bold ${nexusWin ? 'text-[#3498DB]' : 'text-[#C9A84C]'}`}
+            className={`text-2xl md:text-3xl font-bold ${nexusWin ? 'text-[#3498DB]' : 'text-[#C9A84C]'}`}
             style={{ fontFamily: 'Cinzel, serif' }}
           >
             {nexusWin ? '¡NEXO DESTRUIDO!' : '¡VICTORIA!'}
           </h1>
-          <p className="text-[#8B9BB4] mt-1 md:mt-2 text-sm">
+          <p className="text-[#8B9BB4] mt-1 text-sm">
             {isCoopPvp && winnerName
               ? `Ganó ${winnerName}`
               : nexusWin
@@ -121,16 +173,16 @@ export default function VictoryScreen() {
         </div>
 
         {isCoopPvp && winnerName && (
-          <div className="w-full rounded-xl border-2 border-[#C9A84C]/45 bg-[#C9A84C]/10 px-3 py-3 text-center">
+          <div className="w-full rounded-xl border-2 border-[#C9A84C]/45 bg-[#C9A84C]/10 px-3 py-2.5 text-center">
             <p className="text-sm font-bold text-[#C9A84C]">Resultado PvP</p>
-            <p className="text-[11px] text-[#8B9BB4] mt-1">
+            <p className="text-[11px] text-[#8B9BB4] mt-0.5">
               {tm?.blue.name} {myKills} – {theirKills} {tm?.red.name}
             </p>
           </div>
         )}
 
         {nexusWin && (
-          <div className="w-full rounded-xl border-2 border-[#3498DB]/45 bg-[#3498DB]/10 px-3 py-3 text-center space-y-1">
+          <div className="w-full rounded-xl border-2 border-[#3498DB]/45 bg-[#3498DB]/10 px-3 py-2.5 text-center space-y-1">
             <p className="text-sm font-bold text-[#85C1E9]">La partida terminó al caer su nexo</p>
             <p className="text-[11px] text-[#8B9BB4] leading-snug">
               {behindOnKills
@@ -140,38 +192,49 @@ export default function VictoryScreen() {
           </div>
         )}
 
-        <div className="w-full bg-[#141B2D] rounded-xl border border-[#1E2740] p-4 grid grid-cols-2 gap-3 text-center shrink-0">
+        <div className="w-full bg-[#141B2D] rounded-xl border border-[#1E2740] px-4 py-3 grid grid-cols-2 gap-3 text-center shrink-0">
           <div>
             <p className="text-2xl font-bold text-[#C9A84C]">{myKills}</p>
-            <p className="text-[#8B9BB4] text-xs">Tus bajas</p>
+            <p className="text-[#8B9BB4] text-xs">{isCoopPvp ? (tm?.blue.name || 'Azul') : 'Tus bajas'}</p>
           </div>
           <div>
             <p className="text-2xl font-bold text-[#E74C3C]">{theirKills}</p>
-            <p className="text-[#8B9BB4] text-xs">Bajas rival</p>
+            <p className="text-[#8B9BB4] text-xs">{isCoopPvp ? (tm?.red.name || 'Rojo') : 'Bajas rival'}</p>
           </div>
         </div>
 
-        <div className="w-full rounded-xl border border-[#C9A84C]/25 bg-[#0D1220] p-3 space-y-2">
-          <p className="text-[10px] uppercase tracking-wider text-[#C9A84C] text-center">Tu equipo</p>
-          {teamLines.map(l => (
-            <div key={l.role} className="flex items-center gap-2 rounded-lg border border-[#1E2740] bg-[#141B2D] px-2.5 py-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase text-[#8B9BB4]">{l.roleLabel}</p>
-                <p className="text-sm font-bold text-[#F0E6D2] truncate">{l.player}</p>
-              </div>
-              <span className="text-[#4A5570] text-xs">→</span>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {l.champImage ? (
-                  <img src={l.champImage} alt={l.champ} className="w-8 h-8 rounded-full object-cover border border-[#2A3550]" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: l.champColor }}>
-                    <User className="w-4 h-4 text-white" />
-                  </div>
-                )}
-                <span className="text-xs font-bold text-[#C9A84C] truncate max-w-[72px]">{l.champ}</span>
-              </div>
+        <div className="w-full rounded-xl border border-[#C9A84C]/25 bg-[#0D1220] p-2.5 md:p-3">
+          <p className="text-[10px] uppercase tracking-wider text-[#C9A84C] text-center mb-2">
+            {isCoopPvp ? 'Equipos' : 'Tu equipo'}
+          </p>
+          {isCoopPvp && tm ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <CoopTeamColumn team={tm.blue} side="blue" />
+              <CoopTeamColumn team={tm.red} side="red" />
             </div>
-          ))}
+          ) : (
+            <div className="space-y-1.5">
+              {teamLines.map(l => (
+                <div key={l.role} className="flex items-center gap-2 rounded-lg border border-[#1E2740] bg-[#141B2D] px-2.5 py-1.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold uppercase text-[#8B9BB4]">{l.roleLabel}</p>
+                    <p className="text-sm font-bold text-[#F0E6D2] truncate">{l.player}</p>
+                  </div>
+                  <span className="text-[#4A5570] text-xs">→</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {l.champImage ? (
+                      <img src={l.champImage} alt={l.champ} className="w-7 h-7 rounded-full object-cover border border-[#2A3550]" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ backgroundColor: l.champColor }}>
+                        <User className="w-3.5 h-3.5 text-white" />
+                      </div>
+                    )}
+                    <span className="text-xs font-bold text-[#C9A84C] truncate max-w-[72px]">{l.champ}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <button
@@ -180,7 +243,7 @@ export default function VictoryScreen() {
             playClickSound();
             dispatch({ type: 'ADVANCE_BRACKET' });
           }}
-          className="w-full font-bold py-4 rounded-xl flex items-center justify-center gap-2 shrink-0"
+          className="w-full font-bold py-3.5 md:py-4 rounded-xl flex items-center justify-center gap-2 shrink-0"
           style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
         >
           CONTINUAR

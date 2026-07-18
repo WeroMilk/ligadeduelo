@@ -169,7 +169,9 @@
     min-height: 100dvh;
     min-height: -webkit-fill-available;
   }
-  /* Full-viewport centered screen (home, victory, etc.) */
+  /* Full-viewport centered screen (home, victory, etc.)
+     Desktop: "safe center" evita que el contenido alto (p. ej. victoria coop)
+     se recorte arriba/abajo cuando overflow-y: auto. */
   .screen-center {
     flex: 1 1 auto;
     width: 100%;
@@ -193,7 +195,7 @@
   }
   @media (min-width: 768px) {
     .screen-center {
-      justify-content: center;
+      justify-content: safe center;
     }
   }
   /* Full-viewport centered overlay / popup */

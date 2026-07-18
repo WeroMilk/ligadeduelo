@@ -35,7 +35,7 @@ export default function TournamentWin() {
   if (!playerWon) {
     return (
       <div className="screen-center relative bg-[#0A0E1A] px-4 py-3 md:py-6 safe-top safe-chrome-x safe-bottom">
-        <div className="relative z-10 flex w-full max-w-md flex-col items-center gap-3 md:gap-4 pb-4">
+        <div className="relative z-10 my-auto flex w-full max-w-md flex-col items-center gap-3 md:gap-4 py-2">
           <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-[#141B2D] border-2 border-[#2A3550] flex items-center justify-center shrink-0">
             <Flag className="w-7 h-7 md:w-9 md:h-9 text-[#8B9BB4]" />
           </div>
@@ -84,7 +84,7 @@ export default function TournamentWin() {
 
       <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] opacity-15 blur-[180px] rounded-full bg-[#C9A84C]" />
 
-      <div className="relative z-10 flex w-full max-w-md flex-col items-center gap-3 md:gap-4 pb-4">
+      <div className="relative z-10 my-auto flex w-full max-w-md flex-col items-center gap-3 md:gap-4 py-2">
         <div className="w-16 h-16 md:w-24 md:h-24 rounded-full flex items-center justify-center animate-pulse-slow shrink-0 bg-gradient-to-br from-[#F1C40F] via-[#C9A84C] to-[#8B6914] shadow-[0_0_80px_rgba(201,168,76,0.5)]">
           <Crown className="w-8 h-8 md:w-12 md:h-12 text-[#0A0E1A]" />
         </div>
