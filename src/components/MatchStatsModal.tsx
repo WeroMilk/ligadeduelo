@@ -41,12 +41,12 @@ function ChampRow({ champ, side }: { champ: Champion; side: 'blue' | 'red' }) {
   const dead = !champ.isAlive || champ.stats.hp <= 0;
   return (
     <div
-      className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 ${
+      className={`flex items-center gap-1.5 rounded-lg border px-1.5 py-1 ${
         dead ? 'border-[#2A3550]/60 opacity-55' : 'border-[#1E2740] bg-[#141B2D]/80'
       }`}
     >
       <div
-        className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border-2"
+        className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border-2"
         style={{
           borderColor: side === 'blue' ? '#3498DB' : '#E74C3C',
           backgroundColor: def?.color || '#1A2238',
@@ -156,29 +156,29 @@ export default function MatchStatsModal({ open, onClose, blue, red }: Props) {
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3">
-          <section>
-            <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[#3498DB]">
-                Aliados · {blue.name}
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-hidden px-2 py-2 md:grid-cols-1 md:gap-3 md:px-3 md:py-3">
+          <section className="min-h-0 overflow-hidden">
+            <div className="mb-1 flex items-center justify-between">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-[#3498DB] truncate">
+                {blue.name}
               </p>
-              <p className="text-[10px] font-bold text-[#3498DB]">{blue.kills} bajas</p>
+              <p className="text-[9px] font-bold text-[#3498DB] shrink-0">{blue.kills} K</p>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {blueList.map(c => (
                 <ChampRow key={c.instanceId} champ={c} side="blue" />
               ))}
             </div>
           </section>
 
-          <section>
-            <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[#E74C3C]">
-                Enemigos · {red.name}
+          <section className="min-h-0 overflow-hidden">
+            <div className="mb-1 flex items-center justify-between">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-[#E74C3C] truncate">
+                {red.name}
               </p>
-              <p className="text-[10px] font-bold text-[#E74C3C]">{red.kills} bajas</p>
+              <p className="text-[9px] font-bold text-[#E74C3C] shrink-0">{red.kills} K</p>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {redList.map(c => (
                 <ChampRow key={c.instanceId} champ={c} side="red" />
               ))}

@@ -493,6 +493,10 @@
 }
 
 /* ========== TOUCH OPTIMIZATIONS ========== */
+.coop-lobby input {
+  font-size: 16px;
+}
+
 button, a {
   touch-action: manipulation;
 }

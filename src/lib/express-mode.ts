@@ -51,23 +51,6 @@ const DEFAULT_MATCH: MatchTimings = {
   matchBudgetSec: Infinity,
 };
 
-const EXPRESS_MATCH: MatchTimings = {
-  maxRounds: 6,
-  promptSec: 5,
-  hitPauseMs: 900,
-  laneIntroMs: 180,
-  cinemaBufferMs: 600,
-  maxCinemaHits: 4,
-  nexusClaimMs: 900,
-  qteCountdownStepMs: 350,
-  skirmishGoal: 48,
-  qteHitDmgMult: 1.6,
-  skipMonsterPhase: true,
-  qteMaxSec: 12,
-  disableQteReplay: true,
-  matchBudgetSec: 180,
-};
-
 const DEFAULT_SETUP: SetupTimings = {
   setupBudgetSec: Infinity,
 };
@@ -88,8 +71,9 @@ const EXPRESS_BRACKET: BracketTimings = {
   victoryAutoAdvanceMs: 2500,
 };
 
-export function getMatchTimings(mode: GameMode | null): MatchTimings {
-  return isExpressMode(mode) ? EXPRESS_MATCH : DEFAULT_MATCH;
+/** Timings de partida en vivo: siempre el ritmo normal (disfrutar la partida). */
+export function getMatchTimings(_mode: GameMode | null): MatchTimings {
+  return DEFAULT_MATCH;
 }
 
 export function getSetupTimings(mode: GameMode | null): SetupTimings {
@@ -106,8 +90,3 @@ export function setupSecondsLeft(deadlineMs: number | null, mode: GameMode | nul
   return Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
 }
 
-/** Segundos restantes de partida express (null si no aplica). */
-export function matchSecondsLeft(deadlineMs: number | null, mode: GameMode | null): number | null {
-  if (!isExpressMode(mode) || deadlineMs == null) return null;
-  return Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
-}

@@ -438,8 +438,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const max = isCoopLocal(state.gameMode) ? COOP_MAX_PLAYERS : 16;
       if (state.lobbyPlayers.length >= max) return state;
       const slot = state.lobbyPlayers.length;
-      const playerName = action.name.trim() || (isCoopLocal(state.gameMode) ? `Jugador ${slot + 1}` : `Amigo ${slot}`);
       const teamName = action.teamName?.trim() ?? '';
+      const playerName = isCoopLocal(state.gameMode)
+        ? (teamName || `Equipo ${slot + 1}`)
+        : (action.name.trim() || `Amigo ${slot}`);
       return {
         ...state,
         lobbyPlayers: [

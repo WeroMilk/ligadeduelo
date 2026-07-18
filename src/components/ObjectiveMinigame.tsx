@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Champion, ObjectiveType, PendingObjective, TeamColor } from '@/types/game';
 import { CHAMPIONS, objectiveName, objectiveImage } from '@/lib/game-data';
-import type { MatchTimings } from '@/lib/express-mode';
 import { playZoneHitSound, playZoneMissSound } from '@/lib/sounds';
 
 export type ObjectiveQtePayload = {
@@ -24,8 +23,6 @@ type Props = {
   /** Cambia para reiniciar el intento (tras anuncio de repetición). */
   attemptKey?: number;
   allowSimulate?: boolean;
-  express?: boolean;
-  expressTimings?: MatchTimings;
 };
 
 type QteProfile = {
@@ -140,13 +137,13 @@ function MonsterIcon({ obj, anim }: { obj: ObjectiveType; anim: FighterAnim }) {
   );
 }
 
-const DEFAULT_SKIRMISH_GOAL = 100;
+const SKIRMISH_GOAL = 100;
 const MONSTER_HP = 100;
 
 type Phase = 'countdown' | 'skirmish' | 'monster' | 'escape-popup';
 
 const COUNTDOWN_STEPS = ['3', '2', '1', '¡YA!'] as const;
-const DEFAULT_COUNTDOWN_STEP_MS = 700;
+const COUNTDOWN_STEP_MS = 700;
 
 function NexusTarget({
   side,
@@ -194,16 +191,8 @@ export default function ObjectiveMinigame({
   paused = false,
   attemptKey: _attemptKey = 0,
   allowSimulate = true,
-  express = false,
-  expressTimings,
 }: Props) {
   void _attemptKey;
-  const skirmishGoal = express && expressTimings ? expressTimings.skirmishGoal : DEFAULT_SKIRMISH_GOAL;
-  const countdownStepMs = express && expressTimings
-    ? expressTimings.qteCountdownStepMs
-    : DEFAULT_COUNTDOWN_STEP_MS;
-  const skipMonsterPhase = express && !!expressTimings?.skipMonsterPhase;
-  const qteMaxSec = express && expressTimings ? expressTimings.qteMaxSec : 55;
   const isGank = pending.kind === 'gank';
   const isNexusDefense = pending.kind === 'nexus_defense';
   const isNexusAssault = pending.kind === 'nexus_assault';
@@ -215,23 +204,13 @@ export default function ObjectiveMinigame({
     : contested || isSkirmishOnly
       ? 'skirmish'
       : 'monster';
-  const profile = useMemo(() => {
-    const base = profileFor(
+  const profile = useMemo(
+    () => profileFor(
       pending.objective,
       isNexusQte ? 'nexus' : isGank ? 'gank' : 'default',
-    );
-    if (!express || !expressTimings) return base;
-    const mult = expressTimings.qteHitDmgMult;
-    return {
-      ...base,
-      hitDmg: Math.round(base.hitDmg * mult),
-      zoneMs: Math.max(320, Math.round(base.zoneMs * 0.72)),
-      spawnGapMs: Math.max(520, Math.round(base.spawnGapMs * 0.72)),
-    };
-  }, [pending.objective, isGank, isNexusQte, express, expressTimings]);
-  const skirmishGoalRef = useRef(skirmishGoal);
-  skirmishGoalRef.current = skirmishGoal;
-  const qteStartedAt = useRef(Date.now());
+    ),
+    [pending.objective, isGank, isNexusQte],
+  );
   const [phase, setPhase] = useState<Phase>('countdown');
   const [countdownIdx, setCountdownIdx] = useState(0);
   const pausedRef = useRef(paused);
@@ -282,9 +261,9 @@ export default function ObjectiveMinigame({
     const t = window.setTimeout(() => {
       if (pausedRef.current) return;
       setCountdownIdx(i => i + 1);
-    }, countdownStepMs);
+    }, COUNTDOWN_STEP_MS);
     return () => window.clearTimeout(t);
-  }, [phase, countdownIdx, paused, playPhase, readyLog, countdownStepMs]);
+  }, [phase, countdownIdx, paused, playPhase, readyLog]);
 
   const finishOnce = useCallback((result: ObjectiveQtePayload) => {
     if (completedRef.current) return;
@@ -350,7 +329,7 @@ export default function ObjectiveMinigame({
     setLoserFate(fate);
     setSkirmishWinner(winner);
 
-    if (isSkirmishOnly || skipMonsterPhase) {
+    if (isSkirmishOnly) {
       if (isNexusDefense) {
         setLog(winner === 'blue'
           ? (fate === 'escaped' ? '¡Asaltante huye · nexo a salvo!' : '¡Nexo defendido!')
@@ -364,10 +343,10 @@ export default function ObjectiveMinigame({
         finishOnce({
           skirmishWinner: winner,
           attackingTeam: winner,
-          monsterTaken: winner === 'blue' ? true : Math.random() < 0.62,
+          monsterTaken: true,
           loserFate: fate,
         });
-      }, fate === 'escaped' ? (skipMonsterPhase ? 400 : 1100) : (skipMonsterPhase ? 250 : 700));
+      }, fate === 'escaped' ? 1100 : 700);
       return;
     }
 
@@ -392,21 +371,20 @@ export default function ObjectiveMinigame({
         });
       }, 900);
     }
-  }, [finishOnce, isSkirmishOnly, isNexusDefense, skipMonsterPhase]);
+  }, [finishOnce, isSkirmishOnly, isNexusDefense]);
 
   const applyHit = useCallback(() => {
     if (pausedRef.current || completedRef.current || finishedRef.current) return;
     const p = phaseRef.current;
-    const goal = skirmishGoalRef.current;
-    if (p === 'skirmish' && (blueBarRef.current >= goal || redBarRef.current >= goal)) return;
+    if (p === 'skirmish' && (blueBarRef.current >= SKIRMISH_GOAL || redBarRef.current >= SKIRMISH_GOAL)) return;
     if (p === 'monster' && (monsterHpRef.current <= 0 || allyHpRef.current <= 0)) return;
 
     setFlash('hit');
     playZoneHitSound();
     if (p === 'skirmish') {
       setBlueBar(v => {
-        const next = Math.min(goal, v + profile.hitDmg);
-        if (next >= goal) {
+        const next = Math.min(SKIRMISH_GOAL, v + profile.hitDmg);
+        if (next >= SKIRMISH_GOAL) {
           finishedRef.current = true;
           setZone(null);
         }
@@ -474,7 +452,7 @@ export default function ObjectiveMinigame({
       setFlash('miss');
       playZoneMissSound();
       if (phase === 'skirmish') {
-        setRedBar(v => Math.min(skirmishGoalRef.current, v + profile.missPenalty));
+        setRedBar(v => Math.min(SKIRMISH_GOAL, v + profile.missPenalty));
         setLog(simulatingRef.current ? 'Simulado · fallo' : 'Fallaste · el rival golpea');
         pulseAnim(setBlueAnim, 'shake');
         pulseAnim(setRedAnim, 'lunge');
@@ -523,7 +501,7 @@ export default function ObjectiveMinigame({
 
   useEffect(() => {
     if (phase !== 'skirmish') return;
-    if (blueBar >= skirmishGoal) {
+    if (blueBar >= SKIRMISH_GOAL) {
       finishedRef.current = true;
       setZone(null);
       if (Math.random() < ENEMY_ESCAPE_CHANCE) {
@@ -533,30 +511,12 @@ export default function ObjectiveMinigame({
       } else {
         continueAfterFate('blue', 'killed');
       }
-    } else if (redBar >= skirmishGoal) {
+    } else if (redBar >= SKIRMISH_GOAL) {
       finishedRef.current = true;
       setZone(null);
       continueAfterFate('red', 'killed');
     }
-  }, [blueBar, redBar, phase, continueAfterFate, skirmishGoal]);
-
-  // Express: watchdog autoresuelve QTE largo
-  useEffect(() => {
-    if (!express) return;
-    qteStartedAt.current = Date.now();
-    const iv = window.setInterval(() => {
-      if (completedRef.current) return;
-      const elapsed = Date.now() - qteStartedAt.current;
-      if (elapsed < qteMaxSec * 1000) return;
-      finishOnce({
-        skirmishWinner: 'blue',
-        attackingTeam: 'blue',
-        monsterTaken: Math.random() < 0.72,
-        loserFate: 'killed',
-      });
-    }, 500);
-    return () => window.clearInterval(iv);
-  }, [express, qteMaxSec, finishOnce]);
+  }, [blueBar, redBar, phase, continueAfterFate]);
 
   useEffect(() => {
     if (phase !== 'monster' || skirmishWinner === 'red') return;

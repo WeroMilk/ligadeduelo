@@ -40,7 +40,7 @@ export default function DecisionOverlay({
 
   return (
     <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/55 p-2">
-      <div className="max-h-full w-full overflow-y-auto rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-2">
+      <div className="max-h-[min(100%,calc(100dvh-1rem))] w-full max-w-sm overflow-hidden rounded-2xl border-2 border-[#C9A84C] bg-[#141B2D] p-2.5 shadow-[0_0_40px_rgba(201,168,76,0.25)] space-y-1.5">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
             {playerLabel ? `Turno · ${playerLabel}` : 'Decisión de equipo'}
@@ -59,7 +59,7 @@ export default function DecisionOverlay({
 
         {kind === 'jungle' && (
           <>
-            <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+            <h2 className="text-base font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
               Jungla: ¿gank u objetivo?
             </h2>
             <p className="text-xs text-[#8B9BB4]">
@@ -97,7 +97,7 @@ export default function DecisionOverlay({
 
         {kind === 'assist' && (
           <>
-            <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+            <h2 className="text-base font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
               ¿Quién ayuda al {objectiveLabel || 'objetivo'}?
             </h2>
             <p className="text-xs text-[#8B9BB4]">

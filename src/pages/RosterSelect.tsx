@@ -41,13 +41,13 @@ function FilterNavRow({
         type="button"
         aria-label="Anterior"
         onClick={onStepLeft}
-        className="shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-[#C9A84C] text-[#0A0E1A] shadow-[0_1px_6px_rgba(201,168,76,0.35)] active:scale-95"
+        className="shrink-0 flex h-9 w-9 md:h-7 md:w-7 items-center justify-center rounded-full bg-[#C9A84C] text-[#0A0E1A] shadow-[0_1px_6px_rgba(201,168,76,0.35)] active:scale-95"
       >
         <ChevronLeft className="h-4 w-4" strokeWidth={3} />
       </button>
       <div
         ref={scrollerRef}
-        className="flex flex-1 min-w-0 gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide touch-pan-x"
+        className="flex flex-1 min-w-0 gap-2 overflow-x-auto pb-0.5 scrollbar-hide touch-pan-x"
       >
         {children}
       </div>
@@ -55,7 +55,7 @@ function FilterNavRow({
         type="button"
         aria-label="Siguiente"
         onClick={onStepRight}
-        className="shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-[#C9A84C] text-[#0A0E1A] shadow-[0_1px_6px_rgba(201,168,76,0.35)] active:scale-95"
+        className="shrink-0 flex h-9 w-9 md:h-7 md:w-7 items-center justify-center rounded-full bg-[#C9A84C] text-[#0A0E1A] shadow-[0_1px_6px_rgba(201,168,76,0.35)] active:scale-95"
       >
         <ChevronRight className="h-4 w-4" strokeWidth={3} />
       </button>
@@ -274,7 +274,7 @@ export default function RosterSelect() {
             type="button"
             data-filter-active={regionFilter === 'all' ? 'true' : undefined}
             onClick={() => { setRegionFilter('all'); setOrgFilter('all'); }}
-            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 ${regionFilter === 'all' ? 'bg-[#C9A84C] text-[#0A0E1A]' : 'bg-[#141B2D] text-[#8B9BB4]'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs md:text-[10px] md:px-2.5 md:py-1 font-bold shrink-0 ${regionFilter === 'all' ? 'bg-[#C9A84C] text-[#0A0E1A]' : 'bg-[#141B2D] text-[#8B9BB4]'}`}
           >
             Todas
           </button>
@@ -284,7 +284,7 @@ export default function RosterSelect() {
               type="button"
               data-filter-active={regionFilter === r ? 'true' : undefined}
               onClick={() => { setRegionFilter(r); setOrgFilter('all'); }}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 ${regionFilter === r ? 'bg-[#C9A84C] text-[#0A0E1A]' : 'bg-[#141B2D] text-[#8B9BB4]'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs md:text-[10px] md:px-2.5 md:py-1 font-bold shrink-0 ${regionFilter === r ? 'bg-[#C9A84C] text-[#0A0E1A]' : 'bg-[#141B2D] text-[#8B9BB4]'}`}
             >
               {r}
             </button>
@@ -301,7 +301,7 @@ export default function RosterSelect() {
             type="button"
             data-filter-active={orgFilter === 'all' ? 'true' : undefined}
             onClick={() => setOrgFilter('all')}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold shrink-0 ${orgFilter === 'all' ? 'bg-[#2A3550] text-[#F0E6D2]' : 'bg-[#0D1220] text-[#8B9BB4]'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs md:text-[10px] md:px-2 md:py-1 font-bold shrink-0 ${orgFilter === 'all' ? 'bg-[#2A3550] text-[#F0E6D2]' : 'bg-[#0D1220] text-[#8B9BB4]'}`}
           >
             Cualquier equipo
           </button>
@@ -311,7 +311,7 @@ export default function RosterSelect() {
               type="button"
               data-filter-active={orgFilter === o.id ? 'true' : undefined}
               onClick={() => setOrgFilter(o.id)}
-              className={`px-2 py-1 rounded-lg text-[10px] font-bold shrink-0 max-w-[140px] truncate ${orgFilter === o.id ? 'bg-[#2A3550] text-[#F0E6D2]' : 'bg-[#0D1220] text-[#8B9BB4]'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs md:text-[10px] md:px-2 md:py-1 font-bold shrink-0 max-w-[160px] md:max-w-[140px] truncate ${orgFilter === o.id ? 'bg-[#2A3550] text-[#F0E6D2]' : 'bg-[#0D1220] text-[#8B9BB4]'}`}
             >
               {fanOrgDisplayName(o)}
             </button>
@@ -328,7 +328,7 @@ export default function RosterSelect() {
             type="button"
             data-filter-active={roleFilter === 'all' ? 'true' : undefined}
             onClick={() => setRoleFilter('all')}
-            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 ${roleFilter === 'all' ? 'bg-[#C9A84C] text-[#0A0E1A]' : 'bg-[#141B2D] text-[#8B9BB4]'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs md:text-[10px] md:px-2.5 md:py-1 font-bold shrink-0 ${roleFilter === 'all' ? 'bg-[#C9A84C] text-[#0A0E1A]' : 'bg-[#141B2D] text-[#8B9BB4]'}`}
           >
             Roles
           </button>
@@ -338,7 +338,7 @@ export default function RosterSelect() {
               type="button"
               data-filter-active={roleFilter === r ? 'true' : undefined}
               onClick={() => setRoleFilter(r)}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 ${roleFilter === r ? 'text-white' : 'bg-[#141B2D] text-[#8B9BB4]'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs md:text-[10px] md:px-2.5 md:py-1 font-bold shrink-0 ${roleFilter === r ? 'text-white' : 'bg-[#141B2D] text-[#8B9BB4]'}`}
               style={roleFilter === r ? { backgroundColor: ROLE_COLORS[r] } : undefined}
             >
               {ROLE_NAMES[r]}

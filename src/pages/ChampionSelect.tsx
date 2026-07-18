@@ -5,10 +5,11 @@ import ExpressSetupTimer from '@/components/ExpressSetupTimer';
 import { ROLE_COLORS, ROLE_NAMES, CHAMPIONS, MANA_COSTS_UI } from '@/lib/game-data';
 import { getUltimate } from '@/lib/ultimates';
 import { preloadChampionImages } from '@/lib/preload-images';
-import { synergyBadgeStyle, synergyForMember } from '@/lib/player-synergy';
+import { synergyForMember, synergyUiStyle } from '@/lib/player-synergy';
 import type { Role } from '@/types/game';
 import { Shield, TreePine, Zap, Crosshair, Heart, Check, ChevronRight, User } from 'lucide-react';
 import NameSearch, { matchesNameQuery } from '@/components/NameSearch';
+import UltDetailPopup from '@/components/UltDetailPopup';
 
 const ROLE_ICONS: Record<Role, React.ReactNode> = {
   top: <Shield className="w-4 h-4" />,
@@ -25,6 +26,11 @@ export default function ChampionSelect() {
   const [activeRole, setActiveRole] = useState<Role>('top');
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [ultPopup, setUltPopup] = useState<{
+    champName: string;
+    ultName: string;
+    ultDescription: string;
+  } | null>(null);
   const roleTabsRef = useRef<HTMLDivElement>(null);
   const roleTabRefs = useRef<Partial<Record<Role, HTMLButtonElement | null>>>({});
 
@@ -125,7 +131,7 @@ export default function ChampionSelect() {
 
         <div
           ref={roleTabsRef}
-          className="mx-auto mt-1.5 flex max-w-6xl gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide touch-pan-x md:mt-2 md:gap-2 md:overflow-x-auto md:flex-nowrap md:pb-1"
+          className="mx-auto mt-1.5 flex max-w-6xl gap-2 overflow-x-auto pb-0.5 scrollbar-hide touch-pan-x md:mt-2 md:gap-2 md:overflow-x-auto md:flex-nowrap md:pb-1"
         >
           {ROLES.map(role => {
             const isActive = activeRole === role;
@@ -139,7 +145,7 @@ export default function ChampionSelect() {
                   roleTabRefs.current[role] = el;
                 }}
                 onClick={() => { setActiveRole(role); setError(''); }}
-                className={`flex items-center gap-1.5 px-3 min-h-10 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 ${
+                className={`flex items-center gap-1.5 px-3.5 min-h-11 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 md:min-h-10 md:px-3 ${
                   isActive ? 'text-white shadow-lg' : 'text-[#8B9BB4] bg-[#141B2D] hover:bg-[#1E2740]'
                 }`}
                 style={isActive ? { backgroundColor: color, boxShadow: `0 2px 12px ${color}40` } : {}}
@@ -178,7 +184,7 @@ export default function ChampionSelect() {
             const isSelected = selectedIds.includes(champ.id);
             const ult = getUltimate(champ.id);
             const syn = synergyForMember(activeMember, champ.id);
-            const badge = syn ? synergyBadgeStyle(syn.affinity) : null;
+            const synUi = syn ? synergyUiStyle(syn) : null;
             return (
               <button
                 key={champ.id}
@@ -190,11 +196,11 @@ export default function ChampionSelect() {
                     : 'border-[#1E2740] bg-[#141B2D] hover:border-[#2A3550] hover:bg-[#1A2035]'
                 }`}
               >
-                {badge && (
+                {synUi && (
                   <span
-                    className={`absolute top-1.5 left-1.5 z-10 rounded-full border px-1.5 py-0.5 text-[9px] font-bold leading-none ${badge.className}`}
+                    className={`absolute top-1.5 left-1.5 z-10 rounded-full border px-1.5 py-0.5 text-[9px] font-bold leading-none ${synUi.badgeClassName}`}
                   >
-                    {badge.label}
+                    {synUi.label}
                   </span>
                 )}
                 <div className="flex flex-col items-center gap-1 md:gap-1">
@@ -230,7 +236,7 @@ export default function ChampionSelect() {
                     <p className="text-[#F0E6D2] font-bold text-sm truncate leading-tight">{champ.name}</p>
                     <p className="text-[#8B9BB4] text-[10px] mb-0.5">{ROLE_NAMES[champ.role]}</p>
                     {syn && activeMember && (
-                      <p className="text-[9px] text-[#C9A84C] mb-1 truncate leading-tight">
+                      <p className={`text-[9px] mb-1 truncate leading-tight ${synUi?.textClassName ?? 'text-[#8B9BB4]'}`}>
                         {activeMember.name} · {syn.affinity}%
                       </p>
                     )}
@@ -246,6 +252,25 @@ export default function ChampionSelect() {
                       <span className="font-bold">{champ.passive.name}</span>
                       {' · '}
                       {champ.passive.description}
+                    </p>
+                    <p className="text-[#9B59B6] text-[9px] md:text-[10px] mt-0.5 leading-snug px-0.5 line-clamp-2 sm:hidden">
+                      <button
+                        type="button"
+                        className="w-full text-left"
+                        onClick={e => {
+                          e.stopPropagation();
+                          setUltPopup({
+                            champName: champ.name,
+                            ultName: ult.name,
+                            ultDescription: ult.description,
+                          });
+                        }}
+                      >
+                        <span className="font-bold">ULT {ult.name}</span>
+                        {' · '}
+                        {ult.description}
+                        <span className="text-[#8B9BB4]"> · CD {MANA_COSTS_UI.ultimateCooldown}</span>
+                      </button>
                     </p>
                     <p className="text-[#9B59B6] text-[9px] md:text-[10px] mt-0.5 leading-snug px-0.5 line-clamp-2 hidden sm:block">
                       <span className="font-bold">ULT {ult.name}</span>
@@ -305,6 +330,15 @@ export default function ChampionSelect() {
           </button>
         </div>
       </div>
+
+      <UltDetailPopup
+        open={ultPopup !== null}
+        onClose={() => setUltPopup(null)}
+        champName={ultPopup?.champName ?? ''}
+        ultName={ultPopup?.ultName ?? ''}
+        ultDescription={ultPopup?.ultDescription ?? ''}
+        cooldownTurns={MANA_COSTS_UI.ultimateCooldown}
+      />
     </div>
   );
 }

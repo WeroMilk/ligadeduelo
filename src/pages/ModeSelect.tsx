@@ -24,8 +24,8 @@ const MODES: { id: GameMode; title: string; desc: string; icon: React.ReactNode;
   },
   {
     id: 'coop_code',
-    title: 'Cooperativo · con código',
-    desc: 'Código de sala local: añade hasta 16 amigos en este dispositivo (sin red).',
+    title: 'Cooperativo · en línea',
+    desc: 'Con código: añade hasta 16 amigos al grupo.',
     icon: <Hash className="w-7 h-7" />,
     enabled: false,
   },
@@ -70,7 +70,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-4 text-sm leading-relaxed text-[#C5D0E0]">
+        <div className="flex-1 overflow-hidden px-3 py-3 space-y-2.5 text-xs leading-snug text-[#C5D0E0]">
           <p className="rounded-xl border border-[#C9A84C]/35 bg-[#C9A84C]/10 px-3 py-2.5 text-center text-xs font-bold uppercase tracking-[0.12em] text-[#C9A84C] md:text-sm md:tracking-[0.16em]">
             Cada mes integraremos 10 campeones más
           </p>

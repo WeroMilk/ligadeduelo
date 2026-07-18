@@ -26,14 +26,14 @@ export default function AdBanner() {
       <button
         type="button"
         onClick={() => registerBannerTap()}
-        className="group relative mx-auto flex w-full max-w-[min(100%,16.5rem)] items-center justify-center overflow-hidden bg-transparent py-1 transition-[filter] duration-200 hover:brightness-[1.03] active:brightness-95 sm:max-w-[18rem] md:max-w-[22rem] md:py-1.5"
+        className="group relative mx-auto flex w-full max-w-[min(100%,16.5rem)] items-center justify-center overflow-hidden bg-transparent py-0 transition-[filter] duration-200 hover:brightness-[1.03] active:brightness-95 sm:max-w-[18rem] md:max-w-[22rem]"
         style={{ userSelect: 'none' }}
         aria-label="Banner publicitario Servipartz"
       >
         <img
           src={AD_IMG}
           alt="Servipartz · Dispensadores de agua · Contáctanos +52 662 404 9965"
-          className="pointer-events-none relative z-[1] block h-auto w-full rounded-md object-contain object-center shadow-[0_2px_12px_rgba(0,0,0,0.35)]"
+          className="pointer-events-none relative z-[1] block h-auto w-full rounded-md object-contain object-center leading-none shadow-[0_2px_12px_rgba(0,0,0,0.35)]"
           width={1024}
           height={338}
           loading="lazy"

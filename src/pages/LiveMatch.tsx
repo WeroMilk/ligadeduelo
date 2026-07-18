@@ -21,7 +21,7 @@ import {
 import { pushAdHidden, popAdHidden } from '@/lib/ad-visibility';
 import { createPausableScheduler } from '@/lib/pausable-scheduler';
 import { objectiveName } from '@/lib/game-data';
-import { getMatchTimings, isExpressMode, matchSecondsLeft } from '@/lib/express-mode';
+import { getMatchTimings } from '@/lib/express-mode';
 import type { CombatFloat, LaneId, RoundResolution, Structure, TeamPlan } from '@/types/game';
 
 const MAP_SIZE_MOBILE_MAX = 280;
@@ -62,7 +62,6 @@ function useMapSize(containerRef: React.RefObject<HTMLElement | null>) {
   return size;
 }
 const CINEMA_STUCK_MS_MIN = 12000;
-const CINEMA_STUCK_MS_MIN_EXPRESS = 6000;
 const QTE_STUCK_MS = 55000;
 
 function laneCameraPan(lane: LaneId): { x: number; y: number } {
@@ -153,7 +152,6 @@ export default function LiveMatch() {
   const { state, dispatch } = useGame();
   const tm = state.turnMatch;
   const timings = useMemo(() => getMatchTimings(state.gameMode), [state.gameMode]);
-  const isExpress = isExpressMode(state.gameMode);
   const isCoop = isCoopLocal(state.gameMode);
   const isCoopPvp = isCoop && !!state.currentMatch?.isPvpMatch;
   const isCoopSolo = isCoop && !!state.currentMatch?.isPlayerMatch && !isCoopPvp;
@@ -162,7 +160,6 @@ export default function LiveMatch() {
   const mapSize = useMapSize(bodyRef);
   const [phase, setPhase] = useState<Phase | null>(null);
   const [promptLeft, setPromptLeft] = useState(timings.promptSec);
-  const [matchSecLeft, setMatchSecLeft] = useState<number | null>(null);
   const [scale, setScale] = useState(0.92);
   const [fx, setFx] = useState<FxSignal | null>(null);
   const [shake, setShake] = useState(false);
@@ -199,14 +196,14 @@ export default function LiveMatch() {
   const isPausedRef = useRef(false);
   const showReplayAdRef = useRef(false);
   const pendingQteRef = useRef<ObjectiveQtePayload | null>(null);
-  const matchDeadlineRef = useRef<number | null>(null);
-  const matchForceEndedRef = useRef(false);
+  const statsOpenRef = useRef(false);
 
   phaseRef.current = phase;
   tmRef.current = tm;
   isPausedRef.current = isPaused;
   showReplayAdRef.current = showReplayAd;
   pendingQteRef.current = pendingQteResult;
+  statsOpenRef.current = statsOpen;
 
   const matchFrozen = isPaused || showReplayAd || !!pendingQteResult || statsOpen;
 
@@ -379,23 +376,15 @@ export default function LiveMatch() {
 
     // Daños y curaciones se narran uno a uno. El sort moderno es estable,
     // así que conserva el orden de emisión dentro de cada línea.
-    const allHits = [...(res.floats || [])]
+    const orderedHits = [...(res.floats || [])]
       .sort((a, b) => (a.lane ?? 1) - (b.lane ?? 1));
-    const maxHits = Number.isFinite(timings.maxCinemaHits)
-      ? timings.maxCinemaHits
-      : allHits.length;
-    const orderedHits = allHits.slice(0, maxHits);
-    const batchedHits = allHits.slice(maxHits);
 
     const laneCount = new Set(orderedHits.map(h => h.lane ?? 1)).size || 1;
     const estimatedMs =
       orderedHits.length * timings.hitPauseMs
       + laneCount * timings.laneIntroMs
       + timings.cinemaBufferMs;
-    cinemaStuckMs.current = Math.max(
-      isExpress ? CINEMA_STUCK_MS_MIN_EXPRESS : CINEMA_STUCK_MS_MIN,
-      estimatedMs,
-    );
+    cinemaStuckMs.current = Math.max(CINEMA_STUCK_MS_MIN, estimatedMs);
 
     const schedule = (fn: () => void, ms: number) => {
       cinemaScheduler.current.schedule(fn, ms);
@@ -406,7 +395,6 @@ export default function LiveMatch() {
 
     if (orderedHits.length === 0) {
       setPhase({ t: 'lane', lane: 0, fight: false });
-      if (batchedHits.length > 0) setActiveFloats(batchedHits);
       t = timings.laneIntroMs;
     } else {
       for (const hit of orderedHits) {
@@ -414,7 +402,7 @@ export default function LiveMatch() {
         if (lastLane !== lane) {
           schedule(() => {
             setPhase({ t: 'lane', lane, fight: false });
-            setActiveFloats(batchedHits.length > 0 ? batchedHits : []);
+            setActiveFloats([]);
             setActiveHit(null);
             setScale(1.14);
             setCamPan(laneCameraPan(lane));
@@ -424,7 +412,7 @@ export default function LiveMatch() {
         }
         schedule(() => {
           setPhase({ t: 'lane', lane, fight: true });
-          setActiveFloats([hit, ...batchedHits]);
+          setActiveFloats([hit]);
           setActiveHit(hit);
           setScale(1.22);
           setCamPan(laneCameraPan(lane));
@@ -504,7 +492,7 @@ export default function LiveMatch() {
   };
 
   const onQteComplete = (qte: ObjectiveQtePayload) => {
-    if (isExpress || isCoopPvp || playerWonQte(qte)) {
+    if (isCoopPvp || playerWonQte(qte)) {
       confirmQteResult(qte);
       return;
     }
@@ -631,6 +619,14 @@ export default function LiveMatch() {
     if (!tm || tm.isComplete) return;
     if (awaitingCinema.current || awaitingQte.current) return;
     if (promptsForRound.current === tm.round) return;
+    // Nueva ronda: limpiar guards stale del cine anterior
+    if (tm.lastResolution && tm.lastResolution.round !== tm.round) {
+      awaitingCinema.current = false;
+      awaitingQte.current = false;
+      needsPostQteClaim.current = false;
+      postQteClaim.current = false;
+      cinemaForKey.current = null;
+    }
     clearCinema();
     beginPrompts(tm.round);
     return () => {
@@ -677,6 +673,7 @@ export default function LiveMatch() {
       // Congelado: pausa, anuncio de repetición o pantalla Continuar/Repetir
       if (
         isPausedRef.current
+        || statsOpenRef.current
         || showReplayAdRef.current
         || pendingQteRef.current
         || phaseRef.current?.t === 'qte_result'
@@ -688,8 +685,7 @@ export default function LiveMatch() {
       const res = current.lastResolution;
 
       if (awaitingQte.current || p?.t === 'qte') {
-        const qteLimitMs = isExpress ? timings.qteMaxSec * 1000 : QTE_STUCK_MS;
-        if (elapsed < qteLimitMs) return;
+        if (elapsed < QTE_STUCK_MS) return;
         awaitingQte.current = false;
         if (!current.pendingObjective) {
           setPhase({ t: 'idle' });
@@ -734,7 +730,7 @@ export default function LiveMatch() {
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState !== 'visible') return;
-      if (isPausedRef.current || showReplayAdRef.current || pendingQteRef.current) return;
+      if (isPausedRef.current || statsOpenRef.current || showReplayAdRef.current || pendingQteRef.current) return;
       const current = tmRef.current;
       if (!current || !awaitingCinema.current || awaitingQte.current) return;
       const elapsed = effectiveElapsed();
@@ -750,39 +746,12 @@ export default function LiveMatch() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Express: tope duro de 3 min por partida
-  useEffect(() => {
-    if (!isExpress || !tm) return;
-    matchForceEndedRef.current = false;
-    matchDeadlineRef.current = Date.now() + timings.matchBudgetSec * 1000;
-    setMatchSecLeft(timings.matchBudgetSec);
-
-    const iv = window.setInterval(() => {
-      const left = matchSecondsLeft(matchDeadlineRef.current, state.gameMode);
-      setMatchSecLeft(left);
-      if (left !== 0) return;
-      const current = tmRef.current;
-      if (!current || current.isComplete || matchForceEndedRef.current) return;
-      matchForceEndedRef.current = true;
-      clearCinema();
-      awaitingCinema.current = false;
-      awaitingQte.current = false;
-      needsPostQteClaim.current = false;
-      setPendingQteResult(null);
-      setShowReplayAd(false);
-      setPhase({ t: 'idle' });
-      dispatch({ type: 'FINISH_LIVE_MATCH' });
-    }, 400);
-
-    return () => window.clearInterval(iv);
-  }, [isExpress, state.currentMatch?.id, dispatch, state.gameMode, timings.matchBudgetSec]);
-
   useEffect(() => {
     if (!phase || phase.t !== 'prompt') return;
     setPromptLeft(timings.promptSec);
     let autoPicked = false;
     const iv = window.setInterval(() => {
-      if (isPausedRef.current || showReplayAdRef.current || autoPicked) return;
+      if (isPausedRef.current || statsOpenRef.current || showReplayAdRef.current || autoPicked) return;
       setPromptLeft(s => {
         const next = Math.max(0, s - 1);
         if (next === 0 && !autoPicked) {
@@ -800,7 +769,7 @@ export default function LiveMatch() {
             def = { kind: 'assist', champId: fallback };
           }
           window.setTimeout(() => {
-            if (isPausedRef.current || pendingQteRef.current || showReplayAdRef.current) return;
+            if (isPausedRef.current || statsOpenRef.current || pendingQteRef.current || showReplayAdRef.current) return;
             if (phaseRef.current?.t !== 'prompt') return;
             acceptPick(def);
           }, 0);
@@ -863,8 +832,10 @@ export default function LiveMatch() {
     }];
   })();
 
+  const slot = Math.round(mapSize * 1.12);
+  const displayRound = cinemaRes ? cinemaRes.round : tm.round;
   const capsule =
-    !phase || phase.t === 'idle' ? `Ronda ${tm.round}` :
+    !phase || phase.t === 'idle' ? `Ronda ${displayRound}` :
     phase.t === 'prompt' ? 'Tu decisión…' :
     phase.t === 'lane' ? `Línea ${['Superior', 'Central', 'Inferior'][phase.lane]}${phase.fight ? ' · Combate' : ''}` :
     phase.t === 'qte' ? '¡Pelea el objetivo!' :
@@ -872,8 +843,6 @@ export default function LiveMatch() {
     phase.t === 'objective' ? `Objetivo · ${objLabel || '…'}` :
     '…';
 
-  const slot = Math.round(mapSize * 1.12);
-  const displayRound = cinemaRes ? cinemaRes.round : tm.round;
   const pauseBlocked = !!pendingQteResult || showReplayAd;
   const qteReplaysLeft = qteReplaysRemaining(qteReplayCount);
 
@@ -881,19 +850,10 @@ export default function LiveMatch() {
     <div className={`flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden relative ${shake ? 'animate-screen-shake' : ''}`}>
       <div className="shrink-0 px-3 pb-2 pt-0 safe-top safe-chrome-x border-b border-[#1E2740] max-w-lg md:max-w-6xl mx-auto w-full md:px-4 md:py-3">
         <p className="text-[#C9A84C] text-[10px] md:text-xs uppercase tracking-wider">Partida en vivo</p>
-        <div className="flex justify-between items-end gap-2">
+        <div className="flex justify-between items-center gap-2">
           <h1 className="text-base md:text-xl font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
             Ronda {displayRound}/{tm.maxRounds}
           </h1>
-          {isExpress && matchSecLeft != null && (
-            <p
-              className={`text-[10px] md:text-xs font-bold tabular-nums ${
-                matchSecLeft <= 30 ? 'text-[#E74C3C]' : 'text-[#8B9BB4]'
-              }`}
-            >
-              {Math.floor(matchSecLeft / 60)}:{String(matchSecLeft % 60).padStart(2, '0')}
-            </p>
-          )}
           <button
             type="button"
             onClick={togglePause}
@@ -908,12 +868,6 @@ export default function LiveMatch() {
             {isPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
             {isPaused ? 'Continuar' : 'Pausa'}
           </button>
-          <p className="text-sm md:text-base font-bold">
-            <span className="text-[#3498DB]">{tm.blue.kills}</span>
-            <span className="text-[#8B9BB4]"> – </span>
-            <span className="text-[#E74C3C]">{tm.red.kills}</span>
-            <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">bajas</span>
-          </p>
         </div>
       </div>
 
@@ -974,9 +928,9 @@ export default function LiveMatch() {
               />
             )}
 
-            {phase?.t === 'qte_result' && pendingQteResult && !showReplayAd && !isExpress && !playerWonQte(pendingQteResult) && (
+            {phase?.t === 'qte_result' && pendingQteResult && !showReplayAd && !playerWonQte(pendingQteResult) && (
               <div className="absolute inset-0 z-[130] flex items-center justify-center bg-black/70 p-2">
-                <div className="max-h-full w-full overflow-y-auto rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)]">
+                <div className="w-full rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)]">
                   <p className="text-center text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
                     Combate de bolitas
                   </p>
@@ -1085,8 +1039,6 @@ export default function LiveMatch() {
           paused={isPaused}
           attemptKey={qteAttempt}
           allowSimulate={state.gameMode === 'ai'}
-          express={isExpress}
-          expressTimings={timings}
         />
       )}
 
@@ -1104,13 +1056,6 @@ export default function LiveMatch() {
         red={tm.red}
       />
 
-      {isPaused && !statsOpen && !showReplayAd && phase?.t !== 'qte_result' && (
-        <div className="pointer-events-none absolute inset-x-0 top-[4.5rem] z-[60] flex justify-center">
-          <span className="rounded-full border border-[#C9A84C]/40 bg-[#0D1220]/90 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
-            Partida en pausa
-          </span>
-        </div>
-      )}
     </div>
   );
 }

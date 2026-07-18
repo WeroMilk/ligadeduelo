@@ -140,11 +140,11 @@ export default function BracketMatchModal({ match, onClose }: Props) {
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+        <div className="min-h-0 flex-1 overflow-hidden px-3 py-3">
           {!summary ? (
             <p className="text-center text-sm text-[#8B9BB4] py-8">Sin estadísticas guardadas para esta partida.</p>
           ) : (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 md:gap-3">
               <div className="rounded-xl border border-[#2A3550] bg-[#141B2D] px-4 py-3 text-center">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4] mb-1">
                   Marcador de bajas

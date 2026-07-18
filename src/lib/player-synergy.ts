@@ -377,18 +377,70 @@ export function computeSynergy(player: PlayerCombatProfile, champ: ChampionDef):
   };
 }
 
-/** Color/estilo UI según rangos de dominio: ≥90, 75–89, 50–74, <50. */
+/** Color/estilo UI según tier de dominio (mismo criterio en badge y texto). */
+export function synergyUiStyle(syn: SynergyResult): {
+  label: string;
+  badgeClassName: string;
+  textClassName: string;
+  accentColor: string;
+} {
+  const label = syn.isSignature ? `★ ${syn.affinity}%` : `${syn.affinity}%`;
+
+  switch (syn.tier) {
+    case 'firma':
+      return {
+        label,
+        badgeClassName: 'bg-[#2ECC71]/25 text-[#2ECC71] border-[#2ECC71]',
+        textClassName: 'text-[#2ECC71]',
+        accentColor: '#2ECC71',
+      };
+    case 'alta':
+      return {
+        label,
+        badgeClassName: 'bg-[#27AE60]/20 text-[#27AE60] border-[#27AE60]/50',
+        textClassName: 'text-[#27AE60]',
+        accentColor: '#27AE60',
+      };
+    case 'media':
+      return {
+        label,
+        badgeClassName: 'bg-[#3498DB]/20 text-[#5DADE2] border-[#3498DB]/50',
+        textClassName: 'text-[#5DADE2]',
+        accentColor: '#5DADE2',
+      };
+    default:
+      return {
+        label,
+        badgeClassName: 'bg-[#4A5570]/40 text-[#8B9BB4] border-[#4A5570]',
+        textClassName: 'text-[#8B9BB4]',
+        accentColor: '#8B9BB4',
+      };
+  }
+}
+
+export function synergyAccentColor(affinity: number): string {
+  if (affinity >= 90) return '#2ECC71';
+  if (affinity >= 75) return '#27AE60';
+  if (affinity >= 50) return '#5DADE2';
+  return '#8B9BB4';
+}
+
+/** @deprecated Usar synergyUiStyle para badge + texto coherentes. */
 export function synergyBadgeStyle(affinity: number): { label: string; className: string } {
-  if (affinity >= 90) {
-    return { label: `${affinity}%`, className: 'bg-[#C9A84C]/25 text-[#F1C40F] border-[#C9A84C]' };
-  }
-  if (affinity >= 75) {
-    return { label: `${affinity}%`, className: 'bg-[#2ECC71]/20 text-[#2ECC71] border-[#2ECC71]/50' };
-  }
-  if (affinity >= 50) {
-    return { label: `${affinity}%`, className: 'bg-[#3498DB]/20 text-[#5DADE2] border-[#3498DB]/50' };
-  }
-  return { label: `${affinity}%`, className: 'bg-[#4A5570]/40 text-[#8B9BB4] border-[#4A5570]' };
+  let tier: SynergyTier = 'baja';
+  if (affinity >= 90) tier = 'firma';
+  else if (affinity >= 75) tier = 'alta';
+  else if (affinity >= 50) tier = 'media';
+  const ui = synergyUiStyle({
+    affinity,
+    tier,
+    isSignature: affinity >= 90,
+    label: `${affinity}%`,
+    multiplier: 1,
+    initiativeBonus: 0,
+    mitigationBonus: 0,
+  });
+  return { label: ui.label, className: ui.badgeClassName };
 }
 
 export function synergyForMember(member: RosterMember | null | undefined, defId: string): SynergyResult | null {

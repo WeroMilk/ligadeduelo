@@ -3,6 +3,7 @@ import type { Champion, Structure, TeamPlan, LaneId, ObjectiveType, CombatAction
 import { actionLabelEs, champDef } from '@/lib/turn-engine';
 import { objectiveIsBaronSide, objectiveName } from '@/lib/game-data';
 import { combatFloatStyle } from '@/lib/combat-float-style';
+import { synergyAccentColor } from '@/lib/player-synergy';
 import { Swords, Shield, Sparkles, Droplet } from 'lucide-react';
 
 export type ObjectiveAnimPhase = 'none' | 'pulse' | 'clash' | 'claim';
@@ -739,7 +740,7 @@ export default function Minimap({
                   style={{
                     top: icon + (showHp ? 8 : 2),
                     fontSize: Math.max(6, icon * 0.18),
-                    color: (c.playerAffinity ?? 0) >= 90 ? '#F1C40F' : '#8B9BB4',
+                    color: c.playerAffinity != null ? synergyAccentColor(c.playerAffinity) : '#8B9BB4',
                     backgroundColor: 'rgba(10,14,26,0.75)',
                   }}
                 >

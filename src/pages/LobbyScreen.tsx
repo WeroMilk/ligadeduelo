@@ -21,6 +21,12 @@ export default function LobbyScreen() {
 
   const addFriend = () => {
     if (state.lobbyPlayers.length >= maxPlayers) return;
+    if (isCoop) {
+      if (!teamNameOk(friendTeam)) return;
+      dispatch({ type: 'ADD_LOBBY_PLAYER', name: '', teamName: friendTeam });
+      setFriendTeam('');
+      return;
+    }
     dispatch({ type: 'ADD_LOBBY_PLAYER', name: friendName, teamName: friendTeam });
     setFriendName('');
     setFriendTeam('');
@@ -35,7 +41,7 @@ export default function LobbyScreen() {
         <p className="text-xs text-[#8B9BB4] mt-1">
           {isCode
             ? 'Mismo dispositivo: el código es decorativo. Añade amigos aquí (máx. 16).'
-            : `Mínimo ${COOP_MIN_PLAYERS} jugadores · máximo ${COOP_MAX_FRIENDS} amigos. Pon el nombre de equipo de cada uno aquí.`}
+            : `Mínimo ${COOP_MIN_PLAYERS} equipos · máximo ${COOP_MAX_FRIENDS} amigos. Escribe el nombre de cada equipo.`}
         </p>
         {isCode && (
           <div className="mt-3 flex items-center gap-2 rounded-xl border border-[#C9A84C]/40 bg-[#C9A84C]/10 px-3 py-2">
@@ -54,10 +60,11 @@ export default function LobbyScreen() {
         )}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide md:overflow-hidden px-4 py-2 max-w-4xl mx-auto w-full flex flex-col gap-3 md:py-3">
+      <div className="coop-lobby flex-1 min-h-0 overflow-y-auto scrollbar-hide md:overflow-hidden px-4 py-2 max-w-4xl mx-auto w-full flex flex-col gap-3 md:py-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3">
           {state.lobbyPlayers.map((p, i) => {
             const dup = isCoop && isDuplicateTeamNameAt(state.lobbyPlayers, i);
+            const slotLabel = `Equipo ${i + 1}${p.isHost ? ' · Host' : ''}`;
             return (
             <div
               key={p.id}
@@ -65,11 +72,11 @@ export default function LobbyScreen() {
             >
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-full bg-[#2A3550] flex items-center justify-center text-xs font-bold text-[#F0E6D2] shrink-0">
-                  {(p.teamName.trim() || p.name).slice(0, 2).toUpperCase()}
+                  {(p.teamName.trim() || `E${i + 1}`).slice(0, 2).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
-                    {p.isHost ? 'Jugador 1 · Host' : `Jugador ${i + 1}`}
+                    {isCoop ? slotLabel : (p.isHost ? 'Jugador 1 · Host' : `Jugador ${i + 1}`)}
                   </p>
                 </div>
                 {!p.isHost && (
@@ -84,42 +91,64 @@ export default function LobbyScreen() {
                 )}
               </div>
 
-              <label className="block space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">
-                  Nombre del jugador
-                </span>
-                <input
-                  value={p.name}
-                  onChange={e => dispatch({ type: 'UPDATE_LOBBY_PLAYER', id: p.id, name: e.target.value })}
-                  maxLength={18}
-                  placeholder={`Jugador ${i + 1}`}
-                  className="w-full rounded-lg border border-[#2A3550] bg-[#0A0E1A] px-2.5 py-2 text-sm text-[#F0E6D2] focus:border-[#C9A84C] outline-none"
-                />
-              </label>
-
-              <label className="block space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">
-                  Nombre del equipo <span className="text-[#C9A84C]">*</span>
-                </span>
-                <input
-                  value={p.teamName}
-                  onChange={e => dispatch({ type: 'UPDATE_LOBBY_PLAYER', id: p.id, teamName: e.target.value })}
-                  maxLength={24}
-                  placeholder="Ej. Los Invictos"
-                  className={`w-full rounded-lg border bg-[#0A0E1A] px-2.5 py-2 text-sm text-[#F0E6D2] outline-none ${
-                    dup
-                      ? 'border-[#E74C3C] focus:border-[#E74C3C]'
-                      : teamNameOk(p.teamName)
-                        ? 'border-[#2A3550] focus:border-[#C9A84C]'
-                        : 'border-[#E74C3C]/50 focus:border-[#E74C3C]'
-                  }`}
-                />
-                {dup ? (
-                  <span className="text-[10px] text-[#E74C3C]">Este nombre ya lo usa otro equipo</span>
-                ) : !teamNameOk(p.teamName) ? (
-                  <span className="text-[10px] text-[#E74C3C]">Mínimo 2 caracteres</span>
-                ) : null}
-              </label>
+              {isCoop ? (
+                <label className="block space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">
+                    Nombre del equipo <span className="text-[#C9A84C]">*</span>
+                  </span>
+                  <input
+                    value={p.teamName}
+                    onChange={e => dispatch({ type: 'UPDATE_LOBBY_PLAYER', id: p.id, teamName: e.target.value })}
+                    maxLength={24}
+                    placeholder="Ej. Los Invictos"
+                    className={`w-full rounded-lg border bg-[#0A0E1A] px-2.5 py-2 text-base text-[#F0E6D2] outline-none ${
+                      dup
+                        ? 'border-[#E74C3C] focus:border-[#E74C3C]'
+                        : teamNameOk(p.teamName)
+                          ? 'border-[#2A3550] focus:border-[#C9A84C]'
+                          : 'border-[#E74C3C]/50 focus:border-[#E74C3C]'
+                    }`}
+                  />
+                  {dup ? (
+                    <span className="text-[10px] text-[#E74C3C]">Este nombre ya lo usa otro equipo</span>
+                  ) : !teamNameOk(p.teamName) ? (
+                    <span className="text-[10px] text-[#E74C3C]">Mínimo 2 caracteres</span>
+                  ) : null}
+                </label>
+              ) : (
+                <>
+                  <label className="block space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">
+                      Nombre del jugador
+                    </span>
+                    <input
+                      value={p.name}
+                      onChange={e => dispatch({ type: 'UPDATE_LOBBY_PLAYER', id: p.id, name: e.target.value })}
+                      maxLength={18}
+                      placeholder={`Jugador ${i + 1}`}
+                      className="w-full rounded-lg border border-[#2A3550] bg-[#0A0E1A] px-2.5 py-2 text-sm text-[#F0E6D2] focus:border-[#C9A84C] outline-none"
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">
+                      Nombre del equipo <span className="text-[#C9A84C]">*</span>
+                    </span>
+                    <input
+                      value={p.teamName}
+                      onChange={e => dispatch({ type: 'UPDATE_LOBBY_PLAYER', id: p.id, teamName: e.target.value })}
+                      maxLength={24}
+                      placeholder="Ej. Los Invictos"
+                      className={`w-full rounded-lg border bg-[#0A0E1A] px-2.5 py-2 text-sm text-[#F0E6D2] outline-none ${
+                        dup
+                          ? 'border-[#E74C3C] focus:border-[#E74C3C]'
+                          : teamNameOk(p.teamName)
+                            ? 'border-[#2A3550] focus:border-[#C9A84C]'
+                            : 'border-[#E74C3C]/50 focus:border-[#E74C3C]'
+                      }`}
+                    />
+                  </label>
+                </>
+              )}
             </div>
             );
           })}
@@ -128,32 +157,24 @@ export default function LobbyScreen() {
         {isCoop && state.lobbyPlayers.length < maxPlayers && (
           <div className="rounded-xl border border-dashed border-[#2A3550] bg-[#0D1220] p-3 space-y-2 shrink-0">
             <p className="text-[10px] font-bold uppercase tracking-wider text-[#8B9BB4]">
-              Añadir amigo ({state.lobbyPlayers.length - 1}/{COOP_MAX_FRIENDS})
+              Añadir equipo ({state.lobbyPlayers.length - 1}/{COOP_MAX_FRIENDS})
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <input
-                value={friendName}
-                onChange={e => setFriendName(e.target.value)}
-                placeholder="Nombre del jugador"
-                maxLength={18}
-                className="rounded-lg border border-[#2A3550] bg-[#141B2D] px-3 py-2.5 text-sm text-[#F0E6D2] focus:border-[#C9A84C] outline-none"
-              />
-              <input
-                value={friendTeam}
-                onChange={e => setFriendTeam(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addFriend()}
-                placeholder="Nombre del equipo"
-                maxLength={24}
-                className="rounded-lg border border-[#2A3550] bg-[#141B2D] px-3 py-2.5 text-sm text-[#F0E6D2] focus:border-[#C9A84C] outline-none"
-              />
-            </div>
+            <input
+              value={friendTeam}
+              onChange={e => setFriendTeam(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addFriend()}
+              placeholder="Nombre del equipo"
+              maxLength={24}
+              className="w-full rounded-lg border border-[#2A3550] bg-[#141B2D] px-3 py-2.5 text-base text-[#F0E6D2] focus:border-[#C9A84C] outline-none"
+            />
             <button
               type="button"
               onClick={addFriend}
-              className="w-full min-h-11 rounded-xl bg-[#C9A84C] text-[#0A0E1A] font-bold flex items-center justify-center gap-2"
+              disabled={!teamNameOk(friendTeam)}
+              className="w-full min-h-11 rounded-xl bg-[#C9A84C] text-[#0A0E1A] font-bold flex items-center justify-center gap-2 disabled:opacity-40"
             >
               <UserPlus className="w-5 h-5" />
-              Añadir amigo
+              Añadir equipo
             </button>
           </div>
         )}
@@ -182,7 +203,7 @@ export default function LobbyScreen() {
       <div className="shrink-0 px-4 py-2.5 max-w-4xl mx-auto w-full space-y-2 border-t border-[#1E2740] flex flex-col md:flex-row md:items-center md:gap-3">
         {!allTeamsNamed && isCoop && state.lobbyPlayers.length >= minPlayers && (
           <p className="text-[11px] text-[#E74C3C] md:flex-1">
-            Escribe el nombre de equipo de todos los jugadores (mín. 2 caracteres).
+            Escribe el nombre de equipo de todos (mín. 2 caracteres).
           </p>
         )}
         {duplicateTeams && (
