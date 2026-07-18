@@ -40,10 +40,12 @@ function createChampion(defId: string, team: TeamColor): Champion {
     gold: 100,
     tearStacks: 0,
     burnPending: 0,
-    ultimateUsed: false,
+    ultimateCooldown: 0,
     siegeStacks: 0,
     lifeSteal: 0,
     skipTurns: 0,
+    recallingForMana: false,
+    passiveCounter: 0,
   };
 }
 

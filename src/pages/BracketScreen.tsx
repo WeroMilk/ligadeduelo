@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useGame } from '@/hooks/useGameState';
 import { CHAMPIONS } from '@/lib/game-data';
-import { Trophy, Swords, ChevronRight, Crown, User, Ghost } from 'lucide-react';
+import { Trophy, Swords, ChevronRight, Crown, User } from 'lucide-react';
 import { playClickSound } from '@/lib/sounds';
 
 const AI_MATCH_DELAY_MS = 1100;
@@ -58,8 +58,6 @@ export default function BracketScreen() {
     if (!match.winner) return null;
     return match.winner === 'blue' ? match.teamA.name : match.teamB.name;
   };
-
-  const isRivalTeam = (id: string) => id === tournament.rivalTeamId;
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
@@ -130,7 +128,6 @@ export default function BracketScreen() {
             const winner = match.winner;
             const winnerName = getMatchWinner(match);
             const isActive = simulating && match.id === activeMatchId;
-            const hasRival = isRivalTeam(match.teamA.id) || isRivalTeam(match.teamB.id);
 
             return (
               <div
@@ -138,8 +135,6 @@ export default function BracketScreen() {
                 className={`rounded-xl border-2 p-2.5 md:p-4 transition-all md:flex md:flex-col md:justify-center ${
                   isActive
                     ? 'border-[#3498DB] bg-[#3498DB]/10 shadow-[0_0_20px_rgba(52,152,219,0.15)]'
-                    : hasRival && !winner
-                    ? 'border-[#6B1FA6] bg-[#6B1FA6]/10 shadow-[0_0_18px_rgba(107,31,166,0.2)]'
                     : isPlayer && !winner
                     ? 'border-[#C9A84C] bg-[#C9A84C]/5 shadow-[0_0_20px_rgba(201,168,76,0.1)]'
                     : winner
@@ -147,16 +142,10 @@ export default function BracketScreen() {
                     : 'border-[#1E2740] bg-[#141B2D]'
                 }`}
               >
-                {hasRival && (
-                  <p className="text-[10px] text-[#C39BD3] font-bold uppercase tracking-wider mb-1 md:mb-3 flex items-center gap-1">
-                    <Ghost className="w-3 h-3" /> Rivalidad
-                  </p>
-                )}
                 <div className="flex items-start gap-2 md:gap-3">
                   <div className={`flex-1 min-w-0 space-y-1 md:space-y-1.5 ${winner === 'red' ? 'opacity-40' : ''}`}>
                     <span className={`block text-xs md:text-sm font-bold leading-snug line-clamp-2 ${
-                      match.teamA.id === 'player' ? 'text-[#C9A84C]' :
-                      isRivalTeam(match.teamA.id) ? 'text-[#C39BD3]' : 'text-[#F0E6D2]'
+                      match.teamA.id === 'player' ? 'text-[#C9A84C]' : 'text-[#F0E6D2]'
                     }`}>
                       {match.teamA.name}
                     </span>
@@ -195,8 +184,7 @@ export default function BracketScreen() {
 
                   <div className={`flex-1 min-w-0 space-y-1.5 text-right ${winner === 'blue' ? 'opacity-40' : ''}`}>
                     <span className={`block text-xs md:text-sm font-bold leading-snug line-clamp-2 ${
-                      match.teamB.id === 'player' ? 'text-[#C9A84C]' :
-                      isRivalTeam(match.teamB.id) ? 'text-[#C39BD3]' : 'text-[#F0E6D2]'
+                      match.teamB.id === 'player' ? 'text-[#C9A84C]' : 'text-[#F0E6D2]'
                     }`}>
                       {match.teamB.name}
                     </span>

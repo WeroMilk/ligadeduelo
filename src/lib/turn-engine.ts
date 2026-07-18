@@ -2,11 +2,43 @@ import type {
   Champion, TeamData, TeamPlan, CombatAction, LaneId, TeamColor,
   TurnMatchState, RoundResolution, CombatLogLine, Structure,
   DuelSummary, DuelFighterSummary, CombatFloat, ObjectiveType,
-  KillAnnounce, ObjectiveBonusAnnounce,
+  KillAnnounce, ObjectiveBonusAnnounce, RosterMember,
 } from '@/types/game';
 import { CHAMPIONS, getChampionBaseStats, ITEMS, ITEM_PRIORITY_BY_ROLE, MAX_MATCH_ROUNDS, GOLD_PER_ROUND, GOLD_PER_KILL, POINTS_KILL, POINTS_TOWER, POINTS_OBJECTIVE, POINTS_NEXUS, FREE_LANE_SIEGE_BONUS, objectiveForRound, objectiveName } from './game-data';
 import { applyBuffToStats, type BuffId } from './buffs';
 import type { Role } from '@/types/game';
+import {
+  MANA_COST,
+  prepareRoundResources,
+  applyUltimateCooldowns,
+  finalizeResourceTicks,
+  applyRoundStartPassives,
+  applyLaneSupportUltimates,
+  applyPreDuelEffects,
+  sortDuelOrder,
+  modifyOutgoingDamage,
+  shouldIgnoreDefend,
+  shouldNullifyIncoming,
+  defendMultiplier,
+  onAfterHit,
+  secondStrikeRatio,
+  onKillEffects,
+  postDuelUltDamage,
+  postDuelDefendHeal,
+  siegeDamageMult,
+  markFlurryIfGanking,
+  applyYuumiDefendBuff,
+  gravesSplashTargets,
+  manaCostFor,
+} from './champion-mechanics';
+import {
+  bindRosterToChampIds,
+  computeSynergy,
+  defaultNeutralProfile,
+  mitigationFromAffinity,
+  resolvePlayerProfile,
+} from './player-synergy';
+import { rosterForTeamName } from './rosters';
 
 let idCounter = 0;
 function uid(prefix = 'c') { return `${prefix}${++idCounter}`; }
@@ -59,12 +91,13 @@ function aggregateKillAnnounces(raw: RawKill[]): KillAnnounce[] {
   });
 }
 
-/** Ritmo de combate: menos intercambios y daño → partidas con pocas kills. */
-const DUEL_MAX_EXCHANGES = 3;
-const COMBAT_DAMAGE_MULT = 0.9;
-/** Multiplicador extra de daño para el equipo rojo (IA). */
-const AI_DAMAGE_MULT = 1.24;
+/** Un solo golpe ofensivo consolidado por campeón y ronda. */
+const DUEL_MAX_EXCHANGES = 1;
+/** Compensa el paso de 3 intercambios a 1 sin inflar kills. */
+const COMBAT_DAMAGE_MULT = 1.35;
 const DEFEND_DAMAGE_MULT = 0.48;
+const DAMAGE_VARIANCE_MIN = 0.95;
+const DAMAGE_VARIANCE_MAX = 1.05;
 const BURN_ARMOR_DMG = 12;
 /** HP que permite tumbar torre+nexo antes de la ronda 10 si dejas una línea sola. */
 const TOWER_MAX_HP = 1400;
@@ -126,10 +159,35 @@ function roleLane(role: Role): LaneId {
   return 1; // mid + jungle home mid
 }
 
-export function createTurnChampion(defId: string, team: TeamColor): Champion {
+function applyPlayerSynergy(champ: Champion, member: RosterMember | null | undefined): Champion {
+  const def = CHAMPIONS.find(c => c.id === champ.defId)!;
+  const profile = member
+    ? resolvePlayerProfile(member.name, member.role, {
+        mechanics: member.mechanics,
+        macro: member.macro,
+        styles: member.styles,
+        signatureChampionIds: member.signatureChampionIds,
+      })
+    : defaultNeutralProfile(def.role);
+  const syn = computeSynergy(profile, def);
+  champ.rosterMemberId = member?.id;
+  champ.playerName = profile.name;
+  champ.playerMechanics = profile.mechanics;
+  champ.playerMacro = profile.macro;
+  champ.playerAffinity = syn.affinity;
+  champ.playerCombatMultiplier = syn.multiplier;
+  champ.synergyTier = syn.tier;
+  return champ;
+}
+
+export function createTurnChampion(
+  defId: string,
+  team: TeamColor,
+  member?: RosterMember | null,
+): Champion {
   const def = CHAMPIONS.find(c => c.id === defId)!;
   const lane = roleLane(def.role);
-  return {
+  const champ: Champion = {
     instanceId: uid(team === 'blue' ? 'b' : 'r'),
     defId,
     team,
@@ -142,24 +200,49 @@ export function createTurnChampion(defId: string, team: TeamColor): Champion {
     gold: 100,
     tearStacks: 0,
     burnPending: 0,
-    ultimateUsed: false,
+    ultimateCooldown: 0,
     siegeStacks: 0,
     lifeSteal: 0,
     skipTurns: 0,
+    recallingForMana: false,
+    passiveCounter: 0,
   };
+  return applyPlayerSynergy(champ, member);
 }
 
-export function createTurnTeam(id: string, name: string, color: TeamColor, champIds: string[]): TeamData {
+export function createTurnTeam(
+  id: string,
+  name: string,
+  color: TeamColor,
+  champIds: string[],
+  roster?: RosterMember[] | null,
+  champToRoster?: Record<string, string>,
+): TeamData {
+  const rosterList = roster ?? [];
+  const byId = new Map(rosterList.map(m => [m.id, m]));
+  const bound = rosterList.length
+    ? bindRosterToChampIds(champIds, rosterList)
+    : champIds.map(defId => ({ defId, member: null as RosterMember | null }));
+
+  const champions = bound.map(({ defId, member }) => {
+    let resolved = member;
+    if (champToRoster?.[defId]) {
+      resolved = byId.get(champToRoster[defId]) || member;
+    }
+    return createTurnChampion(defId, color, resolved);
+  });
+
   return {
     id,
     name,
     color,
-    champions: champIds.map(cid => createTurnChampion(cid, color)),
+    champions,
     nexusHp: NEXUS_MAX_HP,
     maxNexusHp: NEXUS_MAX_HP,
     kills: 0,
     score: 0,
     damageBuff: 0,
+    rosterMembers: rosterList.length ? rosterList : undefined,
   };
 }
 
@@ -213,20 +296,14 @@ function champDef(c: Champion) {
 
 export { champDef };
 
-function priority(c: Champion, action: CombatAction, usedUlt: boolean): number {
-  let p = c.stats.attackSpeed * 100 + c.stats.moveSpeed;
-  if (hasItem(c, 'dagger')) p += 50;
-  if (action === 'attack') p += 10;
-  if (usedUlt && c.defId === 'kayn' && action === 'attack') p += 200;
-  return p;
-}
-
 function pushLog(log: CombatLogLine[], text: string, tone: CombatLogLine['tone'] = 'neutral') {
   log.push({ id: logId(), text, tone });
 }
 
 function living(team: TeamData) {
-  return team.champions.filter(c => c.isAlive && c.stats.hp > 0 && (c.skipTurns || 0) <= 0);
+  return team.champions.filter(
+    c => c.isAlive && c.stats.hp > 0 && (c.skipTurns || 0) <= 0 && !c.recallingForMana,
+  );
 }
 
 function livingIncludingSkipped(team: TeamData) {
@@ -265,6 +342,10 @@ function applyBurn(champs: Champion[], log: CombatLogLine[]) {
   }
 }
 
+function damageVariance(): number {
+  return DAMAGE_VARIANCE_MIN + Math.random() * (DAMAGE_VARIANCE_MAX - DAMAGE_VARIANCE_MIN);
+}
+
 function dealDamage(attacker: Champion, defender: Champion, raw: number, magic: boolean): number {
   let dmg = raw;
   if (magic && hasItem(defender, 'null_magic')) dmg = Math.max(5, dmg - 40);
@@ -272,6 +353,9 @@ function dealDamage(attacker: Champion, defender: Champion, raw: number, magic: 
     ? defender.stats.mr / (defender.stats.mr + 100)
     : defender.stats.armor / (defender.stats.armor + 100);
   dmg = Math.max(8, Math.floor(dmg * (1 - mit)));
+  // Afinidad del defensor: hasta 8% de mitigación extra
+  const playerMit = mitigationFromAffinity(defender.playerAffinity);
+  if (playerMit > 0) dmg = Math.max(5, Math.floor(dmg * (1 - playerMit)));
   defender.stats.hp = Math.max(0, defender.stats.hp - dmg);
   if (attacker.lifeSteal > 0 && dmg > 0 && attacker.isAlive) {
     const heal = Math.floor(dmg * attacker.lifeSteal);
@@ -284,15 +368,17 @@ function dealDamage(attacker: Champion, defender: Champion, raw: number, magic: 
 
 function actionDamage(c: Champion, action: CombatAction, teamBuff: number, tearDouble: boolean): { dmg: number; magic: boolean } {
   if (action === 'defend') return { dmg: 0, magic: false };
-  const sideMul = c.team === 'red' ? AI_DAMAGE_MULT : 1;
+  const playerMul = c.playerCombatMultiplier ?? 1;
+  const variance = damageVariance();
   if (action === 'attack') {
-    let dmg = Math.floor((c.stats.ad * 1.15 * COMBAT_DAMAGE_MULT + 40 * COMBAT_DAMAGE_MULT) * sideMul) + teamBuff;
-    if (hasItem(c, 'long_sword')) dmg += Math.floor(45 * COMBAT_DAMAGE_MULT * sideMul);
+    let base = c.stats.ad * 1.15 + 40;
+    if (hasItem(c, 'long_sword')) base += 45;
+    let dmg = Math.floor(base * COMBAT_DAMAGE_MULT * playerMul * variance) + teamBuff;
     return { dmg, magic: false };
   }
-  // ability
-  let dmg = Math.floor((c.stats.ap * 1.35 * COMBAT_DAMAGE_MULT + 50 * COMBAT_DAMAGE_MULT) * sideMul) + teamBuff;
-  if (hasItem(c, 'blasting_wand')) dmg += Math.floor(55 * COMBAT_DAMAGE_MULT * sideMul);
+  let base = c.stats.ap * 1.35 + 50;
+  if (hasItem(c, 'blasting_wand')) base += 55;
+  let dmg = Math.floor(base * COMBAT_DAMAGE_MULT * playerMul * variance) + teamBuff;
   if (tearDouble) dmg *= 2;
   return { dmg, magic: true };
 }
@@ -314,6 +400,38 @@ function fighterSnap(f: Fighter, hpBefore: number, damageDealt: number): DuelFig
   };
 }
 
+function registerKill(
+  atk: Fighter,
+  def: Fighter,
+  state: TurnMatchState,
+  log: CombatLogLine[],
+  floats: CombatFloat[],
+  lane: LaneId,
+  killEvents: RawKill[],
+  notes: string[],
+  flags: { blueKill: boolean; redKill: boolean },
+) {
+  def.champ.isAlive = false;
+  atk.champ.kills += 1;
+  atk.champ.gold += GOLD_PER_KILL;
+  if (atk.champ.team === 'blue') {
+    state.blue.kills += 1;
+    state.blue.score += POINTS_KILL;
+    flags.blueKill = true;
+  } else {
+    state.red.kills += 1;
+    state.red.score += POINTS_KILL;
+    flags.redKill = true;
+  }
+  pushLog(log, `¡${champDef(atk.champ).name} elimina a ${champDef(def.champ).name}! (+1 baja)`, 'kill');
+  notes.push(`${champDef(def.champ).name} KO`);
+  pushKill(killEvents, atk.champ, def.champ);
+  const laneEnemies = (atk.champ.team === 'blue' ? state.red : state.blue).champions.filter(
+    c => c.position.lane === lane,
+  );
+  onKillEffects(atk.champ, def.champ, floats, log, laneEnemies, atk.ult);
+}
+
 function resolveDuel(
   a: Fighter,
   b: Fighter,
@@ -324,134 +442,99 @@ function resolveDuel(
   lane: LaneId,
   killEvents: RawKill[],
 ): { blueKill: boolean; redKill: boolean } {
-  let blueKill = false;
-  let redKill = false;
-
+  const flags = { blueKill: false, redKill: false };
   const hpA = a.champ.stats.hp;
   const hpB = b.champ.stats.hp;
   let dmgByA = 0;
   let dmgByB = 0;
   const notes: string[] = [];
 
-  // Ult effects pre
-  if (a.ult && (a.champ.defId === 'amumu' || a.champ.defId === 'sejuani') && b.action === 'defend') b.action = 'attack';
-  if (b.ult && (b.champ.defId === 'amumu' || b.champ.defId === 'sejuani') && a.action === 'defend') a.action = 'attack';
-  if (a.ult && a.champ.defId === 'leona' && b.action === 'attack') b.action = 'defend';
-  if (b.ult && b.champ.defId === 'leona' && a.action === 'attack') a.action = 'defend';
-  if (a.ult && (a.champ.defId === 'thresh' || a.champ.defId === 'nautilus')) b.champ.stats.armor = Math.max(5, b.champ.stats.armor - 20);
-  if (b.ult && (b.champ.defId === 'thresh' || b.champ.defId === 'nautilus')) a.champ.stats.armor = Math.max(5, a.champ.stats.armor - 20);
-
-  const order = [a, b].sort((x, y) => priority(y.champ, y.action, y.ult) - priority(x.champ, x.action, x.ult));
+  applyPreDuelEffects(a, b, log);
+  const order = sortDuelOrder(a, b);
+  const laneAllies = [...state.blue.champions, ...state.red.champions].filter(
+    c => c.isAlive && (c.skipTurns || 0) <= 0,
+  );
 
   for (let exchange = 0; exchange < DUEL_MAX_EXCHANGES; exchange++) {
     if (!a.champ.isAlive || a.champ.stats.hp <= 0 || !b.champ.isAlive || b.champ.stats.hp <= 0) break;
 
-  for (const atk of order) {
-    if (!atk.champ.isAlive || atk.champ.stats.hp <= 0) continue;
-    const def = atk === a ? b : a;
-    if (!def.champ.isAlive) continue;
+    for (const atk of order) {
+      if (!atk.champ.isAlive || atk.champ.stats.hp <= 0) continue;
+      const def = atk === a ? b : a;
+      if (!def.champ.isAlive || def.champ.stats.hp <= 0) continue;
 
-    const effectiveAction: CombatAction = exchange > 0 && atk.action === 'defend' ? 'attack' : atk.action;
+      // Defender nunca se convierte en Atacar: una acción por ronda
+      const effectiveAction: CombatAction = atk.action;
 
-    let tearDouble = false;
-    if (effectiveAction === 'ability' && hasItem(atk.champ, 'tear')) {
-      atk.champ.tearStacks += 1;
-      if (atk.champ.tearStacks >= 5) {
-        tearDouble = true;
-        atk.champ.tearStacks = 0;
-        pushLog(log, `${champDef(atk.champ).name} descarga la Lágrima (×2)`, 'ulti');
+      let tearDouble = false;
+      if (effectiveAction === 'ability' && hasItem(atk.champ, 'tear')) {
+        atk.champ.tearStacks += 1;
+        if (atk.champ.tearStacks >= 5) {
+          tearDouble = true;
+          atk.champ.tearStacks = 0;
+          pushLog(log, `${champDef(atk.champ).name} descarga la Lágrima (×2)`, 'ulti');
+        }
       }
-    }
 
-    const team = atk.champ.team === 'blue' ? state.blue : state.red;
-    let { dmg, magic } = actionDamage(atk.champ, effectiveAction, team.damageBuff, tearDouble);
+      const team = atk.champ.team === 'blue' ? state.blue : state.red;
+      let { dmg, magic } = actionDamage(atk.champ, effectiveAction, team.damageBuff, tearDouble);
+      const mod = modifyOutgoingDamage(atk, def, dmg, effectiveAction, exchange, laneAllies);
+      dmg = mod.dmg;
+      magic = mod.magic;
+      if (mod.note) pushLog(log, mod.note, 'ulti');
 
-    if (atk.ult && (atk.champ.defId === 'lux' || atk.champ.defId === 'syndra') && effectiveAction === 'ability') dmg = Math.floor(dmg * 1.5);
-    if (atk.ult && (atk.champ.defId === 'vi' || atk.champ.defId === 'sett') && effectiveAction === 'attack') dmg += 50;
-    if (atk.ult && atk.champ.defId === 'aatrox' && effectiveAction === 'attack') dmg += 55;
-    if (atk.ult && atk.champ.defId === 'graves' && effectiveAction === 'attack') dmg += 45;
-    if (atk.ult && atk.champ.defId === 'ezreal' && effectiveAction === 'ability') dmg += 35;
-    if (atk.ult && atk.champ.defId === 'orianna' && effectiveAction === 'ability') dmg += 40;
-    if (atk.ult && atk.champ.defId === 'jinx' && effectiveAction === 'ability') dmg += atk.champ.kills * 15;
-    if (atk.ult && atk.champ.defId === 'lee_sin') dmg += 40;
-    if (atk.ult && atk.champ.defId === 'garen' && effectiveAction === 'attack') {
-      dmg = Math.floor(dmg * 1.25);
-    }
-    if (atk.ult && atk.champ.defId === 'generic') dmg += 25;
-
-    if (champDef(atk.champ).passive.id === 'execute' && def.champ.stats.hp / def.champ.stats.maxHp < 0.12) {
-      dmg = def.champ.stats.hp;
-      pushLog(log, `${champDef(atk.champ).name} ejecuta`, 'kill');
-    }
-    if (atk.ult && (atk.champ.defId === 'kaisa' || atk.champ.defId === 'jhin') && effectiveAction === 'attack' && def.champ.stats.hp / def.champ.stats.maxHp < 0.35) {
-      dmg = def.champ.stats.hp;
-      pushLog(log, `${champDef(atk.champ).name} ejecuta por instinto`, 'ulti');
-    }
-
-    if (effectiveAction === 'defend') {
-      pushLog(log, `${champDef(atk.champ).name} elige Defender y no ataca`);
-      notes.push(`${champDef(atk.champ).name} defiende`);
-      continue;
-    }
-
-    let mitigated = dmg;
-    const ignoreDefend = (atk.ult && (atk.champ.defId === 'caitlyn' || atk.champ.defId === 'ashe') && effectiveAction === 'attack')
-      || (champDef(atk.champ).passive.id === 'headshot' && Math.random() < 0.15);
-    if (def.action === 'defend' && exchange === 0 && !ignoreDefend) {
-      if (def.ult && def.champ.defId === 'malphite') {
-        mitigated = 0;
-        pushLog(log, `${champDef(def.champ).name} anula el golpe (Inquebrantable)`, 'ulti');
-      } else {
-        mitigated = Math.floor(dmg * DEFEND_DAMAGE_MULT);
-        pushLog(log, `${champDef(def.champ).name} Defiende y reduce el golpe a ${mitigated}`);
+      if (effectiveAction === 'defend') {
+        pushLog(log, `${champDef(atk.champ).name} elige Defender y no ataca`);
+        notes.push(`${champDef(atk.champ).name} defiende`);
+        continue;
       }
-    }
-    if (ignoreDefend && def.action === 'defend') {
-      pushLog(log, `${champDef(atk.champ).name} ignora la defensa`, 'ulti');
-    }
 
-    const dealt = dealDamage(atk.champ, def.champ, mitigated, magic);
-    if (atk === a) dmgByA += dealt;
-    else dmgByB += dealt;
+      if (mod.execute) dmg = def.champ.stats.hp;
 
-    if (dealt > 0) {
-      pushFloat(floats, {
-        kind: 'damage',
-        amount: dealt,
-        targetType: 'champ',
-        targetId: def.champ.instanceId,
-        sourceName: champDef(atk.champ).name,
-        sourceId: atk.champ.instanceId,
-        sourceTeam: atk.champ.team,
-        targetName: champDef(def.champ).name,
-        targetTeam: def.champ.team,
-        lane,
-      });
-    }
+      // Consolidar segundo impacto (Yasuo), Marca Mortal (Zed) y splash (Graves) en un solo golpe
+      const secondRatio = secondStrikeRatio(atk, effectiveAction);
+      if (secondRatio) {
+        dmg = Math.floor(dmg * (1 + secondRatio));
+        pushLog(log, `${champDef(atk.champ).name} Último aliento consolidado`, 'ulti');
+      }
+      const mark = postDuelUltDamage(atk, def);
+      if (mark > 0) {
+        dmg += mark;
+        pushLog(log, `Marca Mortal incluida (+${mark})`, 'ulti');
+      }
+      const splash = gravesSplashTargets(
+        atk,
+        def.champ,
+        (atk.champ.team === 'blue' ? state.red : state.blue).champions.filter(c => c.position.lane === lane),
+      );
+      if (splash) {
+        dmg += 20;
+        pushLog(log, `${champDef(atk.champ).name} Daño colateral consolidado`, 'ulti');
+      }
 
-    const dmgType = magic ? 'daño mágico' : 'daño físico';
-    pushLog(
-      log,
-      `${champDef(atk.champ).name} ${actionLabelEs(effectiveAction)} a ${champDef(def.champ).name} · ${dealt} de ${dmgType}`,
-    );
-    notes.push(
-      `${champDef(atk.champ).name} ${actionLabelEs(effectiveAction).toLowerCase()}, ${champDef(def.champ).name}${
-        def.action === 'defend' && exchange === 0 ? ' defiende' : ''
-      } → ${dealt} dmg`,
-    );
+      let mitigated = dmg;
+      const ignoreDefend = shouldIgnoreDefend(atk, effectiveAction);
+      if (def.action === 'defend' && !ignoreDefend) {
+        if (shouldNullifyIncoming(def, exchange)) {
+          mitigated = 0;
+          pushLog(log, `${champDef(def.champ).name} anula el golpe (Fuerza imparable)`, 'ulti');
+        } else {
+          mitigated = Math.floor(dmg * defendMultiplier(def, exchange));
+          pushLog(log, `${champDef(def.champ).name} Defiende y reduce el golpe a ${mitigated}`);
+        }
+      }
+      if (ignoreDefend && def.action === 'defend') {
+        pushLog(log, `${champDef(atk.champ).name} ignora la defensa`, 'ulti');
+      }
 
-    if (effectiveAction === 'attack' && hasItem(atk.champ, 'cloth_armor')) {
-      def.champ.burnPending += BURN_ARMOR_DMG;
-    }
+      const dealt = dealDamage(atk.champ, def.champ, mitigated, magic);
+      if (atk === a) dmgByA += dealt;
+      else dmgByB += dealt;
 
-    if (atk.ult && atk.champ.defId === 'yasuo' && effectiveAction === 'attack' && def.champ.isAlive && def.champ.stats.hp > 0) {
-      const second = dealDamage(atk.champ, def.champ, Math.floor(mitigated * 0.6), false);
-      if (atk === a) dmgByA += second;
-      else dmgByB += second;
-      if (second > 0) {
+      if (dealt > 0) {
         pushFloat(floats, {
           kind: 'damage',
-          amount: second,
+          amount: dealt,
           targetType: 'champ',
           targetId: def.champ.instanceId,
           sourceName: champDef(atk.champ).name,
@@ -462,76 +545,49 @@ function resolveDuel(
           lane,
         });
       }
-      pushLog(log, `${champDef(atk.champ).name} Segundo Aliento: +${second}`, 'ulti');
-    }
 
-    if (def.champ.stats.hp <= 0) {
-      def.champ.isAlive = false;
-      atk.champ.kills += 1;
-      atk.champ.gold += GOLD_PER_KILL;
-      if (atk.champ.team === 'blue') {
-        state.blue.kills += 1;
-        state.blue.score += POINTS_KILL;
-        blueKill = true;
-      } else {
-        state.red.kills += 1;
-        state.red.score += POINTS_KILL;
-        redKill = true;
-      }
-      pushLog(log, `¡${champDef(atk.champ).name} elimina a ${champDef(def.champ).name}! (+1 baja)`, 'kill');
-      notes.push(`${champDef(def.champ).name} KO`);
-      pushKill(killEvents, atk.champ, def.champ);
+      onAfterHit(atk, def, dealt, effectiveAction, floats, log, exchange);
 
-      if (atk.ult && atk.champ.defId === 'darius') {
-        const hpBeforeHeal = atk.champ.stats.hp;
-        atk.champ.stats.hp = Math.min(atk.champ.stats.maxHp, atk.champ.stats.hp + 80);
-        const healed = atk.champ.stats.hp - hpBeforeHeal;
-        if (healed > 0) {
-          pushFloat(floats, {
-            kind: 'heal',
-            amount: healed,
-            targetType: 'champ',
-            targetId: atk.champ.instanceId,
-            sourceName: champDef(atk.champ).name,
-            sourceId: atk.champ.instanceId,
-            sourceTeam: atk.champ.team,
-            targetName: champDef(atk.champ).name,
-            targetTeam: atk.champ.team,
-            lane,
-          });
-          pushLog(log, `${champDef(atk.champ).name} se cura ${healed}`, 'ulti');
-        }
+      pushLog(
+        log,
+        `${champDef(atk.champ).name} ${actionLabelEs(effectiveAction)} a ${champDef(def.champ).name} · ${dealt} de ${magic ? 'daño mágico' : 'daño físico'}`,
+      );
+      notes.push(`${champDef(atk.champ).name} → ${dealt} dmg`);
+
+      if (effectiveAction === 'attack' && hasItem(atk.champ, 'cloth_armor')) {
+        def.champ.burnPending += BURN_ARMOR_DMG;
       }
-    } else if (atk.ult && atk.champ.defId === 'zed') {
-      def.champ.stats.hp = Math.max(0, def.champ.stats.hp - 30);
-      if (atk === a) dmgByA += 30;
-      else dmgByB += 30;
-      pushFloat(floats, {
-        kind: 'damage',
-        amount: 30,
-        targetType: 'champ',
-        targetId: def.champ.instanceId,
-        sourceName: champDef(atk.champ).name,
-        sourceId: atk.champ.instanceId,
-        sourceTeam: atk.champ.team,
-        targetName: champDef(def.champ).name,
-        targetTeam: def.champ.team,
-        lane,
-      });
-      pushLog(log, `Marca Mortal: +30 a ${champDef(def.champ).name}`, 'ulti');
+
       if (def.champ.stats.hp <= 0) {
-        def.champ.isAlive = false;
-        atk.champ.kills += 1;
-        atk.champ.gold += GOLD_PER_KILL;
-        if (atk.champ.team === 'blue') { state.blue.kills++; state.blue.score += POINTS_KILL; blueKill = true; }
-        else { state.red.kills++; state.red.score += POINTS_KILL; redKill = true; }
-        pushLog(log, `${champDef(def.champ).name} cae por la marca`, 'kill');
-        notes.push(`${champDef(def.champ).name} KO`);
-        pushKill(killEvents, atk.champ, def.champ);
+        registerKill(atk, def, state, log, floats, lane, killEvents, notes, flags);
+        break; // si mata, el segundo no responde
       }
     }
   }
-  } // end exchanges
+
+  // Curas post-duelo (no son ataques)
+  for (const f of [a, b]) {
+    const heal = postDuelDefendHeal(f);
+    if (heal > 0) {
+      const before = f.champ.stats.hp;
+      f.champ.stats.hp = Math.min(f.champ.stats.maxHp, f.champ.stats.hp + heal);
+      const gained = f.champ.stats.hp - before;
+      if (gained > 0) {
+        pushFloat(floats, {
+          kind: 'heal',
+          amount: gained,
+          targetType: 'champ',
+          targetId: f.champ.instanceId,
+          sourceName: champDef(f.champ).name,
+          sourceId: f.champ.instanceId,
+          sourceTeam: f.champ.team,
+          targetName: champDef(f.champ).name,
+          targetTeam: f.champ.team,
+          lane,
+        });
+      }
+    }
+  }
 
   const blueF = a.champ.team === 'blue' ? a : b;
   const redF = a.champ.team === 'red' ? a : b;
@@ -549,7 +605,7 @@ function resolveDuel(
     summary: notes[0] || `${champDef(blueF.champ).name} vs ${champDef(redF.champ).name}`,
   });
 
-  return { blueKill, redKill };
+  return flags;
 }
 
 /**
@@ -576,24 +632,22 @@ function resolveFocusStrike(
   const ratio = allyCount / Math.max(1, enemyCount);
   // 2v1 ≈ 1.55× · 3v1 ≈ 1.95× · 4v1+ tope 2.35×
   const pileMult = Math.min(2.35, 1.15 + ratio * 0.4);
-  const executeChance = ratio >= 3 ? 0.88 : ratio >= 2 ? 0.58 : 0.28;
 
   const hpBeforeAtk = atk.champ.stats.hp;
   const hpBeforeDef = def.champ.stats.hp;
   const team = atk.champ.team === 'blue' ? state.blue : state.red;
-  const action: CombatAction = atk.action === 'defend' ? 'attack' : atk.action;
+  // Un golpe: Defender no se convierte en Atacar
+  if (atk.action === 'defend') {
+    pushLog(log, `${champDef(atk.champ).name} enfoca en defensa y no ataca`);
+    return { blueKill, redKill };
+  }
+  const action: CombatAction = atk.action;
   let { dmg, magic } = actionDamage(atk.champ, action, team.damageBuff, false);
   dmg = Math.floor(dmg * pileMult);
 
   // Defensa parcial: en superioridad numérica Defender ayuda menos
   if (def.action === 'defend') {
     dmg = Math.floor(dmg * Math.max(0.35, DEFEND_DAMAGE_MULT + 0.15));
-  }
-
-  // Ejecución casi segura en 3v1+ si sigue vivo tras el golpe base
-  const willExecute = Math.random() < executeChance;
-  if (willExecute && def.champ.stats.hp <= dmg * 1.35) {
-    dmg = Math.max(dmg, def.champ.stats.hp);
   }
 
   const dealt = dealDamage(atk.champ, def.champ, dmg, magic);
@@ -618,26 +672,6 @@ function resolveFocusStrike(
     `${champDef(atk.champ).name} enfoca a ${champDef(def.champ).name} (${oddsLabel}) · ${dealt} de daño`,
     'kill',
   );
-
-  // Si sobrevivió el primer golpe pero la superioridad es grande, remate
-  if (def.champ.isAlive && def.champ.stats.hp > 0 && ratio >= 3 && Math.random() < 0.72) {
-    const finish = dealDamage(atk.champ, def.champ, def.champ.stats.hp, false);
-    if (finish > 0) {
-      pushFloat(floats, {
-        kind: 'damage',
-        amount: finish,
-        targetType: 'champ',
-        targetId: def.champ.instanceId,
-        sourceName: champDef(atk.champ).name,
-        sourceId: atk.champ.instanceId,
-        sourceTeam: atk.champ.team,
-        targetName: champDef(def.champ).name,
-        targetTeam: def.champ.team,
-        lane,
-      });
-      pushLog(log, `${champDef(atk.champ).name} remata por superioridad numérica`, 'kill');
-    }
-  }
 
   if (def.champ.stats.hp <= 0) {
     def.champ.isAlive = false;
@@ -733,60 +767,15 @@ function resolveLaneGroup(
   pushLog(log, `— Línea ${laneLabel(lane)} —`, 'section');
 
   for (const f of [...blue, ...red]) {
-    if (!f.ult) continue;
-    const team = f.champ.team === 'blue' ? state.blue : state.red;
-    if (f.champ.defId === 'soraka') {
-      for (const a of living(team)) {
-        const hpBeforeHeal = a.stats.hp;
-        a.stats.hp = Math.min(a.stats.maxHp, a.stats.hp + 100);
-        const healed = a.stats.hp - hpBeforeHeal;
-        if (healed > 0) {
-          pushFloat(floats, {
-            kind: 'heal',
-            amount: healed,
-            targetType: 'champ',
-            targetId: a.instanceId,
-            sourceName: champDef(f.champ).name,
-            sourceId: f.champ.instanceId,
-            sourceTeam: f.champ.team,
-            targetName: champDef(a).name,
-            targetTeam: a.team,
-            lane,
-          });
-        }
-      }
-      pushLog(log, `${champDef(f.champ).name} usa Deseo y cura al equipo`, 'ulti');
-    }
-    if (f.champ.defId === 'lulu' || f.champ.defId === 'yuumi' || f.champ.defId === 'shen') {
-      const ally = living(team).filter(x => x.instanceId !== f.champ.instanceId)
-        .sort((x, y) => (x.stats.hp / x.stats.maxHp) - (y.stats.hp / y.stats.maxHp))[0];
-      if (ally) {
-        if (f.champ.defId === 'lulu' || f.champ.defId === 'yuumi') {
-          const hpBeforeHeal = ally.stats.hp;
-          ally.stats.hp = Math.min(ally.stats.maxHp, ally.stats.hp + 120);
-          const healed = ally.stats.hp - hpBeforeHeal;
-          if (healed > 0) {
-            pushFloat(floats, {
-              kind: 'heal',
-              amount: healed,
-              targetType: 'champ',
-              targetId: ally.instanceId,
-              sourceName: champDef(f.champ).name,
-              sourceId: f.champ.instanceId,
-              sourceTeam: f.champ.team,
-              targetName: champDef(ally).name,
-              targetTeam: ally.team,
-              lane,
-            });
-          }
-          pushLog(log, `${champDef(f.champ).name} escuda a ${champDef(ally).name}`, 'ulti');
-        }
-        if (f.champ.defId === 'shen') {
-          const plan = f.champ.team === 'blue' ? bluePlan : redPlan;
-          plan.actions[ally.instanceId] = 'defend';
-          pushLog(log, `Unidos Permaneceremos protege a ${champDef(ally).name}`, 'ulti');
-        }
-      }
+    const home = roleLane(champDef(f.champ).role);
+    markFlurryIfGanking(f.champ, home, lane);
+  }
+  applyLaneSupportUltimates(blue, state.blue, bluePlan, floats, log, lane);
+  applyLaneSupportUltimates(red, state.red, redPlan, floats, log, lane);
+  for (const f of [...blue, ...red]) {
+    if (f.action === 'defend') {
+      const team = f.champ.team === 'blue' ? state.blue : state.red;
+      applyYuumiDefendBuff(team, f.champ, floats, log);
     }
   }
 
@@ -851,12 +840,8 @@ function resolveLaneGroup(
   }
 }
 
-function calcSiegeDamage(sieger: Champion, base: number, target: 'tower' | 'nexus'): number {
-  let dmg = base;
-  const passive = champDef(sieger).passive?.id;
-  if (passive === 'blast') dmg = Math.floor(dmg * 1.3);
-  if (passive === 'fortify' && target === 'tower') dmg = Math.floor(dmg * 1.25);
-  return dmg;
+function calcSiegeDamage(sieger: Champion, base: number, _target: 'tower' | 'nexus'): number {
+  return Math.floor(base * siegeDamageMult(sieger));
 }
 
 function siegeTower(
@@ -1330,6 +1315,8 @@ function finalizeRoundBookkeeping(
       }
     }
   }
+  // Siempre al cerrar ronda (también tras QTE): maná de base + tick de CD
+  finalizeResourceTicks(next, log);
   if (matchOver) {
     next.isComplete = true;
     next.winner = winner;
@@ -1372,15 +1359,32 @@ export function resolveRound(state: TurnMatchState, bluePlan: TeamPlan, redPlan:
 
   applyBurn([...next.blue.champions, ...next.red.champions], log);
   applyBootsLanes(next, bluePlan, redPlan);
-  markUltimatesUsed(next, bluePlan, redPlan);
 
-  // Jungla muerto/skip: no gankea ni va a objetivo, aunque el plan lo diga
+  pushLog(log, `— Ronda ${next.round} —`, 'section');
+
+  if (next.round === 1) {
+    for (const c of [...next.blue.champions, ...next.red.champions]) {
+      if (!c.playerName) continue;
+      const synLabel = c.synergyTier === 'firma' ? 'firma ' : '';
+      pushLog(
+        log,
+        `${c.playerName} juega ${champDef(c).name} · Sinergia ${synLabel}${c.playerAffinity ?? 0}`,
+        'section',
+      );
+    }
+  }
+
+  // Maná / recall / validación de ultimates (antes de pelear)
+  bluePlan = prepareRoundResources(next, bluePlan, 'blue', log);
+  redPlan = prepareRoundResources(next, redPlan, 'red', log);
+  markUltimatesUsed(next, bluePlan, redPlan);
+  applyRoundStartPassives(next, floats, log);
+
+  // Jungla muerto/skip/sin maná: no gankea ni va a objetivo
   bluePlan = sanitizeJunglePlan(bluePlan, next.blue);
   redPlan = sanitizeJunglePlan(redPlan, next.red);
   siegeCtx.bluePlan = bluePlan;
   siegeCtx.redPlan = redPlan;
-
-  pushLog(log, `— Ronda ${next.round} —`, 'section');
 
   if (!livingJungler(next.blue)) {
     pushLog(log, `${next.blue.name}: jungla fuera de combate · sin gank este turno`);
@@ -1900,14 +1904,7 @@ function applyFreeLaneAdvantage(
 }
 
 function markUltimatesUsed(state: TurnMatchState, bluePlan: TeamPlan, redPlan: TeamPlan) {
-  for (const id of bluePlan.ultimates) {
-    const c = state.blue.champions.find(x => x.instanceId === id);
-    if (c) c.ultimateUsed = true;
-  }
-  for (const id of redPlan.ultimates) {
-    const c = state.red.champions.find(x => x.instanceId === id);
-    if (c) c.ultimateUsed = true;
-  }
+  applyUltimateCooldowns(state, bluePlan, redPlan);
 }
 
 function applyBootsLanes(state: TurnMatchState, bluePlan: TeamPlan, redPlan: TeamPlan) {
@@ -1936,10 +1933,13 @@ function reviveDead(state: TurnMatchState, log: CombatLogLine[]) {
     if (c.respawnTimer <= 0) {
       c.isAlive = true;
       c.stats.hp = Math.floor(c.stats.maxHp * 0.7);
+      c.stats.mana = Math.floor(c.stats.maxMana * 0.5);
       c.respawnTimer = 0;
       c.siegeStacks = 0;
+      c.recallingForMana = false;
       const def = champDef(c);
       c.position.lane = roleLane(def.role);
+      c.position.x = c.team === 'blue' ? 0.2 : 0.8;
       pushLog(log, `${def.name} revive con 70% de vida`);
     }
   }
@@ -1980,24 +1980,29 @@ export function generateAIPlan(
     const def = champDef(c);
     const hpPct = c.stats.hp / c.stats.maxHp;
     let action: CombatAction = 'attack';
-    // IA más agresiva: solo defiende muy baja de vida
     if (hpPct < 0.32) action = 'defend';
     else if (defendLane !== null && c.position.lane === defendLane && hpPct < 0.55) action = 'defend';
     else if (def.baseStats.ap >= def.baseStats.ad) action = Math.random() < 0.6 ? 'ability' : 'attack';
     else action = Math.random() < 0.72 ? 'attack' : (Math.random() < 0.55 ? 'ability' : 'defend');
+
+    // Maná: degradar habilidad → atacar; si no puede atacar, defender (el motor forzará base)
+    if (action === 'ability' && c.stats.mana < MANA_COST.ability) action = 'attack';
+    if (action === 'attack' && c.stats.mana < MANA_COST.attack) action = 'defend';
     actions[c.instanceId] = action;
 
-    if (!c.ultimateUsed && Math.random() < 0.58) {
-      ultimates.push(c.instanceId);
-    }
+    const canUlt =
+      (c.ultimateCooldown || 0) <= 0
+      && c.stats.mana >= manaCostFor(action, true)
+      && Math.random() < 0.58;
+    if (canUlt) ultimates.push(c.instanceId);
 
     if (hasItem(c, 'boots') && Math.random() < 0.55) {
       bootsLane[c.instanceId] = defendLane ?? ([0, 1, 2] as LaneId[])[Math.floor(Math.random() * 3)];
     }
   }
 
-  // Solo planifica gank/objetivo si la jungla puede actuar
-  if (jg) {
+  // Solo planifica gank/objetivo si la jungla puede actuar y tiene maná
+  if (jg && jg.stats.mana >= MANA_COST.attack && !jg.recallingForMana) {
     const enemyJt = enemyPlan?.jungleTarget;
     const enemyCanContest = !!livingJungler(enemy) && enemyJt !== undefined;
     // Counter: si el rival gankea una línea, a menudo contestamos
@@ -2067,9 +2072,11 @@ export function aiBuyItems(team: TeamData) {
 /** Simula una partida IA completa (bracket). */
 /** Simula una partida completa (ambos equipos juegan con IA). Sin input del jugador. */
 export function simulateAITurnMatch(teamA: TeamData, teamB: TeamData): TurnMatchState {
+  const rosterA = teamA.rosterMembers ?? rosterForTeamName(teamA.name);
+  const rosterB = teamB.rosterMembers ?? rosterForTeamName(teamB.name);
   let state = createTurnMatch(
-    createTurnTeam(teamA.id, teamA.name, 'blue', teamA.champions.map(c => c.defId)),
-    createTurnTeam(teamB.id, teamB.name, 'red', teamB.champions.map(c => c.defId)),
+    createTurnTeam(teamA.id, teamA.name, 'blue', teamA.champions.map(c => c.defId), rosterA),
+    createTurnTeam(teamB.id, teamB.name, 'red', teamB.champions.map(c => c.defId), rosterB),
   );
 
   while (!state.isComplete) {

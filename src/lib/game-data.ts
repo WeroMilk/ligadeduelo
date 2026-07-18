@@ -50,154 +50,163 @@ export const CHAMPIONS: ChampionDef[] = [
   {
     id: 'darius', name: 'Darius', role: 'top', image: '/champions/darius.png', color: '#8B0000', initials: 'DA',
     baseStats: makeStats({ maxHp: 980, maxMana: 220, ad: 78, ap: 0, attackSpeed: 0.75, armor: 42, mr: 32, moveSpeed: 95 }),
-    passive: { id: 'execute', name: 'Guillotina', description: 'Ejecuta enemigos bajo 20% de vida' },
+    passive: { id: 'hemorrhage', name: 'Hemorragia', description: 'Cada Atacar acumula +8 daño en el siguiente golpe (máx. 3)' },
   },
   {
     id: 'garen', name: 'Garen', role: 'top', image: '/champions/garen.png', color: '#2E5C3F', initials: 'GA',
-    baseStats: makeStats({ maxHp: 1020, maxMana: 0, ad: 72, ap: 0, attackSpeed: 0.72, armor: 48, mr: 38, moveSpeed: 98 }),
-    passive: { id: 'regen', name: 'Perseverancia', description: 'Regenera 3% vida máxima por turno' },
+    baseStats: makeStats({ maxHp: 1020, maxMana: 100, ad: 72, ap: 0, attackSpeed: 0.72, armor: 48, mr: 38, moveSpeed: 98 }),
+    passive: { id: 'perseverance', name: 'Perseverancia', description: 'Si Defiendes, recuperas 4% de vida máxima al cerrar el duelo' },
   },
   {
     id: 'malphite', name: 'Malphite', role: 'top', image: '/champions/malphite.png', color: '#5B6B7F', initials: 'MA',
     baseStats: makeStats({ maxHp: 1100, maxMana: 280, ad: 58, ap: 20, attackSpeed: 0.65, armor: 55, mr: 40, moveSpeed: 90 }),
-    passive: { id: 'fortify', name: 'Granito', description: '+25% daño a torretas' },
+    passive: { id: 'granite_shield', name: 'Escudo de granito', description: 'Al inicio de ronda ganas un escudo de 8% de vida máxima' },
   },
   {
     id: 'shen', name: 'Shen', role: 'top', image: '/champions/shen.png', color: '#2A4D7A', initials: 'SH',
     baseStats: makeStats({ maxHp: 940, maxMana: 340, ad: 64, ap: 10, attackSpeed: 0.7, armor: 50, mr: 45, moveSpeed: 96 }),
-    passive: { id: 'guard', name: 'Barrera de ki', description: 'Cura al aliado más herido cada turno' },
+    passive: { id: 'ki_barrier', name: 'Barrera de ki', description: 'Al inicio, el aliado más herido recupera 20 de vida' },
   },
   {
     id: 'aatrox', name: 'Aatrox', role: 'top', image: '/champions/aatrox.png', color: '#6B1A1A', initials: 'AA',
-    baseStats: makeStats({ maxHp: 1000, maxMana: 0, ad: 76, ap: 0, attackSpeed: 0.78, armor: 44, mr: 34, moveSpeed: 97 }),
-    passive: { id: 'execute', name: 'Portador de la Espada', description: 'Ejecuta enemigos bajo 20% de vida' },
+    baseStats: makeStats({ maxHp: 1000, maxMana: 100, ad: 76, ap: 0, attackSpeed: 0.78, armor: 44, mr: 34, moveSpeed: 97 }),
+    passive: { id: 'blood_well', name: 'Pozo de sangre', description: 'Al matar, te curas 6% de tu vida máxima' },
   },
   {
     id: 'sett', name: 'Sett', role: 'top', image: '/champions/sett.png', color: '#C45C26', initials: 'ST',
-    baseStats: makeStats({ maxHp: 1050, maxMana: 0, ad: 74, ap: 0, attackSpeed: 0.8, armor: 46, mr: 36, moveSpeed: 100 }),
-    passive: { id: 'regen', name: 'Corazón de pelea', description: 'Regenera 3% vida máxima por turno' },
+    baseStats: makeStats({ maxHp: 1050, maxMana: 100, ad: 74, ap: 0, attackSpeed: 0.8, armor: 46, mr: 36, moveSpeed: 100 }),
+    passive: { id: 'grit', name: 'Coraje', description: 'Si Defiendes el primer golpe, reflejas 15 de daño' },
   },
   {
     id: 'lee_sin', name: 'Lee Sin', role: 'jungle', image: '/champions/lee_sin.png', color: '#1B7A3D', initials: 'LS',
     baseStats: makeStats({ maxHp: 860, maxMana: 200, ad: 74, ap: 0, attackSpeed: 0.9, armor: 36, mr: 32, moveSpeed: 112 }),
-    passive: { id: 'flurry', name: 'Ráfaga', description: '+15% daño tras saltar de línea' },
+    passive: { id: 'flurry', name: 'Ráfaga', description: 'Tras gankear/cambiar de línea: +15% daño esa pelea' },
   },
   {
     id: 'amumu', name: 'Amumu', role: 'jungle', image: '/champions/amumu.png', color: '#4A6741', initials: 'AM',
     baseStats: makeStats({ maxHp: 920, maxMana: 310, ad: 55, ap: 35, attackSpeed: 0.68, armor: 44, mr: 42, moveSpeed: 94 }),
-    passive: { id: 'tears', name: 'Lágrimas Cursadas', description: 'Al matar, daña a enemigos cercanos' },
+    passive: { id: 'cursed_touch', name: 'Toque maldito', description: 'Al matar, infliges 35 a los demás rivales de la línea' },
   },
   {
     id: 'kayn', name: 'Kayn', role: 'jungle', image: '/champions/kayn.png', color: '#6B1FA6', initials: 'KA',
     baseStats: makeStats({ maxHp: 840, maxMana: 260, ad: 76, ap: 0, attackSpeed: 0.88, armor: 34, mr: 30, moveSpeed: 110 }),
-    passive: { id: 'shadow', name: 'Hoz Umbral', description: 'Ignora 25% de armadura' },
+    passive: { id: 'umbral_reap', name: 'Hoz umbral', description: 'Al Atacar ignoras 20% de armadura' },
   },
   {
     id: 'vi', name: 'Vi', role: 'jungle', image: '/champions/vi.png', color: '#C44BC4', initials: 'VI',
     baseStats: makeStats({ maxHp: 900, maxMana: 250, ad: 80, ap: 0, attackSpeed: 0.82, armor: 40, mr: 32, moveSpeed: 105 }),
-    passive: { id: 'blast', name: 'Golpes demoledores', description: '+30% daño a estructuras' },
+    passive: { id: 'denting_blows', name: 'Golpes demoledores', description: 'Atacar reduce 4 de armadura rival (mín. 5)' },
   },
   {
     id: 'graves', name: 'Graves', role: 'jungle', image: '/champions/graves.png', color: '#8B5A2B', initials: 'GR',
     baseStats: makeStats({ maxHp: 880, maxMana: 240, ad: 78, ap: 0, attackSpeed: 0.85, armor: 38, mr: 30, moveSpeed: 108 }),
-    passive: { id: 'blast', name: 'Tiro Nuevo', description: '+30% daño a estructuras' },
+    passive: { id: 'end_of_the_line', name: 'Fin de la línea', description: '+30% daño de asedio a torres y nexo' },
   },
   {
     id: 'sejuani', name: 'Sejuani', role: 'jungle', image: '/champions/sejuani.png', color: '#4A90A4', initials: 'SJ',
     baseStats: makeStats({ maxHp: 980, maxMana: 320, ad: 62, ap: 30, attackSpeed: 0.7, armor: 48, mr: 40, moveSpeed: 96 }),
-    passive: { id: 'fortify', name: 'Furia del Norte', description: '+25% daño a torretas' },
+    passive: { id: 'frost_armor', name: 'Armadura de escarcha', description: 'Si Defiendes el 1er golpe, mitigas 10% extra' },
   },
   {
     id: 'ahri', name: 'Ahri', role: 'mid', image: '/champions/ahri.png', color: '#9B59B6', initials: 'AH',
     baseStats: makeStats({ maxHp: 760, maxMana: 420, ad: 52, ap: 68, attackSpeed: 0.78, armor: 28, mr: 34, moveSpeed: 104 }),
-    passive: { id: 'essence', name: 'Robo de Esencia', description: 'Roba 25 maná al golpear' },
+    passive: { id: 'essence_theft', name: 'Robo de esencia', description: 'Al golpear con Habilidad, robas 20 de maná' },
   },
   {
     id: 'lux', name: 'Lux', role: 'mid', image: '/champions/lux.png', color: '#F1C40F', initials: 'LU',
     baseStats: makeStats({ maxHp: 720, maxMana: 480, ad: 48, ap: 78, attackSpeed: 0.7, armor: 24, mr: 32, moveSpeed: 100 }),
-    passive: { id: 'illumination', name: 'Iluminación', description: 'Habilidades hacen +40% AP extra (25%)' },
+    passive: { id: 'illuminate', name: 'Iluminación', description: 'Tu siguiente acción tras Habilidad detona +0.35×AP' },
   },
   {
     id: 'zed', name: 'Zed', role: 'mid', image: '/champions/zed.png', color: '#2C3E50', initials: 'ZE',
     baseStats: makeStats({ maxHp: 780, maxMana: 180, ad: 82, ap: 0, attackSpeed: 0.95, armor: 30, mr: 28, moveSpeed: 115 }),
-    passive: { id: 'contempt', name: 'Desprecio', description: '+12 AD permanente tras cada baja' },
+    passive: { id: 'contempt', name: 'Desprecio', description: '+10 AD permanente por cada baja' },
   },
   {
     id: 'yasuo', name: 'Yasuo', role: 'mid', image: '/champions/yasuo.png', color: '#7F8C8D', initials: 'YA',
     baseStats: makeStats({ maxHp: 800, maxMana: 100, ad: 70, ap: 0, attackSpeed: 1.05, armor: 32, mr: 30, moveSpeed: 108 }),
-    passive: { id: 'flow', name: 'Resolución', description: '+0.3 AS por 2 turnos tras una baja' },
+    passive: { id: 'resolve_flow', name: 'Resolución', description: 'Absorbe el primer golpe de la ronda (hasta 40 daño)' },
   },
   {
     id: 'syndra', name: 'Syndra', role: 'mid', image: '/champions/syndra.png', color: '#5E2B8A', initials: 'SY',
     baseStats: makeStats({ maxHp: 730, maxMana: 460, ad: 46, ap: 82, attackSpeed: 0.72, armor: 24, mr: 30, moveSpeed: 102 }),
-    passive: { id: 'illumination', name: 'Fuerza Trascendente', description: 'Habilidades hacen +40% AP extra (25%)' },
+    passive: { id: 'transcendent', name: 'Fuerza trascendente', description: 'Habilidad: +12 daño plano' },
   },
   {
     id: 'orianna', name: 'Orianna', role: 'mid', image: '/champions/orianna.png', color: '#4FC3F7', initials: 'OR',
     baseStats: makeStats({ maxHp: 740, maxMana: 440, ad: 44, ap: 76, attackSpeed: 0.74, armor: 26, mr: 32, moveSpeed: 101 }),
-    passive: { id: 'essence', name: 'Mecanismo de Reloj', description: 'Roba 25 maná al golpear' },
+    passive: { id: 'clockwork_windup', name: 'Mecanismo de reloj', description: 'Aliados de tu línea ganan +8 daño al Atacar' },
   },
   {
     id: 'caitlyn', name: 'Caitlyn', role: 'adc', image: '/champions/caitlyn.png', color: '#2980B9', initials: 'CA',
     baseStats: makeStats({ maxHp: 740, maxMana: 300, ad: 72, ap: 0, attackSpeed: 1.0, armor: 26, mr: 26, moveSpeed: 102 }),
-    passive: { id: 'headshot', name: 'Tiro a la cabeza', description: '25% de críticos ×1.6 daño' },
+    passive: { id: 'headshot', name: 'Tiro a la cabeza', description: 'Cada 3 ataques: ignora Defender y ×1.35 daño' },
   },
   {
     id: 'jinx', name: 'Jinx', role: 'adc', image: '/champions/jinx.png', color: '#E91E63', initials: 'JI',
     baseStats: makeStats({ maxHp: 730, maxMana: 280, ad: 68, ap: 0, attackSpeed: 1.12, armor: 24, mr: 26, moveSpeed: 100 }),
-    passive: { id: 'getexcited', name: '¡Emociónate!', description: '+0.15 AS por cada baja' },
+    passive: { id: 'get_excited', name: '¡Emociónate!', description: '+12 prioridad por cada baja tuya' },
   },
   {
     id: 'ezreal', name: 'Ezreal', role: 'adc', image: '/champions/ezreal.png', color: '#00BCD4', initials: 'EZ',
     baseStats: makeStats({ maxHp: 750, maxMana: 380, ad: 66, ap: 25, attackSpeed: 0.95, armor: 26, mr: 28, moveSpeed: 106 }),
-    passive: { id: 'rising', name: 'Hoja mágica', description: 'Ataques gastan 20 maná y hacen +AP' },
+    passive: { id: 'rising_spell_force', name: 'Hoja mágica', description: 'Si tienes ≥15 maná al Atacar: gastas 15 y haces +0.6×AP' },
   },
   {
     id: 'kaisa', name: "Kai'Sa", role: 'adc', image: '/champions/kaisa.png', color: '#673AB7', initials: 'KS',
     baseStats: makeStats({ maxHp: 760, maxMana: 340, ad: 70, ap: 30, attackSpeed: 1.08, armor: 28, mr: 28, moveSpeed: 108 }),
-    passive: { id: 'evolve', name: 'Segunda piel', description: 'Tras 2 bajas: +10 AD y +15 AP' },
+    passive: { id: 'second_skin', name: 'Segunda piel', description: 'Tras 2 bajas: +8 AD y +12 AP (una vez)' },
   },
   {
     id: 'ashe', name: 'Ashe', role: 'adc', image: '/champions/ashe.png', color: '#5DADE2', initials: 'AS',
     baseStats: makeStats({ maxHp: 735, maxMana: 310, ad: 70, ap: 0, attackSpeed: 1.05, armor: 25, mr: 26, moveSpeed: 101 }),
-    passive: { id: 'headshot', name: 'Tiro de escarcha', description: '25% de críticos ×1.6 daño' },
+    passive: { id: 'frost_shot', name: 'Tiro de escarcha', description: 'Atacar reduce 25 la prioridad del rival' },
   },
   {
     id: 'jhin', name: 'Jhin', role: 'adc', image: '/champions/jhin.png', color: '#A93226', initials: 'JH',
     baseStats: makeStats({ maxHp: 720, maxMana: 300, ad: 82, ap: 0, attackSpeed: 0.85, armor: 24, mr: 26, moveSpeed: 99 }),
-    passive: { id: 'execute', name: 'Cuarta Bala', description: 'Ejecuta enemigos bajo 20% de vida' },
+    passive: { id: 'whisper', name: 'Susurro', description: 'Cada 4ª acción ofensiva: ×1.8 daño' },
   },
   {
     id: 'leona', name: 'Leona', role: 'support', image: '/champions/leona.png', color: '#FF9800', initials: 'LE',
     baseStats: makeStats({ maxHp: 1000, maxMana: 300, ad: 58, ap: 15, attackSpeed: 0.68, armor: 52, mr: 42, moveSpeed: 96 }),
-    passive: { id: 'sunlight', name: 'Soleares', description: 'Ataques aliados cercanos +12 daño' },
+    passive: { id: 'sunlight', name: 'Soleares', description: 'Marcas al rival: el siguiente golpe aliado detona +12' },
   },
   {
     id: 'thresh', name: 'Thresh', role: 'support', image: '/champions/thresh.png', color: '#1A6B3E', initials: 'TH',
     baseStats: makeStats({ maxHp: 880, maxMana: 360, ad: 54, ap: 40, attackSpeed: 0.7, armor: 38, mr: 36, moveSpeed: 98 }),
-    passive: { id: 'hook', name: 'Sentencia', description: 'Acerca al enemigo y reduce su armadura' },
+    passive: { id: 'death_sentence', name: 'Sentencia de muerte', description: 'Atacar: −3 armadura rival' },
   },
   {
     id: 'lulu', name: 'Lulu', role: 'support', image: '/champions/lulu.png', color: '#E040FB', initials: 'LL',
     baseStats: makeStats({ maxHp: 700, maxMana: 450, ad: 42, ap: 62, attackSpeed: 0.72, armor: 22, mr: 34, moveSpeed: 100 }),
-    passive: { id: 'pix', name: 'Pix', description: 'Aliado con menos vida recibe +escudo AP' },
+    passive: { id: 'pix_friend', name: 'Pix, el hada compañera', description: 'Al inicio, cura 20 + 0.15 AP al aliado más herido' },
   },
   {
     id: 'soraka', name: 'Soraka', role: 'support', image: '/champions/soraka.png', color: '#00E676', initials: 'SO',
     baseStats: makeStats({ maxHp: 720, maxMana: 500, ad: 40, ap: 70, attackSpeed: 0.65, armor: 22, mr: 36, moveSpeed: 98 }),
-    passive: { id: 'salvation', name: 'Salvación', description: 'Cura 40 + 20% AP al aliado más herido' },
+    passive: { id: 'salvation', name: 'Salvación', description: 'Al inicio, cura 35 + 0.2 AP al aliado más herido' },
   },
   {
     id: 'nautilus', name: 'Nautilus', role: 'support', image: '/champions/nautilus.png', color: '#1A5276', initials: 'NA',
     baseStats: makeStats({ maxHp: 1040, maxMana: 340, ad: 56, ap: 25, attackSpeed: 0.66, armor: 54, mr: 40, moveSpeed: 92 }),
-    passive: { id: 'hook', name: 'Ancla Titánica', description: 'Acerca al enemigo y reduce su armadura' },
+    passive: { id: 'staggering_blow', name: 'Golpe aturdidor', description: 'Quien te Ataca en el 1er intercambio pierde 30 prioridad' },
   },
   {
     id: 'yuumi', name: 'Yuumi', role: 'support', image: '/champions/yuumi.png', color: '#F48FB1', initials: 'YU',
     baseStats: makeStats({ maxHp: 680, maxMana: 480, ad: 38, ap: 72, attackSpeed: 0.7, armor: 20, mr: 34, moveSpeed: 104 }),
-    passive: { id: 'pix', name: 'Tú y Yo', description: 'Aliado con menos vida recibe +escudo AP' },
+    passive: { id: 'you_and_me', name: 'Tú y yo', description: 'Si Defiendes: tu ADC gana +15 HP y +5 AD esa ronda' },
   },
 ];
+
+/** Costes globales de maná (UI / selección). */
+export const MANA_COSTS_UI = {
+  attack: 20,
+  ability: 40,
+  defend: 0,
+  ultimateExtra: 30,
+  ultimateCooldown: 3,
+} as const;
 
 export function getChampionBaseStats(defId: string): Stats {
   const def = CHAMPIONS.find(c => c.id === defId);
@@ -287,6 +296,11 @@ export const FREE_LANE_SIEGE_BONUS = 2;
 export interface FanOrgPlayer {
   name: string;
   role: Role;
+  /** Opcional: si no se define, se resuelve por nombre/rol en player-synergy. */
+  mechanics?: number;
+  macro?: number;
+  styles?: import('@/types/game').PlayerStyle[];
+  signatureChampionIds?: string[];
 }
 
 export interface FanOrg {

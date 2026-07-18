@@ -1,11 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGame } from '@/hooks/useGameState';
-import { ROLE_COLORS, ROLE_NAMES, CHAMPIONS } from '@/lib/game-data';
+import { ROLE_COLORS, ROLE_NAMES, CHAMPIONS, MANA_COSTS_UI } from '@/lib/game-data';
 import { getUltimate } from '@/lib/ultimates';
 import { preloadChampionImages } from '@/lib/preload-images';
+import { synergyForMember, type SynergyTier } from '@/lib/player-synergy';
 import type { Role } from '@/types/game';
 import { Shield, TreePine, Zap, Crosshair, Heart, Check, ChevronRight, User } from 'lucide-react';
 import NameSearch, { matchesNameQuery } from '@/components/NameSearch';
+
+const SYNERGY_BADGE: Record<SynergyTier, { label: string; className: string }> = {
+  baja: { label: 'Baja', className: 'bg-[#4A5570]/40 text-[#8B9BB4] border-[#4A5570]' },
+  media: { label: 'Media', className: 'bg-[#3498DB]/20 text-[#5DADE2] border-[#3498DB]/50' },
+  alta: { label: 'Alta', className: 'bg-[#2ECC71]/20 text-[#2ECC71] border-[#2ECC71]/50' },
+  firma: { label: 'Firma', className: 'bg-[#C9A84C]/25 text-[#F1C40F] border-[#C9A84C]' },
+};
 
 const ROLE_ICONS: Record<Role, React.ReactNode> = {
   top: <Shield className="w-4 h-4" />,
@@ -85,7 +93,8 @@ export default function ChampionSelect() {
     c => c.role === activeRole && matchesNameQuery(c.name, searchQuery),
   );
   const canConfirm = state.selectedChampions.length === 5 && state.selectedRoster.length === 5;
-  const memberName = state.selectedRoster.find(r => r.role === activeRole)?.name;
+  const activeMember = state.selectedRoster.find(r => r.role === activeRole);
+  const memberName = activeMember?.name;
 
   return (
     <div className="flex-1 min-h-0 w-full bg-[#0A0E1A] flex flex-col overflow-hidden">
@@ -148,6 +157,15 @@ export default function ChampionSelect() {
         </div>
       )}
 
+      <div className="mx-auto mt-1 w-full max-w-6xl shrink-0 px-4 md:mt-1.5">
+        <p className="rounded-lg border border-[#1E2740] bg-[#141B2D]/80 px-3 py-1.5 text-center text-[10px] md:text-[11px] text-[#8B9BB4]">
+          Maná: Atacar {MANA_COSTS_UI.attack} · Habilidad {MANA_COSTS_UI.ability} · Defender {MANA_COSTS_UI.defend}
+          {' · '}Definitiva +{MANA_COSTS_UI.ultimateExtra}
+          {' · '}CD {MANA_COSTS_UI.ultimateCooldown} turnos
+          {' · '}Sin maná = vuelve a base
+        </p>
+      </div>
+
       <div className="mx-auto min-h-0 w-full max-w-6xl flex-1 overflow-y-auto px-4 py-1 scrollbar-hide md:pt-3">
         <div className="grid auto-rows-min grid-cols-2 content-start gap-2 pb-1 md:grid-cols-3 md:gap-2 lg:grid-cols-6 md:w-full md:pb-2">
           {roleChampions.length === 0 ? (
@@ -157,6 +175,8 @@ export default function ChampionSelect() {
           ) : roleChampions.map(champ => {
             const isSelected = selectedIds.includes(champ.id);
             const ult = getUltimate(champ.id);
+            const syn = synergyForMember(activeMember, champ.id);
+            const badge = syn ? SYNERGY_BADGE[syn.tier] : null;
             return (
               <button
                 key={champ.id}
@@ -168,6 +188,13 @@ export default function ChampionSelect() {
                     : 'border-[#1E2740] bg-[#141B2D] hover:border-[#2A3550] hover:bg-[#1A2035]'
                 }`}
               >
+                {badge && (
+                  <span
+                    className={`absolute top-1.5 left-1.5 z-10 rounded-full border px-1.5 py-0.5 text-[9px] font-bold leading-none ${badge.className}`}
+                  >
+                    {badge.label}
+                  </span>
+                )}
                 <div className="flex flex-col items-center gap-1 md:gap-1">
                   {champ.image ? (
                     <img
@@ -199,7 +226,12 @@ export default function ChampionSelect() {
 
                   <div className="text-center w-full">
                     <p className="text-[#F0E6D2] font-bold text-sm truncate leading-tight">{champ.name}</p>
-                    <p className="text-[#8B9BB4] text-[10px] mb-1">{ROLE_NAMES[champ.role]}</p>
+                    <p className="text-[#8B9BB4] text-[10px] mb-0.5">{ROLE_NAMES[champ.role]}</p>
+                    {syn && activeMember && (
+                      <p className="text-[9px] text-[#C9A84C] mb-1 truncate leading-tight">
+                        {activeMember.name} · ×{syn.multiplier.toFixed(2)}
+                      </p>
+                    )}
                     <div className="grid grid-cols-2 gap-x-1 gap-y-0 text-[10px] text-left px-0.5 leading-tight">
                       <span className="text-[#E74C3C]">HP {champ.baseStats.maxHp}</span>
                       <span className="text-[#3498DB]">MN {champ.baseStats.maxMana}</span>
@@ -217,6 +249,7 @@ export default function ChampionSelect() {
                       <span className="font-bold">ULT {ult.name}</span>
                       {' · '}
                       {ult.description}
+                      <span className="text-[#8B9BB4]"> · CD {MANA_COSTS_UI.ultimateCooldown}</span>
                     </p>
                   </div>
                 </div>

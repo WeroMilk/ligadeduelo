@@ -110,6 +110,11 @@ function champMapPos(
   cinemaApproach?: boolean,
   focusLane?: LaneId | null,
 ): Pt {
+  // Sin maná / en base: junto al nexo propio
+  if (c.recallingForMana) {
+    return c.team === 'blue' ? { x: 0.1, y: 0.9 } : { x: 0.9, y: 0.1 };
+  }
+
   const def = champDef(c);
   const effectiveLane = getEffectiveLane(c, plan);
   if (def.role === 'jungle' && plan?.jungleTarget === 'objective' && c.isAlive && c.stats.hp > 0 && (c.skipTurns || 0) <= 0) {
@@ -570,18 +575,20 @@ export default function Minimap({
                 opacity: dim ? 0.22 : 1,
                 transition: 'left 0.45s cubic-bezier(0.22, 1.2, 0.36, 1), top 0.45s cubic-bezier(0.22, 1.2, 0.36, 1), opacity 0.45s ease',
               }}
-              title={`${def.name}${action ? ` · ${actionLabelEs(action)}` : ''}`}
+              title={`${c.playerName ? `${c.playerName} · ` : ''}${def.name}${c.synergyTier === 'firma' ? ' · Firma' : c.synergyTier ? ` · ${c.synergyTier}` : ''}${c.recallingForMana ? ' · BASE' : ''}${action ? ` · ${actionLabelEs(action)}` : ''} · MN ${Math.floor(c.stats.mana)}/${c.stats.maxMana}`}
             >
               <div
-                className="rounded-full overflow-hidden border-2"
+                className="rounded-full overflow-hidden border-2 relative"
                 style={{
                   width: icon,
                   height: icon,
-                  borderColor: isLunging
-                    ? '#F1C40F'
-                    : isImpacted
-                      ? isHealing ? '#2ECC71' : '#E74C3C'
-                      : team === 'blue' ? '#5DADE2' : '#F1948A',
+                  borderColor: c.recallingForMana
+                    ? '#8B9BB4'
+                    : isLunging
+                      ? '#F1C40F'
+                      : isImpacted
+                        ? isHealing ? '#2ECC71' : '#E74C3C'
+                        : team === 'blue' ? '#5DADE2' : '#F1948A',
                   boxShadow: isLunging
                     ? '0 0 12px rgba(241,196,15,0.9)'
                     : isImpacted
@@ -594,9 +601,10 @@ export default function Minimap({
                     ? 'minimap-lunge 0.5s ease-out'
                     : isImpacted
                       ? 'minimap-hit-bounce 0.5s ease-out'
-                      : dim
+                      : dim || c.recallingForMana
                         ? undefined
                         : 'minimap-idle-bob 2.2s ease-in-out infinite',
+                  filter: c.recallingForMana ? 'grayscale(0.45)' : undefined,
                 }}
               >
                 {def.image ? (
@@ -606,6 +614,23 @@ export default function Minimap({
                     {def.initials}
                   </div>
                 )}
+              </div>
+              {/* Badge definitiva / BASE */}
+              <div
+                className="absolute -top-1 -right-1 rounded-full flex items-center justify-center font-black leading-none border border-black/50"
+                style={{
+                  width: Math.max(12, icon * 0.38),
+                  height: Math.max(12, icon * 0.38),
+                  fontSize: Math.max(7, icon * 0.22),
+                  backgroundColor: c.recallingForMana
+                    ? '#4A5570'
+                    : (c.ultimateCooldown || 0) > 0
+                      ? '#2C3E50'
+                      : '#9B59B6',
+                  color: '#F0E6D2',
+                }}
+              >
+                {c.recallingForMana ? 'B' : (c.ultimateCooldown || 0) > 0 ? c.ultimateCooldown : 'R'}
               </div>
               {showHp && (
                 <div
@@ -623,7 +648,36 @@ export default function Minimap({
                   />
                 </div>
               )}
-              {showActions && action && !dim && <ActionBadge action={action} size={icon * 0.42} />}
+              {showHp && (
+                <div
+                  className="absolute left-1/2 -translate-x-1/2 rounded-sm overflow-hidden bg-black/75"
+                  style={{ top: icon + 5, width: icon * 1.05, height: 2 }}
+                >
+                  <div
+                    className="h-full transition-[width] duration-500"
+                    style={{
+                      width: `${Math.max(0, Math.min(100, (c.stats.mana / Math.max(1, c.stats.maxMana)) * 100))}%`,
+                      backgroundColor: '#3498DB',
+                    }}
+                  />
+                </div>
+              )}
+              {showActions && action && !dim && !c.recallingForMana && (
+                <ActionBadge action={action} size={icon * 0.42} />
+              )}
+              {c.playerName && !dim && (
+                <div
+                  className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded px-0.5 font-bold leading-none pointer-events-none"
+                  style={{
+                    top: icon + (showHp ? 8 : 2),
+                    fontSize: Math.max(6, icon * 0.18),
+                    color: c.synergyTier === 'firma' ? '#F1C40F' : '#8B9BB4',
+                    backgroundColor: 'rgba(10,14,26,0.75)',
+                  }}
+                >
+                  {c.synergyTier === 'firma' ? 'Firma' : c.playerName}
+                </div>
+              )}
             </div>
           );
         })}

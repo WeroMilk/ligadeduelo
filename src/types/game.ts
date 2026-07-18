@@ -22,6 +22,22 @@ export interface LobbyPlayer {
   isHost: boolean;
 }
 
+export type PlayerStyle =
+  | 'assassin'
+  | 'mage'
+  | 'tank'
+  | 'bruiser'
+  | 'marksman'
+  | 'engage'
+  | 'peel'
+  | 'siege'
+  | 'skirmish'
+  | 'scaling'
+  | 'mechanical'
+  | 'macro';
+
+export type SynergyTier = 'baja' | 'media' | 'alta' | 'firma';
+
 export interface RosterMember {
   id: string;
   name: string;
@@ -29,6 +45,10 @@ export interface RosterMember {
   image: string;
   orgId: string;
   orgName: string;
+  mechanics: number;
+  macro: number;
+  styles: PlayerStyle[];
+  signatureChampionIds: string[];
 }
 export type BuffId = 'fury' | 'iron' | 'vital' | 'greed';
 export type CombatAction = 'attack' | 'ability' | 'defend';
@@ -84,6 +104,8 @@ export interface ChampionDef {
   baseStats: Stats;
   passive: ChampionPassive;
   ultimate?: ChampionUltimate;
+  /** Estilos de juego para sinergia con profesionales. */
+  styles?: PlayerStyle[];
 }
 
 export interface Item {
@@ -108,13 +130,28 @@ export interface Champion {
   gold: number;
   tearStacks: number;
   burnPending: number;
-  ultimateUsed: boolean;
+  /** Turnos restantes hasta poder usar la definitiva (0 = lista). */
+  ultimateCooldown: number;
   siegeStacks: number;
   /** Robo de vida acumulado (0–1), p.ej. Dragón Ancestral. */
   lifeSteal: number;
   /** Turnos que este campeón no peleará (p.ej. escapó del QTE). */
   skipTurns: number;
+  /** Sin maná: vuelve a base y pierde el turno. */
+  recallingForMana: boolean;
+  /** Contador persistente de pasiva (p.ej. cuarta bala de Jhin). */
+  passiveCounter: number;
   revealedAction?: CombatAction | null;
+  /** Jugador profesional vinculado (sinergia). */
+  rosterMemberId?: string;
+  playerName?: string;
+  playerMechanics?: number;
+  playerMacro?: number;
+  /** Afinidad 0–100 con el campeón. */
+  playerAffinity?: number;
+  /** Multiplicador de potencia de combate 0.90–1.20. */
+  playerCombatMultiplier?: number;
+  synergyTier?: SynergyTier;
 }
 
 export interface Structure {
@@ -138,6 +175,8 @@ export interface TeamData {
   kills: number;
   score: number;
   damageBuff: number;
+  /** Roster de la organización (o el del jugador) para sinergia. */
+  rosterMembers?: RosterMember[];
 }
 
 export interface TeamPlan {
@@ -309,10 +348,8 @@ export interface Tournament {
   currentRound: number;
   isComplete: boolean;
   champion: TeamData | null;
-  rivalTeamId: string;
-  rivalTeamName: string;
   titles: string[];
-  championFrame: 'none' | 'gold' | 'obsidian';
+  championFrame: 'none' | 'gold';
 }
 
 export interface SelectedChampion {

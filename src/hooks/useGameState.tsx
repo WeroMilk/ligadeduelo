@@ -8,6 +8,7 @@ import {
   createTurnMatch, createTurnTeam, resolveRound, generateAIPlan, aiBuyItems, finishPendingObjective,
 } from '@/lib/turn-engine';
 import { CHAMPIONS, AI_TEAM_NAMES, getChampionBaseStats } from '@/lib/game-data';
+import { rosterForTeamName } from '@/lib/rosters';
 import {
   beginPlayerRun,
   finalizePlayerRun,
@@ -55,7 +56,6 @@ interface GameState {
   playerPlan: TeamPlan;
   enemyPlanPreview: TeamPlan | null;
   matchResult: 'win' | 'lose' | null;
-  defeatedRival: boolean;
   /** Ronda en la que el jugador fue eliminado (0–3). null si sigue vivo / campeón. */
   playerEliminatedRound: number | null;
 }
@@ -76,7 +76,6 @@ const initialState: GameState = {
   playerPlan: emptyPlan(),
   enemyPlanPreview: null,
   matchResult: null,
-  defeatedRival: false,
   playerEliminatedRound: null,
 };
 
@@ -145,11 +144,16 @@ function drawLineup(pools: Record<(typeof ROLES)[number], string[]>): string[] {
   });
 }
 
-function buildRewards(beatRival: boolean): { titles: string[]; frame: Tournament['championFrame'] } {
-  const titles = ['Campeón de la Grieta'];
-  if (beatRival) titles.push('Cazador de Rivales');
-  titles.push('Estrella del Bracket');
-  return { titles, frame: beatRival ? 'obsidian' : 'gold' };
+function buildRewards(): { titles: string[]; frame: Tournament['championFrame'] } {
+  return {
+    titles: ['Campeón de la Grieta', 'Estrella del Bracket'],
+    frame: 'gold',
+  };
+}
+
+function withOrgRoster(team: TeamData): TeamData {
+  const roster = team.rosterMembers ?? rosterForTeamName(team.name) ?? undefined;
+  return roster ? { ...team, rosterMembers: roster } : team;
 }
 
 function generateTournament(playerTeam: TeamData, lobbyPlayers: LobbyPlayer[], mode: GameMode | null): Tournament {
@@ -162,19 +166,13 @@ function generateTournament(playerTeam: TeamData, lobbyPlayers: LobbyPlayer[], m
   const playerChampIds = new Set(playerTeam.champions.map(c => c.defId));
   const champPools = createChampPools(playerChampIds);
 
-  // Rival aleatorio (nombre + alineación distintos cada torneo)
-  const rivalName = namePool.shift() || 'Rival Misterioso';
-  usedNames.add(nameKey(rivalName));
-  const rivalTeamId = `rival_${nameKey(rivalName) || 'x'}`;
-  const rivalTeam = createTeam(rivalTeamId, rivalName, 'red', drawLineup(champPools));
-
-  const teams: TeamData[] = [playerTeam, rivalTeam];
+  const teams: TeamData[] = [playerTeam];
 
   const friendSlots = lobbyPlayers.filter(p => !p.isHost).slice(0, 14);
   for (let i = 0; i < friendSlots.length; i++) {
     const fname = friendSlots[i].name;
     usedNames.add(nameKey(fname));
-    teams.push(createTeam(`friend_${i}`, fname, 'red', drawLineup(champPools)));
+    teams.push(withOrgRoster(createTeam(`friend_${i}`, fname, 'red', drawLineup(champPools))));
   }
 
   let aiIdx = 0;
@@ -188,7 +186,7 @@ function generateTournament(playerTeam: TeamData, lobbyPlayers: LobbyPlayer[], m
       }
     }
     usedNames.add(nameKey(name));
-    teams.push(createTeam(`ai_${aiIdx}`, name, 'red', drawLineup(champPools)));
+    teams.push(withOrgRoster(createTeam(`ai_${aiIdx}`, name, 'red', drawLineup(champPools))));
     aiIdx++;
   }
 
@@ -221,15 +219,9 @@ function generateTournament(playerTeam: TeamData, lobbyPlayers: LobbyPlayer[], m
     currentRound: 0,
     isComplete: false,
     champion: null,
-    rivalTeamId,
-    rivalTeamName: rivalName,
     titles: [],
     championFrame: 'none',
   };
-}
-
-function matchInvolvesRival(match: Match, rivalId: string) {
-  return match.teamA.id === rivalId || match.teamB.id === rivalId;
 }
 
 function resolveLiveWinner(turnMatch: TurnMatchState): 'blue' | 'red' {
@@ -254,7 +246,6 @@ function applyMatchEnd(state: GameState, turnMatch: TurnMatchState): GameState {
   const winner = resolveLiveWinner(turnMatch);
   const result = winner === 'blue' ? 'win' : 'lose';
   const sealed = { ...turnMatch, isComplete: true, winner };
-  let defeatedRival = state.defeatedRival;
   let tournament = state.tournament;
   if (tournament && state.currentMatch) {
     const rounds = tournament.rounds.map((r, idx) => {
@@ -267,15 +258,11 @@ function applyMatchEnd(state: GameState, turnMatch: TurnMatchState): GameState {
       };
     });
     tournament = { ...tournament, rounds };
-    if (result === 'win' && matchInvolvesRival(state.currentMatch, tournament.rivalTeamId)) {
-      defeatedRival = true;
-    }
   }
   return {
     ...state,
     turnMatch: sealed,
     tournament,
-    defeatedRival,
     matchResult: result,
     playerEliminatedRound:
       result === 'lose' && state.tournament
@@ -388,10 +375,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         gold: 100,
         tearStacks: 0,
         burnPending: 0,
-        ultimateUsed: false,
+        ultimateCooldown: 0,
         siegeStacks: 0,
         lifeSteal: 0,
         skipTurns: 0,
+        recallingForMana: false,
+        passiveCounter: 0,
       };
       const champToRoster = { ...state.champToRoster };
       Object.keys(champToRoster).forEach(k => {
@@ -423,17 +412,19 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         state.selectedRoster,
         state.selectedChampions.map(c => c.defId),
       );
-      const playerTeam = createTeam(
-        'player',
-        state.playerTeamName || 'Mi Equipo',
-        'blue',
-        state.selectedChampions.map(c => c.defId),
-      );
+      const playerTeam: TeamData = {
+        ...createTeam(
+          'player',
+          state.playerTeamName || 'Mi Equipo',
+          'blue',
+          state.selectedChampions.map(c => c.defId),
+        ),
+        rosterMembers: state.selectedRoster,
+      };
       return {
         ...state,
         tournament: generateTournament(playerTeam, state.lobbyPlayers, state.gameMode),
         currentScreen: 'bracket',
-        defeatedRival: false,
         playerEliminatedRound: null,
       };
     }
@@ -443,8 +434,30 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const round = state.tournament.rounds[state.tournament.currentRound];
       const match = round.matches.find(m => m.id === action.matchId);
       if (!match) return state;
-      const blue = createTurnTeam(match.teamA.id, match.teamA.name, 'blue', match.teamA.champions.map(c => c.defId));
-      const red = createTurnTeam(match.teamB.id, match.teamB.name, 'red', match.teamB.champions.map(c => c.defId));
+      const blueRoster =
+        match.teamA.id === 'player'
+          ? state.selectedRoster
+          : (match.teamA.rosterMembers ?? rosterForTeamName(match.teamA.name) ?? undefined);
+      const redRoster =
+        match.teamB.id === 'player'
+          ? state.selectedRoster
+          : (match.teamB.rosterMembers ?? rosterForTeamName(match.teamB.name) ?? undefined);
+      const blue = createTurnTeam(
+        match.teamA.id,
+        match.teamA.name,
+        'blue',
+        match.teamA.champions.map(c => c.defId),
+        blueRoster,
+        match.teamA.id === 'player' ? state.champToRoster : undefined,
+      );
+      const red = createTurnTeam(
+        match.teamB.id,
+        match.teamB.name,
+        'red',
+        match.teamB.champions.map(c => c.defId),
+        redRoster,
+        match.teamB.id === 'player' ? state.champToRoster : undefined,
+      );
       const turnMatch = createTurnMatch(blue, red, null);
       if (match.isPlayerMatch) resetCurrentMatchObjectives();
       return {
@@ -548,7 +561,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           const championTeam = finalMatch.winner === 'blue' ? finalMatch.teamA : finalMatch.teamB;
           const playerIsChampion = championTeam.id === 'player';
           const rewards = playerIsChampion
-            ? buildRewards(state.defeatedRival)
+            ? buildRewards()
             : { titles: [] as string[], frame: 'none' as const };
           return {
             ...state,
