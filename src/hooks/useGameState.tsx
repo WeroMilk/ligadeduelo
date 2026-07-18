@@ -297,6 +297,7 @@ function generateTournament(playerTeam: TeamData, lobbyPlayers: LobbyPlayer[], m
     let teamA = shuffled[i * 2];
     let teamB = shuffled[i * 2 + 1];
     if (teamB.id === playerTeam.id) [teamA, teamB] = [teamB, teamA];
+    const meta = matchHumanMeta(teamA.id, teamB.id);
     round1Matches.push({
       id: `r1_m${i}`,
       round: 0,
@@ -304,8 +305,8 @@ function generateTournament(playerTeam: TeamData, lobbyPlayers: LobbyPlayer[], m
       teamA,
       teamB,
       winner: null,
-      isPlayerMatch: teamA.id === playerTeam.id || teamB.id === playerTeam.id,
       isSimulated: false,
+      ...meta,
     });
   }
   return {
@@ -911,7 +912,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const rounds = state.tournament.rounds.map((round, idx) => {
         if (idx !== state.tournament!.currentRound) return round;
         const pendingIdx = round.matches.findIndex(
-          m => m.winner === null && (!m.humanTeamIds || m.humanTeamIds.length === 0),
+          m => m.winner === null && !m.isPlayerMatch,
         );
         if (pendingIdx < 0) return round;
         const match = round.matches[pendingIdx];

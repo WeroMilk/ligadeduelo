@@ -28,7 +28,7 @@ export default function BracketScreen() {
     if (!currentRound) return;
 
     const next = currentRound.matches.find(
-      m => m.winner === null && (!m.humanTeamIds || m.humanTeamIds.length === 0),
+      m => m.winner === null && !m.isPlayerMatch,
     );
     if (!next) {
       setSimulating(false);
@@ -50,7 +50,7 @@ export default function BracketScreen() {
 
   const playerMatch = currentRound.matches.find(m => m.isPlayerMatch && m.winner === null);
   const pendingCount = currentRound.matches.filter(
-    m => m.winner === null && (!m.humanTeamIds || m.humanTeamIds.length === 0),
+    m => m.winner === null && !m.isPlayerMatch,
   ).length;
   const activeMatch = currentRound.matches.find(m => m.id === activeMatchId);
 
