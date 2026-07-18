@@ -1129,30 +1129,32 @@ function grantObjectiveRewards(
   wTeam.score += POINTS_OBJECTIVE;
   const recipients = living(wTeam);
   const recipientNames = recipients.map(c => champDef(c).name);
+  // Perspectiva del jugador azul: si gana el rojo, el texto habla de "enemigos".
+  const livingSide = winner === 'blue' ? 'aliados' : 'enemigos';
 
   let bonusText = '';
   if (obj === 'dragon_water') {
-    bonusText = '+15% de Maná a todos los campeones aliados vivos';
+    bonusText = `+15% de Maná a todos los campeones ${livingSide} vivos`;
     for (const c of recipients) {
       const bonus = Math.max(1, Math.floor(c.stats.maxMana * 0.15));
       c.stats.maxMana += bonus;
       c.stats.mana = Math.min(c.stats.maxMana, c.stats.mana + bonus);
     }
   } else if (obj === 'dragon_fire') {
-    bonusText = '+15% de vida a todos los campeones aliados vivos';
+    bonusText = `+15% de vida a todos los campeones ${livingSide} vivos`;
     for (const c of recipients) {
       const bonus = Math.max(1, Math.floor(c.stats.maxHp * 0.15));
       c.stats.maxHp += bonus;
       c.stats.hp = Math.min(c.stats.maxHp, c.stats.hp + bonus);
     }
   } else if (obj === 'baron') {
-    bonusText = '+10% de daño físico y +10% de daño mágico a campeones aliados vivos';
+    bonusText = `+10% de daño físico y +10% de daño mágico a campeones ${livingSide} vivos`;
     for (const c of recipients) {
       c.stats.ad = Math.max(1, Math.floor(c.stats.ad * 1.1));
       c.stats.ap = Math.max(1, Math.floor(c.stats.ap * 1.1));
     }
   } else {
-    bonusText = '+20% de robo de vida a todos los campeones aliados vivos (20% del daño a enemigos se cura)';
+    bonusText = `+20% de robo de vida a todos los campeones ${livingSide} vivos (20% del daño a enemigos se cura)`;
     for (const c of recipients) {
       c.lifeSteal = Math.min(0.6, (c.lifeSteal || 0) + 0.2);
     }

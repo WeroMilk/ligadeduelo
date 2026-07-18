@@ -22,7 +22,7 @@ import { pushAdHidden, popAdHidden } from '@/lib/ad-visibility';
 import { createPausableScheduler } from '@/lib/pausable-scheduler';
 import { objectiveName } from '@/lib/game-data';
 import { getMatchTimings } from '@/lib/express-mode';
-import type { CombatFloat, LaneId, RoundResolution, Structure, TeamPlan } from '@/types/game';
+import type { CombatFloat, LaneId, ObjectiveBonusAnnounce, RoundResolution, Structure, TeamPlan, TeamColor } from '@/types/game';
 
 const MAP_SIZE_MOBILE_MAX = 260;
 const MAP_SIZE_MOBILE_MIN = 120;
@@ -114,6 +114,19 @@ function applyStructureHitVisual(structures: Structure[], hit: CombatFloat): Str
       : Math.max(0, s.hp - Math.max(0, hit.amount));
     return { ...s, hp, isDestroyed: hp <= 0 };
   });
+}
+
+/** El motor redacta bonus desde la perspectiva azul; aquí se adapta al lado humano. */
+function bonusForPlayerSide(
+  bonus: ObjectiveBonusAnnounce,
+  playerSide: TeamColor,
+): ObjectiveBonusAnnounce {
+  if (playerSide === 'blue') return bonus;
+  const forPlayer = bonus.team === playerSide;
+  const bonusText = forPlayer
+    ? bonus.bonusText.replace(/campeones enemigos vivos/g, 'campeones aliados vivos')
+    : bonus.bonusText.replace(/campeones aliados vivos/g, 'campeones enemigos vivos');
+  return { ...bonus, bonusText };
 }
 
 type Phase =
@@ -379,7 +392,7 @@ export default function LiveMatch() {
     setCamPan({ x: 0, y: 0 });
     setScale(1.12);
     const objItems: AnnounceItem[] = res.objectiveBonus
-      ? [{ kind: 'objective', data: res.objectiveBonus }]
+      ? [{ kind: 'objective', data: bonusForPlayerSide(res.objectiveBonus, humanSide) }]
       : [];
     // Tras QTE: solo kills nuevas del objetivo; sin QTE ya se anunciaron al inicio del cine
     const items = announceQteKills

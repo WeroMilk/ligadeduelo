@@ -60,15 +60,31 @@ function AnnounceBanner({ current, paused }: { current: AnnounceItem; paused: bo
 
   return (
     <div
-      className="w-full rounded-lg border border-[#F1C40F] bg-[#0D1220]/95 px-3 py-1.5 text-center shadow-[0_4px_16px_rgba(241,196,15,0.2)] backdrop-blur-sm animate-kill-banner"
-      style={{ animationPlayState: paused ? 'paused' : 'running' }}
+      className="w-full rounded-lg border bg-[#0D1220]/95 px-3 py-1.5 text-center shadow-[0_4px_16px_rgba(0,0,0,0.45)] backdrop-blur-sm animate-kill-banner"
+      style={{
+        borderColor: teamColor(current.data.team),
+        boxShadow: current.data.team === 'blue'
+          ? '0 4px 16px rgba(52,152,219,0.25)'
+          : '0 4px 16px rgba(231,76,60,0.25)',
+        animationPlayState: paused ? 'paused' : 'running',
+      }}
       aria-live="polite"
     >
-      <p className="text-[8px] font-bold uppercase tracking-wider text-[#F1C40F]">Bonus de objetivo</p>
+      <p
+        className="text-[8px] font-bold uppercase tracking-wider"
+        style={{ color: teamColor(current.data.team) }}
+      >
+        Bonus de objetivo · {current.data.team === 'blue' ? 'Azul' : 'Rojo'}
+      </p>
       <p className="text-xs font-bold text-[#F0E6D2] leading-snug" style={{ fontFamily: 'Cinzel, serif' }}>
         {current.data.title}
       </p>
-      <p className="text-[10px] text-[#C9A84C] mt-0.5 leading-snug truncate">{current.data.bonusText}</p>
+      <p
+        className="text-[10px] mt-0.5 leading-snug truncate"
+        style={{ color: teamColor(current.data.team) }}
+      >
+        {current.data.bonusText}
+      </p>
     </div>
   );
 }
