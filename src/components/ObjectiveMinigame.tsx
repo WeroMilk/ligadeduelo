@@ -39,7 +39,7 @@ type QteProfile = {
 
 const ENEMY_ESCAPE_CHANCE = 0.42;
 /** Probabilidad de victoria del jugador al pulsar «Simular». */
-const SIM_WIN_RATE = 0.7;
+const SIM_WIN_RATE = 0.6;
 const SIM_HIT_CHANCE_ON_WIN = 0.86;
 const SIM_HIT_CHANCE_ON_LOSS = 0.34;
 
