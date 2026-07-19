@@ -23,13 +23,17 @@ export default function UltDetailPopup({
   return createPortal(
     <div
       className="fixed inset-0 z-[220] flex items-center justify-center bg-black/70 px-4"
+      style={{
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
+      }}
       role="dialog"
       aria-modal="true"
       aria-label={`Definitiva de ${champName}`}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm overflow-hidden rounded-2xl border-2 border-[#9B59B6]/50 bg-[#0D1220] shadow-[0_0_40px_rgba(155,89,182,0.25)] p-3"
+        className="modal-panel w-full max-w-sm max-h-[min(36rem,calc(100dvh-2rem))] overflow-y-auto rounded-2xl border-2 border-[#9B59B6]/50 bg-[#0D1220] shadow-[0_0_40px_rgba(155,89,182,0.25)] p-3"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-2 mb-2">
