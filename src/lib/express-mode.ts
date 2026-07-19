@@ -1,7 +1,7 @@
 import type { GameMode } from '@/types/game';
 import { MAX_MATCH_ROUNDS } from '@/lib/game-data';
 
-const DEFAULT_HIT_PAUSE_MS = 3000;
+const DEFAULT_HIT_PAUSE_MS = 2000;
 
 export function isExpressMode(mode: GameMode | null): boolean {
   return mode === 'ai';

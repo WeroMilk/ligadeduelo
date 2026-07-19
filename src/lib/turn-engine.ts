@@ -260,6 +260,7 @@ export function createTurnTeam(
     kills: 0,
     score: 0,
     damageBuff: 0,
+    towerDamageDealt: 0,
     rosterMembers: rosterList.length ? rosterList : undefined,
   };
 }
@@ -647,7 +648,7 @@ function resolveDuel(
 
 /**
  * Golpe de superioridad numérica (2v1, 3v1…): el extra enfoca al rival
- * sin pelea justa 1v1. En 3v1 es muy probable que caiga.
+ * sin pelea justa 1v1. Si remata a alguien que ya peleoó 1v1, el kill es del laner.
  */
 function resolveFocusStrike(
   atk: Fighter,
@@ -662,6 +663,7 @@ function resolveFocusStrike(
   enemyCount: number,
   alliesInLane: Champion[] = [],
   offenseUsed: OffenseUsed,
+  duelPartnerByEnemy?: Map<string, Champion>,
 ): { blueKill: boolean; redKill: boolean } {
   let blueKill = false;
   let redKill = false;
@@ -669,8 +671,8 @@ function resolveFocusStrike(
   if (!def.champ.isAlive || def.champ.stats.hp <= 0) return { blueKill, redKill };
 
   const ratio = allyCount / Math.max(1, enemyCount);
-  // 2v1 ≈ 1.55× · 3v1 ≈ 1.95× · 4v1+ tope 2.35×
-  const pileMult = Math.min(2.35, 1.15 + ratio * 0.4);
+  // 2v1 ≈ 1.35× · 3v1 ≈ 1.6× · tope 1.75× (deja más last-hits al duelo 1v1)
+  const pileMult = Math.min(1.75, 1.1 + ratio * 0.25);
 
   const hpBeforeAtk = atk.champ.stats.hp;
   const hpBeforeDef = def.champ.stats.hp;
@@ -719,9 +721,18 @@ function resolveFocusStrike(
 
   if (def.champ.stats.hp <= 0) {
     def.champ.isAlive = false;
-    atk.champ.kills += 1;
-    atk.champ.gold += GOLD_PER_KILL;
-    if (atk.champ.team === 'blue') {
+    const partner = duelPartnerByEnemy?.get(def.champ.instanceId);
+    const creditLaner = !!(
+      partner
+      && partner.isAlive
+      && partner.stats.hp > 0
+      && partner.instanceId !== atk.champ.instanceId
+      && partner.team === atk.champ.team
+    );
+    const killer = creditLaner && partner ? partner : atk.champ;
+    killer.kills += 1;
+    killer.gold += GOLD_PER_KILL;
+    if (killer.team === 'blue') {
       state.blue.kills += 1;
       state.blue.score += POINTS_KILL;
       blueKill = true;
@@ -730,11 +741,22 @@ function resolveFocusStrike(
       state.red.score += POINTS_KILL;
       redKill = true;
     }
-    pushLog(log, `¡${champDef(atk.champ).name} elimina a ${champDef(def.champ).name}! (+1 baja)`, 'kill');
+    if (creditLaner) {
+      pushLog(
+        log,
+        `¡${champDef(killer).name} elimina a ${champDef(def.champ).name}! (${champDef(atk.champ).name} asiste) (+1 baja)`,
+        'kill',
+      );
+    } else {
+      pushLog(log, `¡${champDef(killer).name} elimina a ${champDef(def.champ).name}! (+1 baja)`, 'kill');
+    }
     const assistCandidates = alliesInLane.filter(c =>
-      c.instanceId !== atk.champ.instanceId && c.instanceId !== def.champ.instanceId,
+      c.instanceId !== killer.instanceId && c.instanceId !== def.champ.instanceId,
     );
-    pushKill(killEvents, atk.champ, def.champ, assistCandidates);
+    if (creditLaner && !assistCandidates.some(c => c.instanceId === atk.champ.instanceId)) {
+      assistCandidates.push(atk.champ);
+    }
+    pushKill(killEvents, killer, def.champ, assistCandidates);
   }
 
   const blueF = atk.champ.team === 'blue' ? atk : def;
@@ -843,6 +865,7 @@ function resolveLaneGroup(
 
   const pairedBlue = new Set<string>();
   const pairedRed = new Set<string>();
+  const duelPartnerByEnemy = new Map<string, Champion>();
   const redPool = [...red];
 
   // 1) Emparejar 1v1 mientras haya rivales
@@ -853,6 +876,8 @@ function resolveLaneGroup(
     if (!enemy) break;
     pairedBlue.add(bf.champ.instanceId);
     pairedRed.add(enemy.champ.instanceId);
+    duelPartnerByEnemy.set(enemy.champ.instanceId, bf.champ);
+    duelPartnerByEnemy.set(bf.champ.instanceId, enemy.champ);
     resolveDuel(bf, enemy, state, log, duels, floats, lane, killEvents, offense);
   }
 
@@ -878,6 +903,7 @@ function resolveLaneGroup(
       if (target) {
         resolveFocusStrike(
           atk, target, state, log, duels, floats, lane, killEvents, allyTotal, enemyTotal, alliesInLane, offense,
+          duelPartnerByEnemy,
         );
       } else {
         // Sin contrincante: siempre asedia torre/nexo (errores de carril)
@@ -1062,6 +1088,10 @@ function siegeTower(
   const hpBefore = tower.hp;
   tower.hp = Math.max(0, tower.hp - dmg);
   siegerSnap.damageDealt = dmg;
+  if (dmg > 0) {
+    if (sieger.team === 'blue') state.blue.towerDamageDealt = (state.blue.towerDamageDealt || 0) + dmg;
+    else state.red.towerDamageDealt = (state.red.towerDamageDealt || 0) + dmg;
+  }
   pushFloat(floats, {
     kind: 'damage',
     amount: dmg,
@@ -1129,32 +1159,31 @@ function grantObjectiveRewards(
   wTeam.score += POINTS_OBJECTIVE;
   const recipients = living(wTeam);
   const recipientNames = recipients.map(c => champDef(c).name);
-  // Perspectiva del jugador azul: si gana el rojo, el texto habla de "enemigos".
-  const livingSide = winner === 'blue' ? 'aliados' : 'enemigos';
+  const teamLabel = wTeam.name;
 
   let bonusText = '';
   if (obj === 'dragon_water') {
-    bonusText = `+15% de Maná a todos los campeones ${livingSide} vivos`;
+    bonusText = `+15% de Maná a los campeones vivos de ${teamLabel}`;
     for (const c of recipients) {
       const bonus = Math.max(1, Math.floor(c.stats.maxMana * 0.15));
       c.stats.maxMana += bonus;
       c.stats.mana = Math.min(c.stats.maxMana, c.stats.mana + bonus);
     }
   } else if (obj === 'dragon_fire') {
-    bonusText = `+15% de vida a todos los campeones ${livingSide} vivos`;
+    bonusText = `+15% de vida a los campeones vivos de ${teamLabel}`;
     for (const c of recipients) {
       const bonus = Math.max(1, Math.floor(c.stats.maxHp * 0.15));
       c.stats.maxHp += bonus;
       c.stats.hp = Math.min(c.stats.maxHp, c.stats.hp + bonus);
     }
   } else if (obj === 'baron') {
-    bonusText = `+10% de daño físico y +10% de daño mágico a campeones ${livingSide} vivos`;
+    bonusText = `+10% de daño físico y +10% de daño mágico a los campeones vivos de ${teamLabel}`;
     for (const c of recipients) {
       c.stats.ad = Math.max(1, Math.floor(c.stats.ad * 1.1));
       c.stats.ap = Math.max(1, Math.floor(c.stats.ap * 1.1));
     }
   } else {
-    bonusText = `+20% de robo de vida a todos los campeones ${livingSide} vivos (20% del daño a enemigos se cura)`;
+    bonusText = `+20% de robo de vida a los campeones vivos de ${teamLabel} (20% del daño se cura)`;
     for (const c of recipients) {
       c.lifeSteal = Math.min(0.6, (c.lifeSteal || 0) + 0.2);
     }
@@ -1319,6 +1348,15 @@ function resolveObjective(
   };
 }
 
+function pickWinnerByKillsThenTowers(blue: TeamData, red: TeamData): TeamColor {
+  if (blue.kills !== red.kills) return blue.kills > red.kills ? 'blue' : 'red';
+  const bt = blue.towerDamageDealt || 0;
+  const rt = red.towerDamageDealt || 0;
+  if (bt !== rt) return bt > rt ? 'blue' : 'red';
+  if (blue.score !== red.score) return blue.score > red.score ? 'blue' : 'red';
+  return 'blue';
+}
+
 function finalizeRoundBookkeeping(
   next: TurnMatchState,
   log: CombatLogLine[],
@@ -1367,23 +1405,32 @@ function finalizeRoundBookkeeping(
       autoNexus = true;
       next.red.score += POINTS_NEXUS;
     } else if (redDead && blueDead) {
-      // Ambos nexos caen en la misma ronda: gana quien iba mejor en marcador (sin sumar nexo 2 veces)
+      // Ambos nexos caen en la misma ronda: kills → daño a torres → score
       matchOver = true;
       autoNexus = true;
-      winner = next.blue.kills > next.red.kills ? 'blue'
-        : next.red.kills > next.blue.kills ? 'red'
-        : next.blue.score >= next.red.score ? 'blue' : 'red';
+      winner = pickWinnerByKillsThenTowers(next.blue, next.red);
       if (winner === 'blue') next.blue.score += POINTS_NEXUS;
       else next.red.score += POINTS_NEXUS;
-      pushLog(log, `Ambos nexos caen · gana ${winner === 'blue' ? next.blue.name : next.red.name} por bajas`);
+      const byTowers = next.blue.kills === next.red.kills;
+      pushLog(
+        log,
+        byTowers
+          ? `Ambos nexos caen · empate de bajas · gana ${winner === 'blue' ? next.blue.name : next.red.name} por daño a torres (${next.blue.towerDamageDealt || 0}–${next.red.towerDamageDealt || 0})`
+          : `Ambos nexos caen · gana ${winner === 'blue' ? next.blue.name : next.red.name} por bajas`,
+      );
     }
 
     if (!matchOver && next.round >= next.maxRounds) {
       matchOver = true;
-      winner = next.blue.kills > next.red.kills ? 'blue'
-        : next.red.kills > next.blue.kills ? 'red'
-        : next.blue.score >= next.red.score ? 'blue' : 'red';
-      pushLog(log, `Fin de las ${next.maxRounds} rondas. Bajas ${next.blue.kills}–${next.red.kills}`);
+      winner = pickWinnerByKillsThenTowers(next.blue, next.red);
+      if (next.blue.kills === next.red.kills) {
+        pushLog(
+          log,
+          `Fin de las ${next.maxRounds} rondas · empate de bajas ${next.blue.kills}–${next.red.kills} · gana ${winner === 'blue' ? next.blue.name : next.red.name} por daño a torres (${next.blue.towerDamageDealt || 0}–${next.red.towerDamageDealt || 0})`,
+        );
+      } else {
+        pushLog(log, `Fin de las ${next.maxRounds} rondas. Bajas ${next.blue.kills}–${next.red.kills}`);
+      }
     }
   }
 
@@ -1714,9 +1761,13 @@ function applySkirmishLoserFate(
   const loserIds = loser === 'blue' ? pending.blueIds : pending.redIds;
   const winnerIds = winner === 'blue' ? pending.blueIds : pending.redIds;
 
+  const participants = livingIncludingSkipped(wTeam).filter(c => winnerIds.includes(c.instanceId));
+  const laners = participants.filter(c => champDef(c).role !== 'jungle');
+  const byCombatPower = (a: Champion, b: Champion) =>
+    (b.stats.ad + b.stats.ap) - (a.stats.ad + a.stats.ap);
   const killer =
-    livingIncludingSkipped(wTeam).find(c => winnerIds.includes(c.instanceId))
-    || livingIncludingSkipped(wTeam).find(c => champDef(c).role === 'jungle')
+    laners.slice().sort(byCombatPower)[0]
+    || participants.slice().sort(byCombatPower)[0]
     || livingIncludingSkipped(wTeam)[0];
 
   const eligibleVictims = loserIds

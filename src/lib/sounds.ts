@@ -153,6 +153,13 @@ export function playHitSound() {
   setTimeout(() => beep(90, 0.08, 'square', 0.03), 30);
 }
 
+/** Sonido suave de curación (distinto del golpe). */
+export function playHealSound() {
+  beep(420, 0.07, 'sine', 0.04);
+  setTimeout(() => beep(620, 0.09, 'triangle', 0.035), 55);
+  setTimeout(() => beep(820, 0.1, 'sine', 0.03), 110);
+}
+
 export function playKillSound() {
   beep(520, 0.08, 'square', 0.05);
   setTimeout(() => beep(780, 0.1, 'square', 0.04), 60);

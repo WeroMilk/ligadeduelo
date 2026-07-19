@@ -3,9 +3,9 @@ import { Plus } from 'lucide-react';
 import type { CombatFloat } from '@/types/game';
 import { formatCombatHitNarrative } from '@/lib/combat-flavor';
 import { combatFloatStyle } from '@/lib/combat-float-style';
-import { playCritSound, vibrate } from '@/lib/sounds';
+import { playCritSound, playHealSound, playHitSound, vibrate } from '@/lib/sounds';
 
-export const HIT_PAUSE_MS = 3000;
+export const HIT_PAUSE_MS = 2000;
 
 type Props = {
   hit: CombatFloat | null;
@@ -16,18 +16,31 @@ type Props = {
 };
 
 export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS, paused = false }: Props) {
-  const critKey = hit && hit.kind === 'damage' && hit.amount >= 150 ? hit.id : null;
+  const hitKey = hit?.id ?? null;
+  const isHealHit = hit?.kind === 'heal';
+  const isCritHit = !!(hit && hit.kind === 'damage' && hit.amount >= 150);
+
   useEffect(() => {
-    if (critKey == null) return;
-    playCritSound();
-    vibrate([25, 30, 45]);
-  }, [critKey]);
+    if (hitKey == null || !hit) return;
+    if (hit.kind === 'heal') {
+      playHealSound();
+      return;
+    }
+    if (hit.kind === 'damage') {
+      if (hit.amount >= 150) {
+        playCritSound();
+        vibrate([25, 30, 45]);
+      } else {
+        playHitSound();
+      }
+    }
+  }, [hitKey, hit]);
 
   if (!hit) return null;
 
   const narrative = formatCombatHitNarrative(hit);
-  const isHeal = hit.kind === 'heal';
-  const isCrit = hit.kind === 'damage' && hit.amount >= 150;
+  const isHeal = isHealHit;
+  const isCrit = isCritHit;
   const palette = combatFloatStyle(hit.kind, hit.sourceTeam);
   const amount = Math.floor(hit.amount);
 

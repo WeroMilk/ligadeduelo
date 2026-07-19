@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { playHitSound, playKillSound, playTowerSound, playObjectiveSound, playMultiKillSound, vibrate } from '@/lib/sounds';
+import { playKillSound, playTowerSound, playObjectiveSound, playMultiKillSound, vibrate } from '@/lib/sounds';
 
 export type ScreenFxKind = 'hit' | 'kill' | 'tower' | 'objective';
 
@@ -22,8 +22,8 @@ export default function CombatScreenFX({ signal }: Props) {
 
   useEffect(() => {
     if (!signal) return;
-    if (signal.kind === 'hit') playHitSound();
-    else if (signal.kind === 'kill') {
+    // El SFX de daño/cura lo dispara CombatHitOverlay (notificación).
+    if (signal.kind === 'kill') {
       const isNexus = !!signal.label && /NEXO/i.test(signal.label);
       if (signal.label && /BAJAS/i.test(signal.label)) { playMultiKillSound(); vibrate([40, 40, 60]); }
       else { playKillSound(); vibrate(isNexus ? [80, 40, 120] : 45); }

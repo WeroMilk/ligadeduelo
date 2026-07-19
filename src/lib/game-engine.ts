@@ -62,6 +62,7 @@ export function createTeam(id: string, name: string, color: TeamColor, championD
     kills: 0,
     score: 0,
     damageBuff: 0,
+    towerDamageDealt: 0,
   };
 }
 

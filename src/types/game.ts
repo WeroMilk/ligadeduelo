@@ -180,6 +180,8 @@ export interface TeamData {
   kills: number;
   score: number;
   damageBuff: number;
+  /** Daño acumulado a torres enemigas (desempate ronda 10). */
+  towerDamageDealt: number;
   /** Roster de la organización (o el del jugador) para sinergia. */
   rosterMembers?: RosterMember[];
 }
