@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus } from 'lucide-react';
 import type { CombatFloat } from '@/types/game';
 import { formatCombatHitNarrative } from '@/lib/combat-flavor';
@@ -36,44 +37,53 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS, pause
     }
   }, [hitKey, hit]);
 
-  if (!hit) return null;
+  if (!hit || typeof document === 'undefined') return null;
 
   const narrative = formatCombatHitNarrative(hit);
   const isHeal = isHealHit;
   const isCrit = isCritHit;
   const palette = combatFloatStyle(hit.kind, hit.sourceTeam);
   const amount = Math.floor(hit.amount);
+  // Evita repetir el nombre si ya va en la narrativa
+  const showSourceHeader = !!(
+    hit.sourceName
+    && !narrative.toLowerCase().startsWith(hit.sourceName.trim().toLowerCase())
+  );
 
-  return (
+  const body = (
     <div
-      className="pointer-events-none absolute inset-0 z-[110] flex items-center justify-center px-3"
+      className="pointer-events-none fixed inset-0 z-[200] flex items-center justify-center px-3"
+      style={{
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
+      }}
       aria-live="polite"
     >
       <div
         key={hit.id}
-        className="w-full max-w-lg rounded-2xl border-2 border-transparent px-5 py-4 text-center shadow-[0_10px_40px_rgba(0,0,0,0.65)] backdrop-blur-md"
+        className="w-full max-w-[min(100%,22rem)] sm:max-w-lg rounded-2xl border-2 border-transparent px-4 py-3.5 sm:px-5 sm:py-4 text-center shadow-[0_10px_40px_rgba(0,0,0,0.65)] backdrop-blur-md"
         style={{
           background: `linear-gradient(rgba(13,18,32,0.96), rgba(13,18,32,0.96)) padding-box, ${palette.fill} border-box`,
           animation: 'combat-hit-pop 0.45s cubic-bezier(0.22, 1.4, 0.36, 1) both',
           animationPlayState: paused ? 'paused' : 'running',
         }}
       >
-        {hit.sourceName && (
+        {showSourceHeader && (
           <p
-            className="text-xs font-black uppercase tracking-[0.22em] mb-1.5"
+            className="text-[10px] sm:text-xs font-black uppercase tracking-[0.22em] mb-1.5"
             style={{ color: palette.primary }}
           >
             {hit.sourceName}
           </p>
         )}
         <p
-          className="text-base sm:text-lg font-bold leading-snug text-[#F4F1E8]"
+          className="text-sm sm:text-lg font-bold leading-snug text-[#F4F1E8]"
           style={{ fontFamily: 'Cinzel, serif' }}
         >
           {narrative}
         </p>
         {isCrit && (
-          <p className="mt-1 text-xs font-black uppercase tracking-[0.3em] text-[#F1C40F] drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)]">
+          <p className="mt-1 text-[10px] sm:text-xs font-black uppercase tracking-[0.3em] text-[#F1C40F] drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)]">
             ¡Crítico!
           </p>
         )}
@@ -87,19 +97,19 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS, pause
           {isHeal ? (
             <Plus
               className="shrink-0 drop-shadow-[0_2px_8px_rgba(46,204,113,0.55)]"
-              style={{ width: '2.25rem', height: '2.25rem', color: palette.signColor }}
+              style={{ width: '2rem', height: '2rem', color: palette.signColor }}
               strokeWidth={3}
             />
           ) : (
             <span
-              className={`font-black tabular-nums ${isCrit ? 'text-5xl sm:text-6xl' : 'text-4xl sm:text-5xl'}`}
+              className={`font-black tabular-nums ${isCrit ? 'text-4xl sm:text-6xl' : 'text-3xl sm:text-5xl'}`}
               style={{ textShadow: `0 2px 12px ${palette.glow}88`, color: palette.signColor }}
             >
               −
             </span>
           )}
           <span
-            className={`font-black tabular-nums ${isCrit ? 'text-5xl sm:text-6xl' : 'text-4xl sm:text-5xl'}`}
+            className={`font-black tabular-nums ${isCrit ? 'text-4xl sm:text-6xl' : 'text-3xl sm:text-5xl'}`}
             style={{ textShadow: `0 2px 12px ${palette.glow}88`, color: palette.numberColor }}
           >
             {amount}
@@ -134,4 +144,6 @@ export default function CombatHitOverlay({ hit, durationMs = HIT_PAUSE_MS, pause
       `}</style>
     </div>
   );
+
+  return createPortal(body, document.body);
 }

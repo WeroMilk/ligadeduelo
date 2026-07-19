@@ -680,9 +680,14 @@ export default function ObjectiveMinigame({
   const monsterBarColor = isNexusAssault ? '#E74C3C' : '#E67E22';
 
   const body = (
-    <div className="fixed inset-0 z-[95] flex items-center justify-center px-3 bg-black/85 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-[205] flex items-center justify-center px-3 bg-black/85 backdrop-blur-[2px]"
+      style={{
+        paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
+      }}
+    >
       <div
-        className={`relative w-full max-w-lg rounded-2xl border-2 bg-[#0D1220] overflow-hidden ${frameBorder} ${frameShadow}`}
+        className={`relative w-full max-w-lg max-h-[min(40rem,calc(100dvh-1rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)))] flex flex-col rounded-2xl border-2 bg-[#0D1220] overflow-hidden ${frameBorder} ${frameShadow}`}
       >
         {isNexusQte && (
           <div

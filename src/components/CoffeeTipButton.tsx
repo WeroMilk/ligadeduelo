@@ -60,8 +60,10 @@ export default function CoffeeTipButton() {
       {open &&
         createPortal(
           <div
-            className="fixed inset-0 z-[95] flex items-center justify-center px-4"
+            className="fixed inset-0 z-[220] flex items-center justify-center px-4"
             style={{
+              paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+              paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
               background:
                 'radial-gradient(ellipse at 50% 30%, rgba(201,168,76,0.18), transparent 55%), rgba(0,0,0,0.78)',
             }}
@@ -71,7 +73,7 @@ export default function CoffeeTipButton() {
             aria-labelledby="coffee-tip-title"
           >
             <div
-              className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-[#C9A84C]/55 bg-[#0A0F1C] p-5 shadow-[0_0_50px_rgba(201,168,76,0.25),inset_0_1px_0_rgba(255,255,255,0.06)]"
+              className="modal-panel relative w-full max-w-sm max-h-[min(36rem,calc(100dvh-2rem))] overflow-hidden rounded-2xl border border-[#C9A84C]/55 bg-[#0A0F1C] p-5 shadow-[0_0_50px_rgba(201,168,76,0.25),inset_0_1px_0_rgba(255,255,255,0.06)]"
               onClick={e => e.stopPropagation()}
               style={{
                 backgroundImage:

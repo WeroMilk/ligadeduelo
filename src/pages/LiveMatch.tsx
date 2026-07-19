@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Pause, Play, BarChart3 } from 'lucide-react';
 import { useGame } from '@/hooks/useGameState';
 import Minimap, { type AttackBeam, type ObjectiveAnimPhase, type SpectacleBurst } from '@/components/Minimap';
@@ -1120,32 +1121,43 @@ export default function LiveMatch() {
                   onSimulateTurn={isCoop && !isCoopPvp && !isPaused ? simulateHumanTurn : undefined}
                 />
               )}
+            </div>
+          </div>
 
-              {phase?.t === 'qte_result' && pendingQteResult && !showReplayAd && !playerWonQte(pendingQteResult) && (
-                <div className="absolute inset-0 z-[130] flex items-center justify-center bg-black/70 p-3">
-                  <div className="w-full max-w-sm overflow-hidden rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] p-3 shadow-[0_0_40px_rgba(201,168,76,0.25)]">
+          {phase?.t === 'qte_result' && pendingQteResult && !showReplayAd && !playerWonQte(pendingQteResult)
+            && typeof document !== 'undefined'
+            && createPortal(
+              <div
+                className="fixed inset-0 z-[210] flex items-center justify-center bg-black/80 px-3"
+                style={{
+                  paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+                  paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
+                }}
+              >
+                <div className="modal-panel flex w-full max-w-sm max-h-[min(32rem,calc(100dvh-2rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)))] flex-col overflow-hidden rounded-2xl border-2 border-[#C9A84C]/50 bg-[#0D1220] shadow-[0_0_40px_rgba(201,168,76,0.25)]">
+                  <div className="modal-scroll space-y-3 p-4">
                     <p className="text-center text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
-                      Combate de bolitas
+                      Resultado del combate
                     </p>
                     <h3
-                      className="mt-1 text-center text-lg font-bold text-[#F0E6D2]"
+                      className="text-center text-lg font-bold text-[#F0E6D2]"
                       style={{ fontFamily: 'Cinzel, serif' }}
                     >
                       ¡Casi!
                     </h3>
-                    <p className="mt-1 text-center text-xs text-[#8B9BB4]">
+                    <p className="text-center text-xs leading-snug text-[#8B9BB4]">
                       {qteReplaysLeft > 0
                         ? `Perdiste este intento. Puedes repetir (${qteReplaysLeft} disponibles) viendo un anuncio de 10 segundos.`
                         : 'Perdiste este intento. Ya usaste tus 3 repeticiones de esta partida.'}
                     </p>
-                    <div className={`mt-3 grid grid-cols-1 gap-2 ${
+                    <div className={`grid grid-cols-1 gap-2 ${
                       qteReplaysLeft > 0 ? 'sm:grid-cols-2' : ''
                     }`}>
                       {qteReplaysLeft > 0 && (
                         <button
                           type="button"
                           onClick={requestQteReplay}
-                          className="min-h-10 rounded-xl border border-[#C9A84C]/45 bg-[#C9A84C]/12 font-bold text-[#C9A84C]"
+                          className="min-h-11 rounded-xl border border-[#C9A84C]/45 bg-[#C9A84C]/12 font-bold text-[#C9A84C]"
                         >
                           Repetir
                         </button>
@@ -1153,7 +1165,7 @@ export default function LiveMatch() {
                       <button
                         type="button"
                         onClick={() => confirmQteResult(pendingQteResult)}
-                        className="min-h-10 rounded-xl font-bold"
+                        className="min-h-11 rounded-xl font-bold"
                         style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
                       >
                         Continuar
@@ -1161,9 +1173,9 @@ export default function LiveMatch() {
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
+              </div>,
+              document.body,
+            )}
 
           <CombatAnnounceOverlay batch={announceBatch} placement="inline" paused={matchFrozen} />
 

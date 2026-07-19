@@ -1,6 +1,7 @@
 import { useGame } from '@/hooks/useGameState';
 import { X, Volume2, VolumeX, Music2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   playClickSound,
   getAudioPrefs,
@@ -89,62 +90,71 @@ export default function ExitGameButton() {
         )}
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center px-4 bg-black/70">
-          <div className="w-full max-w-sm rounded-2xl border-2 border-[#2A3550] bg-[#141B2D] p-5 space-y-4">
-            {onHome ? (
-              <>
-                <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-                  Audio
-                </h2>
-                <p className="text-sm text-[#8B9BB4]">Silencia la música o los efectos cuando quieras.</p>
-                <AudioToggles prefs={prefs} />
-                <button
-                  type="button"
-                  onClick={() => {
-                    playClickSound();
-                    setOpen(false);
-                  }}
-                  className="w-full min-h-11 rounded-xl font-bold"
-                  style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
-                >
-                  Listo
-                </button>
-              </>
-            ) : (
-              <>
-                <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
-                  ¿Salir al menú?
-                </h2>
-                <p className="text-sm text-[#8B9BB4]">Se pierden el torneo y la partida actuales.</p>
-                <AudioToggles prefs={prefs} />
-                <div className="flex gap-2">
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[220] flex items-center justify-center bg-black/80 px-4"
+          style={{
+            paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))',
+            paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
+          }}
+        >
+          <div className="modal-panel flex w-full max-w-sm max-h-[min(36rem,calc(100dvh-2rem))] flex-col overflow-hidden rounded-2xl border-2 border-[#2A3550] bg-[#141B2D] shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <div className="modal-scroll space-y-4 p-5">
+              {onHome ? (
+                <>
+                  <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+                    Audio
+                  </h2>
+                  <p className="text-sm text-[#8B9BB4]">Silencia la música o los efectos cuando quieras.</p>
+                  <AudioToggles prefs={prefs} />
                   <button
                     type="button"
                     onClick={() => {
                       playClickSound();
                       setOpen(false);
                     }}
-                    className="flex-1 min-h-11 rounded-xl border border-[#2A3550] text-[#8B9BB4] font-bold"
+                    className="w-full min-h-11 rounded-xl font-bold"
+                    style={{ backgroundColor: '#C9A84C', color: '#0A0E1A' }}
                   >
-                    Cancelar
+                    Listo
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      playClickSound();
-                      setOpen(false);
-                      dispatch({ type: 'EXIT_TO_MODE' });
-                    }}
-                    className="flex-1 min-h-11 rounded-xl font-bold bg-[#E74C3C] text-white"
-                  >
-                    Salir
-                  </button>
-                </div>
-              </>
-            )}
+                </>
+              ) : (
+                <>
+                  <h2 className="text-lg font-bold text-[#F0E6D2]" style={{ fontFamily: 'Cinzel, serif' }}>
+                    ¿Salir al menú?
+                  </h2>
+                  <p className="text-sm text-[#8B9BB4]">Se pierden el torneo y la partida actuales.</p>
+                  <AudioToggles prefs={prefs} />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setOpen(false);
+                      }}
+                      className="flex-1 min-h-11 rounded-xl border border-[#2A3550] text-[#8B9BB4] font-bold"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setOpen(false);
+                        dispatch({ type: 'EXIT_TO_MODE' });
+                      }}
+                      className="flex-1 min-h-11 rounded-xl font-bold bg-[#E74C3C] text-white"
+                    >
+                      Salir
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

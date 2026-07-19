@@ -111,7 +111,7 @@ export default function CoopClickBattle({
             : 'Objetivo';
 
   const body = (
-    <div className="fixed inset-0 z-[95] flex flex-col bg-black/90">
+    <div className="fixed inset-0 z-[205] flex flex-col bg-black/90">
       <div className="shrink-0 border-b border-[#2A3550] px-4 py-3 text-center">
         <p className="text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
           PvP · Combate rápido
